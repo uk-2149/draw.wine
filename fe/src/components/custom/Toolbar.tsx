@@ -1,7 +1,7 @@
 import { TOOLBAR_ITEMS } from "@/constants/toolbar";
 import { Menubar } from "../ui/menubar";
 import { CMenubtn } from "./menubtn";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useDrawing, type ToolType } from "@/contexts/DrawingContext";
 
 export const Toolbar = memo(() => {
@@ -10,12 +10,19 @@ export const Toolbar = memo(() => {
 
   const handleSelect = useCallback(
     (index: number) => {
-      setSelected((prev) => (prev === index ? null : index));
+      // setSelected((prev) => (prev === index ? null : index));
       const toolType = TOOLBAR_ITEMS[index]?.tooltip || "select";
       setSelectedTool(toolType as ToolType);
     },
     [setSelectedTool]
   );
+
+  useEffect(() => {
+    const index = TOOLBAR_ITEMS.findIndex(
+      (item) => item.tooltip === selectedTool
+    );
+    setSelected(index);
+  }, [selectedTool]);
 
   return (
     <Menubar className="w-full border-b h-12">
