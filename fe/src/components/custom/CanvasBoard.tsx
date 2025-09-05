@@ -42,11 +42,25 @@ const getResizeHandles = (element: Element | null) => {
 
 // Helper to erase elements under eraser
 const eraseElements = (elements: Element[], point: Position, radius: number) => {
+  // Helper for point-to-segment distance
+  function pointToSegmentDist(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    if (dx === 0 && dy === 0) {
+      // The segment is a point
+      return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    }
+    const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+    const tClamped = Math.max(0, Math.min(1, t));
+    const closestX = x1 + tClamped * dx;
+    const closestY = y1 + tClamped * dy;
+    return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+  }
   return elements.filter((el) => {
     if (el.type === "Pencil" && el.points) {
-      return !el.points.some((p) =>
+      return !(el.points && el.points.some((p) =>
         Math.sqrt((p.x - point.x) ** 2 + (p.y - point.y) ** 2) < radius
-      );
+      ));
     }
     if (el.type === "Rectangle" || el.type === "Diamond" || el.type === "Circle") {
       const minX = Math.min(el.x, el.x + (el.width || 0));
@@ -61,9 +75,12 @@ const eraseElements = (elements: Element[], point: Position, radius: number) => 
       );
     }
     if (el.type === "Line" || el.type === "Arrow") {
-      const startDist = Math.sqrt((el.x - point.x) ** 2 + (el.y - point.y) ** 2);
-      const endDist = Math.sqrt((el.x + (el.width || 0) - point.x) ** 2 + (el.y + (el.height || 0) - point.y) ** 2);
-      return startDist > radius && endDist > radius;
+      const x1 = el.x;
+      const y1 = el.y;
+      const x2 = el.x + (el.width || 0);
+      const y2 = el.y + (el.height || 0);
+      const dist = pointToSegmentDist(point.x, point.y, x1, y1, x2, y2);
+      return dist > radius;
     }
     if (el.type === "Text" && el.text) {
       const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
@@ -953,7 +970,7 @@ export const CanvasBoard = () => {
     setResizing(null);
     setResizeStart(null);
     // Switch back to select tool after drawing a shape (not for select or Text)
-    if (selectedTool !== "select" && selectedTool !== "Text") {
+    if (selectedTool !== "select" && selectedTool !== "Text" && selectedTool !== "Eraser") {
       setSelectedTool("select");
     }
   }, [selectedTool, setSelectedTool]);
@@ -968,6 +985,9 @@ export const CanvasBoard = () => {
 
       if (clickedElement && clickedElement.type === "Text") {
         startTextEditing(clickedElement);
+      } 
+      else {
+        setSelectedTool("Text");
       }
     },
     [selectedTool, getTransformedPoint, getElementAtPoint, startTextEditing]
