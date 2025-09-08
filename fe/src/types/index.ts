@@ -18,4 +18,6 @@ export interface Element {
   text?: string;
   fontSize?: number;
   fontFamily?: string;
+  imageUrl?: string; // URL or base64 string for the image
+  aspectRatio?: number; // To maintain image proportions while resizing
 }

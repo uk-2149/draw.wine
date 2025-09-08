@@ -2,104 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
 import rough from "roughjs";
 import type { Position, Element } from "@/types";
-
-// Helper to get handle positions for resizing
-const getResizeHandles = (element: Element | null) => {
-  if (!element) return [];
-  switch (element.type) {
-    case "Rectangle":
-    case "Diamond":
-    case "Circle": {
-      if (element.width && element.height) {
-        const minX = Math.min(element.x, element.x + element.width);
-        const maxX = Math.max(element.x, element.x + element.width);
-        const minY = Math.min(element.y, element.y + element.height);
-        const maxY = Math.max(element.y, element.y + element.height);
-        return [
-          { x: minX, y: minY, cursor: "nwse-resize", corner: "tl" },
-          { x: maxX, y: minY, cursor: "nesw-resize", corner: "tr" },
-          { x: maxX, y: maxY, cursor: "nwse-resize", corner: "br" },
-          { x: minX, y: maxY, cursor: "nesw-resize", corner: "bl" },
-        ];
-      }
-      break;
-    }
-    case "Line":
-    case "Arrow": {
-      if (element.width !== undefined && element.height !== undefined) {
-        return [
-          { x: element.x, y: element.y, cursor: "move", corner: "start" },
-          { x: element.x + element.width, y: element.y + element.height, cursor: "move", corner: "end" },
-        ];
-      }
-      break;
-    }
-    default:
-      return [];
-  }
-  return [];
-};
-
-// Helper to erase elements under eraser
-const eraseElements = (elements: Element[], point: Position, radius: number) => {
-  // Helper for point-to-segment distance
-  function pointToSegmentDist(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    if (dx === 0 && dy === 0) {
-      // The segment is a point
-      return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
-    }
-    const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
-    const tClamped = Math.max(0, Math.min(1, t));
-    const closestX = x1 + tClamped * dx;
-    const closestY = y1 + tClamped * dy;
-    return Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
-  }
-  return elements.filter((el) => {
-    if (el.type === "Pencil" && el.points) {
-      return !(el.points && el.points.some((p) =>
-        Math.sqrt((p.x - point.x) ** 2 + (p.y - point.y) ** 2) < radius
-      ));
-    }
-    if (el.type === "Rectangle" || el.type === "Diamond" || el.type === "Circle") {
-      const minX = Math.min(el.x, el.x + (el.width || 0));
-      const maxX = Math.max(el.x, el.x + (el.width || 0));
-      const minY = Math.min(el.y, el.y + (el.height || 0));
-      const maxY = Math.max(el.y, el.y + (el.height || 0));
-      return (
-        point.x < minX - radius ||
-        point.x > maxX + radius ||
-        point.y < minY - radius ||
-        point.y > maxY + radius
-      );
-    }
-    if (el.type === "Line" || el.type === "Arrow") {
-      const x1 = el.x;
-      const y1 = el.y;
-      const x2 = el.x + (el.width || 0);
-      const y2 = el.y + (el.height || 0);
-      const dist = pointToSegmentDist(point.x, point.y, x1, y1, x2, y2);
-      return dist > radius;
-    }
-    if (el.type === "Text" && el.text) {
-      const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
-      const textHeight = el.fontSize || 20;
-      return (
-        point.x < el.x - radius ||
-        point.x > el.x + textWidth + radius ||
-        point.y < el.y - radius ||
-        point.y > el.y + textHeight + radius
-      );
-    }
-    return true;
-  });
-};
+import { eraseElements, getResizeHandles } from "@/utils/canvas";
+import {
+  loadFromLocalStorage,
+  saveToLocalStorage,
+} from "@/utils/StoreProgress";
+import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 
 export const CanvasBoard = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { selectedTool, strokeColor, strokeWidth, setSelectedTool } = useDrawing();
+  const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
+    useDrawing();
   const [elements, setElements] = useState<Element[]>([]);
   const [drawing, setDrawing] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
@@ -112,12 +26,29 @@ export const CanvasBoard = () => {
   const [selectedElement, setSelectedElement] = useState<Element | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
-  const [resizing, setResizing] = useState<{ corner: string; elementId: string } | null>(null);
+  const [resizing, setResizing] = useState<{
+    corner: string;
+    elementId: string;
+  } | null>(null);
   const [resizeStart, setResizeStart] = useState<Position | null>(null);
   const [eraserPos, setEraserPos] = useState<Position | null>(null);
-  const ERASER_RADIUS = 10;
 
-   const redrawCanvas = useCallback(() => {
+  useEffect(() => {
+    const savedElements = loadFromLocalStorage();
+    if (savedElements.length > 0) {
+      setElements(savedElements);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveToLocalStorage(elements);
+    }, AUTO_SAVE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [elements]);
+
+  const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -349,7 +280,9 @@ export const CanvasBoard = () => {
         case "Text": {
           if (selectedElement.text) {
             const textWidth =
-              selectedElement.text.length * (selectedElement.fontSize || 20) * 0.6;
+              selectedElement.text.length *
+              (selectedElement.fontSize || 20) *
+              0.6;
             const textHeight = selectedElement.fontSize || 20;
             ctx.strokeRect(
               selectedElement.x - padding,
@@ -677,7 +610,10 @@ export const CanvasBoard = () => {
           const dx = point.x - handle.x;
           const dy = point.y - handle.y;
           if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && selectedElement) {
-            setResizing({ corner: handle.corner, elementId: selectedElement.id });
+            setResizing({
+              corner: handle.corner,
+              elementId: selectedElement.id,
+            });
             setResizeStart(point);
             return;
           }
@@ -758,7 +694,8 @@ export const CanvasBoard = () => {
       // Eraser tool: show cursor and erase elements
       if (selectedTool === "Eraser") {
         setEraserPos(point);
-        if (e.buttons === 1) { // Mouse is pressed
+        if (e.buttons === 1) {
+          // Mouse is pressed
           setElements((prev) => eraseElements(prev, point, ERASER_RADIUS));
         }
         return;
@@ -838,7 +775,13 @@ export const CanvasBoard = () => {
                     newHeight = point.y - newY;
                     break;
                 }
-                updatedElement = { ...el, x: newX, y: newY, width: newWidth, height: newHeight };
+                updatedElement = {
+                  ...el,
+                  x: newX,
+                  y: newY,
+                  width: newWidth,
+                  height: newHeight,
+                };
                 return updatedElement;
               }
               case "Line":
@@ -849,9 +792,19 @@ export const CanvasBoard = () => {
                 if (resizing.corner === "start") {
                   const newWidth = el.x + elWidth - point.x;
                   const newHeight = el.y + elHeight - point.y;
-                  result = { ...el, x: point.x, y: point.y, width: newWidth, height: newHeight };
+                  result = {
+                    ...el,
+                    x: point.x,
+                    y: point.y,
+                    width: newWidth,
+                    height: newHeight,
+                  };
                 } else if (resizing.corner === "end") {
-                  result = { ...el, width: point.x - el.x, height: point.y - el.y };
+                  result = {
+                    ...el,
+                    width: point.x - el.x,
+                    height: point.y - el.y,
+                  };
                 } else {
                   result = el;
                 }
@@ -970,7 +923,11 @@ export const CanvasBoard = () => {
     setResizing(null);
     setResizeStart(null);
     // Switch back to select tool after drawing a shape (not for select or Text)
-    if (selectedTool !== "select" && selectedTool !== "Text" && selectedTool !== "Eraser") {
+    if (
+      selectedTool !== "select" &&
+      selectedTool !== "Text" &&
+      selectedTool !== "Eraser"
+    ) {
       setSelectedTool("select");
     }
   }, [selectedTool, setSelectedTool]);
@@ -985,8 +942,7 @@ export const CanvasBoard = () => {
 
       if (clickedElement && clickedElement.type === "Text") {
         startTextEditing(clickedElement);
-      } 
-      else {
+      } else {
         setSelectedTool("Text");
       }
     },
@@ -1056,7 +1012,11 @@ export const CanvasBoard = () => {
       )}
 
       {/* Resize Handles */}
-      {selectedTool === "select" && selectedElement && ["Rectangle", "Diamond", "Circle", "Line", "Arrow"].includes(selectedElement.type) &&
+      {selectedTool === "select" &&
+        selectedElement &&
+        ["Rectangle", "Diamond", "Circle", "Line", "Arrow"].includes(
+          selectedElement.type
+        ) &&
         getResizeHandles(selectedElement).map((handle, idx) => (
           <div
             key={idx}
@@ -1075,7 +1035,10 @@ export const CanvasBoard = () => {
             onMouseDown={(e) => {
               e.stopPropagation();
               if (selectedElement) {
-                setResizing({ corner: handle.corner, elementId: selectedElement.id });
+                setResizing({
+                  corner: handle.corner,
+                  elementId: selectedElement.id,
+                });
                 setResizeStart(getTransformedPoint(e));
               }
             }}
