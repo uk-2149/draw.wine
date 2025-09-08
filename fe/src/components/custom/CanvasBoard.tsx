@@ -33,6 +33,7 @@ export const CanvasBoard = () => {
   const [resizeStart, setResizeStart] = useState<Position | null>(null);
   const [eraserPos, setEraserPos] = useState<Position | null>(null);
 
+  // Save in local storage and load from that
   useEffect(() => {
     const savedElements = loadFromLocalStorage();
     if (savedElements.length > 0) {
@@ -78,6 +79,20 @@ export const CanvasBoard = () => {
       };
 
       switch (element.type) {
+        case "Image": {
+          if (element.imageUrl && element.width && element.height) {
+            const img = new Image();
+            img.src = element.imageUrl;
+            ctx.drawImage(
+              img,
+              element.x,
+              element.y,
+              element.width,
+              element.height
+            );
+          }
+          break;
+        }
         case "Rectangle": {
           if (element.width && element.height) {
             rc.rectangle(
@@ -225,7 +240,8 @@ export const CanvasBoard = () => {
       switch (selectedElement.type) {
         case "Rectangle":
         case "Diamond":
-        case "Circle": {
+        case "Circle":
+        case "Image": {
           if (selectedElement.width && selectedElement.height) {
             const minX = Math.min(
               selectedElement.x,
@@ -471,7 +487,8 @@ export const CanvasBoard = () => {
         switch (element.type) {
           case "Rectangle":
           case "Diamond":
-          case "Circle": {
+          case "Circle":
+          case "Image": {
             if (element.width && element.height) {
               const minX = Math.min(element.x, element.x + element.width);
               const maxX = Math.max(element.x, element.x + element.width);
@@ -642,6 +659,15 @@ export const CanvasBoard = () => {
         return;
       }
 
+      // Handle Image tool - trigger file input
+      if (selectedTool === "Image") {
+        const input = document.getElementById(
+          "imageUpload"
+        ) as HTMLInputElement;
+        input?.click();
+        return;
+      }
+
       // Handle Eraser tool - immediate erasing on mousedown
       if (selectedTool === "Eraser") {
         const point = getTransformedPoint(e);
@@ -746,6 +772,54 @@ export const CanvasBoard = () => {
           const updated = prev.map((el) => {
             if (el.id !== resizing.elementId) return el;
             switch (el.type) {
+              case "Image": {
+                // For images, maintain aspect ratio
+                const aspectRatio = el.aspectRatio || 1;
+                let newWidth = 0;
+                let newHeight = 0;
+                let newX = el.x;
+                let newY = el.y;
+
+                switch (resizing.corner) {
+                  case "tl": {
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = newWidth / aspectRatio;
+                    newX = point.x;
+                    newY = el.y + (el.height || 0) - newHeight;
+                    break;
+                  }
+                  case "tr": {
+                    newWidth = point.x - el.x;
+                    newHeight = newWidth / aspectRatio;
+                    newY = el.y + (el.height || 0) - newHeight;
+                    break;
+                  }
+                  case "br": {
+                    newWidth = point.x - el.x;
+                    newHeight = newWidth / aspectRatio;
+                    break;
+                  }
+                  case "bl": {
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = newWidth / aspectRatio;
+                    newX = point.x;
+                    break;
+                  }
+                }
+
+                if (newWidth > 10 && newHeight > 10) {
+                  // Prevent too small sizes
+                  updatedElement = {
+                    ...el,
+                    x: newX,
+                    y: newY,
+                    width: newWidth,
+                    height: newHeight,
+                  };
+                  return updatedElement;
+                }
+                return el;
+              }
               case "Rectangle":
               case "Diamond":
               case "Circle": {
@@ -753,6 +827,33 @@ export const CanvasBoard = () => {
                 let newY = el.y;
                 let newWidth = el.width || 0;
                 let newHeight = el.height || 0;
+
+                switch (resizing.corner) {
+                  case "tl": {
+                    newWidth += newX - point.x;
+                    newHeight += newY - point.y;
+                    newX = point.x;
+                    newY = point.y;
+                    break;
+                  }
+                  case "tr": {
+                    newWidth = point.x - newX;
+                    newHeight += newY - point.y;
+                    newY = point.y;
+                    break;
+                  }
+                  case "br": {
+                    newWidth = point.x - newX;
+                    newHeight = point.y - newY;
+                    break;
+                  }
+                  case "bl": {
+                    newWidth += newX - point.x;
+                    newHeight = point.y - newY;
+                    newX = point.x;
+                    break;
+                  }
+                }
                 switch (resizing.corner) {
                   case "tl":
                     newWidth += newX - point.x;
@@ -946,7 +1047,79 @@ export const CanvasBoard = () => {
         setSelectedTool("Text");
       }
     },
-    [selectedTool, getTransformedPoint, getElementAtPoint, startTextEditing]
+    [
+      selectedTool,
+      getTransformedPoint,
+      getElementAtPoint,
+      startTextEditing,
+      setSelectedTool,
+    ]
+  );
+
+  // Handle image upload
+  const handleImageUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imageUrl = event.target?.result as string;
+          const img = new Image();
+          img.onload = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+
+            // Get the visible canvas area (accounting for scale and position)
+            const visibleWidth = canvas.width / window.devicePixelRatio / scale;
+            const visibleHeight =
+              canvas.height / window.devicePixelRatio / scale;
+
+            // Calculate maximum dimensions (50% of visible area)
+            const maxWidth = visibleWidth * 0.5;
+            const maxHeight = visibleHeight * 0.5;
+
+            // Calculate dimensions maintaining aspect ratio
+            const aspectRatio = img.width / img.height;
+            let newWidth = img.width;
+            let newHeight = img.height;
+
+            if (newWidth > maxWidth) {
+              newWidth = maxWidth;
+              newHeight = newWidth / aspectRatio;
+            }
+            if (newHeight > maxHeight) {
+              newHeight = maxHeight;
+              newWidth = newHeight * aspectRatio;
+            }
+
+            // Calculate center position in visible area
+            const centerX = -position.x / scale + (visibleWidth - newWidth) / 2;
+            const centerY =
+              -position.y / scale + (visibleHeight - newHeight) / 2;
+
+            const newElement: Element = {
+              id: Date.now().toString(),
+              type: "Image",
+              x: centerX,
+              y: centerY,
+              width: newWidth,
+              height: newHeight,
+              strokeColor: strokeColor,
+              strokeWidth: strokeWidth,
+              imageUrl: imageUrl,
+              aspectRatio: aspectRatio,
+            };
+
+            setElements((prev) => [...prev, newElement]);
+            setSelectedElement(newElement);
+            setSelectedTool("select"); // Switch to select tool after placing image
+          };
+          img.src = imageUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    },
+    [strokeColor, strokeWidth, setSelectedTool, scale, position, canvasRef]
   );
 
   return (
@@ -968,6 +1141,13 @@ export const CanvasBoard = () => {
           : "default",
       }}
     >
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        id="imageUpload"
+        onChange={handleImageUpload}
+      />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
 
       {/* Text Input Overlay */}
@@ -1014,7 +1194,7 @@ export const CanvasBoard = () => {
       {/* Resize Handles */}
       {selectedTool === "select" &&
         selectedElement &&
-        ["Rectangle", "Diamond", "Circle", "Line", "Arrow"].includes(
+        ["Rectangle", "Diamond", "Circle", "Line", "Arrow", "Image"].includes(
           selectedElement.type
         ) &&
         getResizeHandles(selectedElement).map((handle, idx) => (

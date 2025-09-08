@@ -6,7 +6,8 @@ export const getResizeHandles = (element: Element | null) => {
   switch (element.type) {
     case "Rectangle":
     case "Diamond":
-    case "Circle": {
+    case "Circle":
+    case "Image": {
       if (element.width && element.height) {
         const minX = Math.min(element.x, element.x + element.width);
         const maxX = Math.max(element.x, element.x + element.width);
