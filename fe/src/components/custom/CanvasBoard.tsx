@@ -365,6 +365,87 @@ export const CanvasBoard = () => {
   }, [elements, position, scale, selectedElement, editingTextId]);
 
   // Initialize canvas size
+  // Handle delete key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedElement &&
+        !isEditingText
+      ) {
+        e.preventDefault();
+        setElements((prev) =>
+          prev.filter((el) => el.id !== selectedElement.id)
+        );
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElement, isEditingText]);
+
+  // Handle tool shortcuts
+  useEffect(() => {
+    const handleToolShortcuts = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts while editing text or if modifiers are pressed
+      if (isEditingText || e.ctrlKey || e.altKey || e.metaKey) return;
+
+      switch (e.key.toLowerCase()) {
+        case "s":
+          setSelectedTool("select");
+          break;
+        case "p":
+          setSelectedTool("Pencil");
+          break;
+        case "t":
+          setSelectedTool("Text");
+          break;
+        case "r":
+          setSelectedTool("Rectangle");
+          break;
+        case "c":
+          setSelectedTool("Circle");
+          break;
+        case "l":
+          setSelectedTool("Line");
+          break;
+        case "a":
+          setSelectedTool("Arrow");
+          break;
+        case "d":
+          setSelectedTool("Diamond");
+          break;
+        case "e":
+          setSelectedTool("Eraser");
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleToolShortcuts);
+    return () => window.removeEventListener("keydown", handleToolShortcuts);
+  }, [isEditingText, setSelectedTool]);
+
+  // Handle delete key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedElement &&
+        !isEditingText
+      ) {
+        e.preventDefault();
+        setElements((prev) =>
+          prev.filter((el) => el.id !== selectedElement.id)
+        );
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElement, isEditingText]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1066,11 +1147,11 @@ export const CanvasBoard = () => {
     setIsDragging(false);
     setResizing(null);
     setResizeStart(null);
-    // Switch back to select tool after drawing a shape (not for select or Text)
+    // Switch back to select tool after drawing a shape (not for select, Text, Pencil or Eraser)
     if (
       selectedTool !== "select" &&
-      selectedTool !== "Text" &&
-      selectedTool !== "Eraser"
+      selectedTool !== "Eraser" &&
+      selectedTool !== "Pencil"
     ) {
       setSelectedTool("select");
     }

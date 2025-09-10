@@ -19,6 +19,11 @@ import { RiResetLeftFill } from "react-icons/ri";
 import { LuBadgeHelp } from "react-icons/lu";
 
 export const Left3bar = () => {
+  const gotoGithub = () => {
+    const url = "https://github.com/pandarudra/draw.wine";
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -68,7 +73,7 @@ export const Left3bar = () => {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>GitHub</DropdownMenuItem>
+        <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>
         <DropdownMenuItem>Support</DropdownMenuItem>
         <DropdownMenuItem disabled>API</DropdownMenuItem>
         <DropdownMenuSeparator />
