@@ -1086,11 +1086,11 @@ export const CanvasBoard = () => {
     setIsDragging(false);
     setResizing(null);
     setResizeStart(null);
-    // Switch back to select tool after drawing a shape (not for select or Text)
+    // Switch back to select tool after drawing a shape (not for select, Text, Pencil or Eraser)
     if (
       selectedTool !== "select" &&
-      selectedTool !== "Text" &&
-      selectedTool !== "Eraser"
+      selectedTool !== "Eraser" &&
+      selectedTool !== "Pencil"
     ) {
       setSelectedTool("select");
     }
