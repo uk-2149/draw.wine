@@ -10,6 +10,28 @@ A modern, web-based drawing application built with React, TypeScript, and Vite. 
 - Modern UI components using Radix UI
 - Real-time drawing capabilities
 - Save and restore drawing progress
+- Keyboard shortcuts for quick tool selection
+- Multiple shape tools (Rectangle, Circle, Diamond, Line, Arrow)
+- Freehand drawing with Pencil tool
+- Text tool with custom font support
+- Image upload and manipulation
+- Selection tool for moving and resizing elements
+- Eraser tool for precise corrections
+- Delete functionality for selected elements
+- Zoom and pan capabilities
+
+### Keyboard Shortcuts
+
+- `s` - Select tool
+- `p` - Pencil tool
+- `t` - Text tool
+- `r` - Rectangle tool
+- `c` - Circle tool
+- `l` - Line tool
+- `a` - Arrow tool
+- `d` - Diamond tool
+- `e` - Eraser tool
+- `Delete/Backspace` - Delete selected element
 
 ## Tech Stack
 
