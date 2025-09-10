@@ -3,6 +3,8 @@ import { useDrawing } from "@/contexts/DrawingContext";
 import rough from "roughjs";
 import type { Position, Element } from "@/types";
 import { eraseElements, getResizeHandles } from "@/utils/canvas";
+import { ImageLoader } from "@/utils/imageLoader";
+import { isElementInViewport } from "@/utils/viewport";
 import {
   loadFromLocalStorage,
   saveToLocalStorage,
@@ -39,6 +41,11 @@ export const CanvasBoard = () => {
     if (savedElements.length > 0) {
       setElements(savedElements);
     }
+
+    // Cleanup image cache when component unmounts
+    return () => {
+      ImageLoader.clear();
+    };
   }, []);
 
   useEffect(() => {
@@ -81,15 +88,38 @@ export const CanvasBoard = () => {
       switch (element.type) {
         case "Image": {
           if (element.imageUrl && element.width && element.height) {
-            const img = new Image();
-            img.src = element.imageUrl;
-            ctx.drawImage(
-              img,
-              element.x,
-              element.y,
-              element.width,
-              element.height
+            // Check if the image is in viewport before loading/drawing
+            const isVisible = isElementInViewport(
+              element,
+              canvas.width / window.devicePixelRatio,
+              canvas.height / window.devicePixelRatio,
+              position,
+              scale
             );
+
+            if (isVisible) {
+              // Get image synchronously from cache
+              const img = ImageLoader.getFromCache(element.imageUrl);
+              if (img) {
+                ctx.drawImage(
+                  img,
+                  element.x,
+                  element.y,
+                  element.width!,
+                  element.height!
+                );
+              } else {
+                // Load the image if not in cache
+                ImageLoader.load(element.imageUrl)
+                  .then(() => {
+                    // Trigger a redraw once the image is loaded
+                    redrawCanvas();
+                  })
+                  .catch((error) => {
+                    console.error("Error loading image:", error);
+                  });
+              }
+            }
           }
           break;
         }
@@ -363,8 +393,19 @@ export const CanvasBoard = () => {
   }, [redrawCanvas]);
 
   // Redraw canvas when elements change
+  // Reference to track if component is mounted
+  const isMounted = useRef(true);
+
   useEffect(() => {
-    redrawCanvas();
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isMounted.current) {
+      requestAnimationFrame(redrawCanvas);
+    }
   }, [elements, position, scale, redrawCanvas]);
 
   useEffect(() => {
@@ -712,9 +753,11 @@ export const CanvasBoard = () => {
     (e: React.MouseEvent) => {
       const point = getTransformedPoint(e);
       if (isPanning) {
-        const newX = e.clientX - startPan.x;
-        const newY = e.clientY - startPan.y;
-        setPosition({ x: newX, y: newY });
+        requestAnimationFrame(() => {
+          const newX = e.clientX - startPan.x;
+          const newY = e.clientY - startPan.y;
+          setPosition({ x: newX, y: newY });
+        });
         return;
       }
       // Eraser tool: show cursor and erase elements

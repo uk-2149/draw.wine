@@ -3,12 +3,12 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export const Landing = () => {
-  const path: string = getLocalPath();
   const navigate = useNavigate();
   useEffect(() => {
+    const path: string = getLocalPath();
     if (path) {
       navigate(path);
     }
-  }, [path]);
+  }, []);
   return <> </>;
 };
