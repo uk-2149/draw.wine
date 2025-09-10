@@ -7,6 +7,8 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
+  font-feature-settings: "kern";
+  -webkit-font-smoothing: antialiased;
 }
 
 @custom-variant dark (&:is(.dark *));
