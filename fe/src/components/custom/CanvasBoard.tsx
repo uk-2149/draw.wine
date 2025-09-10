@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
 import rough from "roughjs";
 import type { Position, Element } from "@/types";
+import { useLaserTrail } from "./LaserTrail";
 import { eraseElements, getResizeHandles } from "@/utils/canvas";
 import { ImageLoader } from "@/utils/imageLoader";
 import { isElementInViewport } from "@/utils/viewport";
@@ -14,6 +15,7 @@ import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 export const CanvasBoard = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animationFrame = useRef<number | null>(null);
   const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
     useDrawing();
   const [elements, setElements] = useState<Element[]>([]);
@@ -34,6 +36,7 @@ export const CanvasBoard = () => {
   } | null>(null);
   const [resizeStart, setResizeStart] = useState<Position | null>(null);
   const [eraserPos, setEraserPos] = useState<Position | null>(null);
+  const laser = useLaserTrail();
 
   // Save in local storage and load from that
   useEffect(() => {
@@ -42,9 +45,14 @@ export const CanvasBoard = () => {
       setElements(savedElements);
     }
 
-    // Cleanup image cache when component unmounts
+    const frameRef = animationFrame;
+
+    // Cleanup image cache and animation frame when component unmounts
     return () => {
       ImageLoader.clear();
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+      }
     };
   }, []);
 
@@ -360,9 +368,64 @@ export const CanvasBoard = () => {
       ctx.restore();
     }
 
+    // Draw laser trail
+    if (selectedTool === "Laser") {
+      ctx.save();
+
+      // Draw the trail
+      if (laser.trail.length > 1) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 4; // Increased line width for bolder laser trail
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        for (let i = 1; i < laser.trail.length; i++) {
+          const prevPoint = laser.trail[i - 1];
+          const currentPoint = laser.trail[i];
+
+          ctx.globalAlpha = currentPoint.opacity;
+          ctx.beginPath();
+          ctx.moveTo(prevPoint.point.x, prevPoint.point.y);
+          ctx.lineTo(currentPoint.point.x, currentPoint.point.y);
+          ctx.stroke();
+        }
+      }
+
+      // Draw current laser point if trail exists
+      if (laser.trail.length > 0) {
+        const lastPoint = laser.trail[laser.trail.length - 1].point;
+        ctx.globalAlpha = 1;
+        const gradient = ctx.createRadialGradient(
+          lastPoint.x,
+          lastPoint.y,
+          0,
+          lastPoint.x,
+          lastPoint.y,
+          5
+        );
+        gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
+        gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
     // Restore context
     ctx.restore();
-  }, [elements, position, scale, selectedElement, editingTextId]);
+  }, [
+    elements,
+    position,
+    scale,
+    selectedElement,
+    editingTextId,
+    selectedTool,
+    laser.trail,
+  ]);
 
   // Initialize canvas size
   // Handle delete key press
@@ -415,6 +478,9 @@ export const CanvasBoard = () => {
           break;
         case "d":
           setSelectedTool("Diamond");
+          break;
+        case "q":
+          setSelectedTool("Laser");
           break;
         case "e":
           setSelectedTool("Eraser");
@@ -841,6 +907,18 @@ export const CanvasBoard = () => {
         });
         return;
       }
+
+      // Laser tool: handle trail
+      if (selectedTool === "Laser") {
+        if (e.buttons === 1) {
+          // Only add points when mouse button is pressed
+          laser.addPoint(point);
+        } else {
+          laser.clearTrail();
+        }
+        return;
+      }
+
       // Eraser tool: show cursor and erase elements
       if (selectedTool === "Eraser") {
         setEraserPos(point);
@@ -1011,30 +1089,21 @@ export const CanvasBoard = () => {
               }
               case "Line":
               case "Arrow": {
-                const elWidth = el.width || 0;
-                const elHeight = el.height || 0;
-                let result: Element;
-                if (resizing.corner === "start") {
-                  const newWidth = el.x + elWidth - point.x;
-                  const newHeight = el.y + elHeight - point.y;
-                  result = {
-                    ...el,
-                    x: point.x,
-                    y: point.y,
-                    width: newWidth,
-                    height: newHeight,
-                  };
-                } else if (resizing.corner === "end") {
-                  result = {
-                    ...el,
-                    width: point.x - el.x,
-                    height: point.y - el.y,
-                  };
-                } else {
-                  result = el;
-                }
-                updatedElement = result;
-                return result;
+                updatedElement = {
+                  ...el,
+                  x: resizing.corner === "start" ? point.x : el.x,
+                  y: resizing.corner === "start" ? point.y : el.y,
+                  width:
+                    resizing.corner === "start"
+                      ? el.x + (el.width || 0) - point.x
+                      : point.x - el.x,
+                  height:
+                    resizing.corner === "start"
+                      ? el.y + (el.height || 0) - point.y
+                      : point.y - el.y,
+                  type: el.type,
+                };
+                return updatedElement;
               }
               default:
                 return el;
@@ -1137,6 +1206,7 @@ export const CanvasBoard = () => {
       resizing,
       resizeStart,
       selectedTool,
+      laser,
     ]
   );
 
@@ -1151,7 +1221,8 @@ export const CanvasBoard = () => {
     if (
       selectedTool !== "select" &&
       selectedTool !== "Eraser" &&
-      selectedTool !== "Pencil"
+      selectedTool !== "Pencil" &&
+      selectedTool !== "Laser"
     ) {
       setSelectedTool("select");
     }
