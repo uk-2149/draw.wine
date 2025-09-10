@@ -365,6 +365,26 @@ export const CanvasBoard = () => {
   }, [elements, position, scale, selectedElement, editingTextId]);
 
   // Initialize canvas size
+  // Handle delete key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedElement &&
+        !isEditingText
+      ) {
+        e.preventDefault();
+        setElements((prev) =>
+          prev.filter((el) => el.id !== selectedElement.id)
+        );
+        setSelectedElement(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedElement, isEditingText]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
