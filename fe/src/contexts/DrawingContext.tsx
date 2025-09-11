@@ -10,7 +10,8 @@ export type ToolType =
   | "Pencil"
   | "Text"
   | "Image"
-  | "Eraser";
+  | "Eraser"
+  | "Laser";
 
 interface DrawingContextType {
   selectedTool: ToolType;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
 import rough from "roughjs";
 import type { Position, Element } from "@/types";
+import { useLaserTrail } from "./LaserTrail";
 import { eraseElements, getResizeHandles } from "@/utils/canvas";
 import { ImageLoader } from "@/utils/imageLoader";
 import { isElementInViewport } from "@/utils/viewport";
@@ -14,6 +15,7 @@ import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 export const CanvasBoard = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const animationFrame = useRef<number | null>(null);
   const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
     useDrawing();
   const [elements, setElements] = useState<Element[]>([]);
@@ -34,6 +36,12 @@ export const CanvasBoard = () => {
   } | null>(null);
   const [resizeStart, setResizeStart] = useState<Position | null>(null);
   const [eraserPos, setEraserPos] = useState<Position | null>(null);
+  const [selectionArea, setSelectionArea] = useState<{
+    start: Position;
+    end: Position;
+  } | null>(null);
+  const [selectedElements, setSelectedElements] = useState<Element[]>([]);
+  const laser = useLaserTrail();
 
   // Save in local storage and load from that
   useEffect(() => {
@@ -42,9 +50,14 @@ export const CanvasBoard = () => {
       setElements(savedElements);
     }
 
-    // Cleanup image cache when component unmounts
+    const frameRef = animationFrame;
+
+    // Cleanup image cache and animation frame when component unmounts
     return () => {
       ImageLoader.clear();
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+      }
     };
   }, []);
 
@@ -260,109 +273,187 @@ export const CanvasBoard = () => {
       }
     });
 
-    // Draw selection highlight
-    if (selectedElement) {
+    // Draw selection area if active
+    if (selectionArea) {
+      ctx.save();
+      ctx.strokeStyle = "#007acc";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      const width = selectionArea.end.x - selectionArea.start.x;
+      const height = selectionArea.end.y - selectionArea.start.y;
+      ctx.strokeRect(
+        selectionArea.start.x,
+        selectionArea.start.y,
+        width,
+        height
+      );
+      ctx.restore();
+    }
+
+    // Draw selection highlight for all selected elements
+    if (selectedElements.length > 0) {
       ctx.save();
       ctx.strokeStyle = "#007acc";
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
       const padding = 10;
-      switch (selectedElement.type) {
-        case "Rectangle":
-        case "Diamond":
-        case "Circle":
-        case "Image": {
-          if (selectedElement.width && selectedElement.height) {
-            const minX = Math.min(
-              selectedElement.x,
-              selectedElement.x + selectedElement.width
-            );
-            const maxX = Math.max(
-              selectedElement.x,
-              selectedElement.x + selectedElement.width
-            );
-            const minY = Math.min(
-              selectedElement.y,
-              selectedElement.y + selectedElement.height
-            );
-            const maxY = Math.max(
-              selectedElement.y,
-              selectedElement.y + selectedElement.height
-            );
-            ctx.strokeRect(
-              minX - padding,
-              minY - padding,
-              maxX - minX + padding * 2,
-              maxY - minY + padding * 2
-            );
+
+      selectedElements.forEach((element) => {
+        switch (element.type) {
+          case "Rectangle":
+          case "Diamond":
+          case "Circle":
+          case "Image": {
+            if (element.width && element.height) {
+              const minX = Math.min(element.x, element.x + element.width);
+              const maxX = Math.max(element.x, element.x + element.width);
+              const minY = Math.min(element.y, element.y + element.height);
+              const maxY = Math.max(element.y, element.y + element.height);
+              ctx.strokeRect(
+                minX - padding,
+                minY - padding,
+                maxX - minX + padding * 2,
+                maxY - minY + padding * 2
+              );
+            }
+            break;
           }
-          break;
-        }
-        case "Line": {
-          // Show selection only for Line, not Arrow
-          if (
-            selectedElement.width !== undefined &&
-            selectedElement.height !== undefined
-          ) {
-            const endX = selectedElement.x + selectedElement.width;
-            const endY = selectedElement.y + selectedElement.height;
-            const minX = Math.min(selectedElement.x, endX);
-            const maxX = Math.max(selectedElement.x, endX);
-            const minY = Math.min(selectedElement.y, endY);
-            const maxY = Math.max(selectedElement.y, endY);
-            ctx.strokeRect(
-              minX - padding,
-              minY - padding,
-              maxX - minX + padding * 2,
-              maxY - minY + padding * 2
-            );
+          case "Line": {
+            // Show selection only for Line, not Arrow
+            if (element.width !== undefined && element.height !== undefined) {
+              const endX = element.x + element.width;
+              const endY = element.y + element.height;
+              const minX = Math.min(element.x, endX);
+              const maxX = Math.max(element.x, endX);
+              const minY = Math.min(element.y, endY);
+              const maxY = Math.max(element.y, endY);
+              ctx.strokeRect(
+                minX - padding,
+                minY - padding,
+                maxX - minX + padding * 2,
+                maxY - minY + padding * 2
+              );
+            }
+            break;
           }
-          break;
-        }
-        case "Arrow": {
-          // Do not draw selection rectangle for Arrow
-          break;
-        }
-        case "Text": {
-          if (selectedElement.text) {
-            const textWidth =
-              selectedElement.text.length *
-              (selectedElement.fontSize || 20) *
-              0.6;
-            const textHeight = selectedElement.fontSize || 20;
-            ctx.strokeRect(
-              selectedElement.x - padding,
-              selectedElement.y - padding,
-              textWidth + padding * 2,
-              textHeight + padding * 2
-            );
+          case "Arrow": {
+            // Do not draw selection rectangle for Arrow
+            break;
           }
-          break;
-        }
-        case "Pencil": {
-          if (selectedElement.points && selectedElement.points.length > 0) {
-            const xs = selectedElement.points.map((p) => p.x);
-            const ys = selectedElement.points.map((p) => p.y);
-            const minX = Math.min(...xs);
-            const maxX = Math.max(...xs);
-            const minY = Math.min(...ys);
-            const maxY = Math.max(...ys);
-            ctx.strokeRect(
-              minX - padding,
-              minY - padding,
-              maxX - minX + padding * 2,
-              maxY - minY + padding * 2
-            );
+          case "Text": {
+            if (element.text) {
+              const textWidth =
+                element.text.length * (element.fontSize || 20) * 0.6;
+              const textHeight = element.fontSize || 20;
+              ctx.strokeRect(
+                element.x - padding,
+                element.y - padding,
+                textWidth + padding * 2,
+                textHeight + padding * 2
+              );
+            }
+            break;
           }
-          break;
+          case "Pencil": {
+            if (element.points && element.points.length > 0) {
+              const xs = element.points.map((p) => p.x);
+              const ys = element.points.map((p) => p.y);
+              const minX = Math.min(...xs);
+              const maxX = Math.max(...xs);
+              const minY = Math.min(...ys);
+              const maxY = Math.max(...ys);
+              ctx.strokeRect(
+                minX - padding,
+                minY - padding,
+                maxX - minX + padding * 2,
+                maxY - minY + padding * 2
+              );
+            }
+            break;
+          }
         }
-      }
+      });
       ctx.restore();
     }
 
-    // Restore context
-    ctx.restore();
-  }, [elements, position, scale, selectedElement, editingTextId]);
+    // Draw laser trail
+    if (selectedTool === "Laser") {
+      ctx.save();
+
+      // Draw the trail with glow effect
+      if (laser.trail.length > 1) {
+        // Set common properties
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // Function to draw the path
+        const drawPath = () => {
+          ctx.beginPath();
+          ctx.moveTo(laser.trail[0].point.x, laser.trail[0].point.y);
+          for (let i = 1; i < laser.trail.length; i++) {
+            ctx.lineTo(laser.trail[i].point.x, laser.trail[i].point.y);
+          }
+        };
+
+        // Draw outer glow
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = "#ff0000";
+        ctx.shadowColor = "#ff0000";
+        ctx.globalAlpha = 0.3;
+        drawPath();
+        ctx.stroke();
+
+        // Draw middle layer
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 8;
+        ctx.globalAlpha = 0.6;
+        drawPath();
+        ctx.stroke();
+
+        // Draw core
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#ffffff";
+        drawPath();
+        ctx.stroke();
+      }
+
+      // Draw current laser point if trail exists
+      if (laser.trail.length > 0) {
+        const lastPoint = laser.trail[laser.trail.length - 1].point;
+        ctx.globalAlpha = 1;
+        const gradient = ctx.createRadialGradient(
+          lastPoint.x,
+          lastPoint.y,
+          0,
+          lastPoint.x,
+          lastPoint.y,
+          5
+        );
+        gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
+        gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }, [
+    elements,
+    position,
+    scale,
+    selectedElement,
+    selectedElements,
+    editingTextId,
+    selectedTool,
+    laser.trail,
+    selectionArea,
+  ]);
 
   // Initialize canvas size
   // Handle delete key press
@@ -416,6 +507,9 @@ export const CanvasBoard = () => {
         case "d":
           setSelectedTool("Diamond");
           break;
+        case "q":
+          setSelectedTool("Laser");
+          break;
         case "e":
           setSelectedTool("Eraser");
           break;
@@ -431,20 +525,27 @@ export const CanvasBoard = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
-        selectedElement &&
-        !isEditingText
+        !isEditingText &&
+        (selectedElements.length > 0 || selectedElement)
       ) {
         e.preventDefault();
         setElements((prev) =>
-          prev.filter((el) => el.id !== selectedElement.id)
+          prev.filter((el) => {
+            // Remove elements that are either in selectedElements array or match selectedElement
+            return (
+              !selectedElements.some((selected) => selected.id === el.id) &&
+              (!selectedElement || el.id !== selectedElement.id)
+            );
+          })
         );
+        setSelectedElements([]);
         setSelectedElement(null);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedElement, isEditingText]);
+  }, [selectedElement, selectedElements, isEditingText]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -726,21 +827,41 @@ export const CanvasBoard = () => {
 
       const point = getTransformedPoint(e);
 
-      // Handle select tool - check for element selection/dragging
+      // Handle select tool - check for element selection/dragging or start area selection
       if (selectedTool === "select") {
         const clickedElement = getElementAtPoint(point);
 
         if (clickedElement) {
-          // Select element and prepare for dragging (including text elements)
-          setSelectedElement(clickedElement);
-          setIsDragging(true);
-          setDragOffset({
-            x: point.x - clickedElement.x,
-            y: point.y - clickedElement.y,
-          });
+          // Check if clicked element is part of multi-selection
+          if (selectedElements.includes(clickedElement) && !e.shiftKey) {
+            // Keep multi-selection and prepare for dragging
+            setIsDragging(true);
+            setDragOffset({
+              x: point.x - clickedElement.x,
+              y: point.y - clickedElement.y,
+            });
+          } else {
+            // Select single element and prepare for dragging
+            if (!e.shiftKey) {
+              setSelectedElements([clickedElement]);
+            } else {
+              setSelectedElements((prev) => [...prev, clickedElement]);
+            }
+            setSelectedElement(clickedElement);
+            setIsDragging(true);
+            setDragOffset({
+              x: point.x - clickedElement.x,
+              y: point.y - clickedElement.y,
+            });
+          }
         } else {
-          // Clear selection if clicking on empty space
-          setSelectedElement(null);
+          // Start area selection
+          setSelectionArea({ start: point, end: point });
+          if (!e.shiftKey) {
+            // Clear previous selection unless shift is held
+            setSelectedElements([]);
+            setSelectedElement(null);
+          }
         }
 
         // Check if clicking on a resize handle
@@ -827,6 +948,7 @@ export const CanvasBoard = () => {
       startTextEditing,
       isEditingText,
       selectedElement,
+      selectedElements,
     ]
   );
 
@@ -841,6 +963,18 @@ export const CanvasBoard = () => {
         });
         return;
       }
+
+      // Laser tool: handle trail
+      if (selectedTool === "Laser") {
+        if (e.buttons === 1) {
+          // Only add points when mouse button is pressed
+          laser.addPoint(point);
+        } else {
+          laser.clearTrail();
+        }
+        return;
+      }
+
       // Eraser tool: show cursor and erase elements
       if (selectedTool === "Eraser") {
         setEraserPos(point);
@@ -851,14 +985,116 @@ export const CanvasBoard = () => {
         return;
       }
 
+      // Handle area selection
+      if (selectionArea) {
+        setSelectionArea((prev) => ({
+          start: prev!.start,
+          end: point,
+        }));
+        // Find elements within selection area
+        const selectionRect = {
+          left: Math.min(selectionArea.start.x, point.x),
+          right: Math.max(selectionArea.start.x, point.x),
+          top: Math.min(selectionArea.start.y, point.y),
+          bottom: Math.max(selectionArea.start.y, point.y),
+        };
+
+        const elementsInSelection = elements.filter((el) => {
+          switch (el.type) {
+            case "Rectangle":
+            case "Diamond":
+            case "Circle":
+            case "Image": {
+              if (el.width && el.height) {
+                const elRect = {
+                  left: Math.min(el.x, el.x + el.width),
+                  right: Math.max(el.x, el.x + el.width),
+                  top: Math.min(el.y, el.y + el.height),
+                  bottom: Math.max(el.y, el.y + el.height),
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            case "Line":
+            case "Arrow": {
+              if (el.width !== undefined && el.height !== undefined) {
+                const endX = el.x + el.width;
+                const endY = el.y + el.height;
+                const elRect = {
+                  left: Math.min(el.x, endX),
+                  right: Math.max(el.x, endX),
+                  top: Math.min(el.y, endY),
+                  bottom: Math.max(el.y, endY),
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            case "Text": {
+              if (el.text) {
+                const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
+                const textHeight = el.fontSize || 20;
+                const elRect = {
+                  left: el.x,
+                  right: el.x + textWidth,
+                  top: el.y,
+                  bottom: el.y + textHeight,
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            case "Pencil": {
+              if (el.points && el.points.length > 0) {
+                const xs = el.points.map((p) => p.x);
+                const ys = el.points.map((p) => p.y);
+                const elRect = {
+                  left: Math.min(...xs),
+                  right: Math.max(...xs),
+                  top: Math.min(...ys),
+                  bottom: Math.max(...ys),
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            default:
+              return false;
+          }
+        });
+        setSelectedElements(elementsInSelection);
+        return;
+      }
+
       // Handle element dragging
-      if (isDragging && selectedElement) {
+      if (isDragging) {
         const newX = point.x - dragOffset.x;
         const newY = point.y - dragOffset.y;
 
         setElements((prev) =>
           prev.map((el) => {
-            if (el.id === selectedElement.id) {
+            if (selectedElements.some((selected) => selected.id === el.id)) {
               if (el.type === "Pencil" && el.points) {
                 // For pencil, move all points
                 const deltaX = newX - el.x;
@@ -1011,30 +1247,21 @@ export const CanvasBoard = () => {
               }
               case "Line":
               case "Arrow": {
-                const elWidth = el.width || 0;
-                const elHeight = el.height || 0;
-                let result: Element;
-                if (resizing.corner === "start") {
-                  const newWidth = el.x + elWidth - point.x;
-                  const newHeight = el.y + elHeight - point.y;
-                  result = {
-                    ...el,
-                    x: point.x,
-                    y: point.y,
-                    width: newWidth,
-                    height: newHeight,
-                  };
-                } else if (resizing.corner === "end") {
-                  result = {
-                    ...el,
-                    width: point.x - el.x,
-                    height: point.y - el.y,
-                  };
-                } else {
-                  result = el;
-                }
-                updatedElement = result;
-                return result;
+                updatedElement = {
+                  ...el,
+                  x: resizing.corner === "start" ? point.x : el.x,
+                  y: resizing.corner === "start" ? point.y : el.y,
+                  width:
+                    resizing.corner === "start"
+                      ? el.x + (el.width || 0) - point.x
+                      : point.x - el.x,
+                  height:
+                    resizing.corner === "start"
+                      ? el.y + (el.height || 0) - point.y
+                      : point.y - el.y,
+                  type: el.type,
+                };
+                return updatedElement;
               }
               default:
                 return el;
@@ -1137,6 +1364,7 @@ export const CanvasBoard = () => {
       resizing,
       resizeStart,
       selectedTool,
+      laser,
     ]
   );
 
@@ -1147,11 +1375,13 @@ export const CanvasBoard = () => {
     setIsDragging(false);
     setResizing(null);
     setResizeStart(null);
+    setSelectionArea(null);
     // Switch back to select tool after drawing a shape (not for select, Text, Pencil or Eraser)
     if (
       selectedTool !== "select" &&
       selectedTool !== "Eraser" &&
-      selectedTool !== "Pencil"
+      selectedTool !== "Pencil" &&
+      selectedTool !== "Laser"
     ) {
       setSelectedTool("select");
     }

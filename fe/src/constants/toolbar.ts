@@ -9,6 +9,7 @@ import { FaRegCircle, FaCircle, FaArrowRightLong } from "react-icons/fa6";
 import { MdOutlineHorizontalRule, MdFormatColorText } from "react-icons/md";
 import { LuPencil } from "react-icons/lu";
 import { CiImageOn, CiEraser } from "react-icons/ci";
+import { ImMagicWand } from "react-icons/im";
 
 export const TOOLBAR_ITEMS = [
   { before: BiPointer, after: BiSolidPointer, tooltip: "select" },
@@ -25,4 +26,5 @@ export const TOOLBAR_ITEMS = [
   { before: MdFormatColorText, after: MdFormatColorText, tooltip: "Text" },
   { before: CiImageOn, after: CiImageOn, tooltip: "Image" },
   { before: CiEraser, after: CiEraser, tooltip: "Eraser" },
+  { before: ImMagicWand, after: ImMagicWand, tooltip: "Laser" },
 ];
