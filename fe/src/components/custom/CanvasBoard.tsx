@@ -380,23 +380,44 @@ export const CanvasBoard = () => {
     if (selectedTool === "Laser") {
       ctx.save();
 
-      // Draw the trail
+      // Draw the trail with glow effect
       if (laser.trail.length > 1) {
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 4; // Increased line width for bolder laser trail
+        // Set common properties
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
-        for (let i = 1; i < laser.trail.length; i++) {
-          const prevPoint = laser.trail[i - 1];
-          const currentPoint = laser.trail[i];
-
-          ctx.globalAlpha = currentPoint.opacity;
+        // Function to draw the path
+        const drawPath = () => {
           ctx.beginPath();
-          ctx.moveTo(prevPoint.point.x, prevPoint.point.y);
-          ctx.lineTo(currentPoint.point.x, currentPoint.point.y);
-          ctx.stroke();
-        }
+          ctx.moveTo(laser.trail[0].point.x, laser.trail[0].point.y);
+          for (let i = 1; i < laser.trail.length; i++) {
+            ctx.lineTo(laser.trail[i].point.x, laser.trail[i].point.y);
+          }
+        };
+
+        // Draw outer glow
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = "#ff0000";
+        ctx.shadowColor = "#ff0000";
+        ctx.globalAlpha = 0.3;
+        drawPath();
+        ctx.stroke();
+
+        // Draw middle layer
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 8;
+        ctx.globalAlpha = 0.6;
+        drawPath();
+        ctx.stroke();
+
+        // Draw core
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#ffffff";
+        drawPath();
+        ctx.stroke();
       }
 
       // Draw current laser point if trail exists
@@ -422,9 +443,6 @@ export const CanvasBoard = () => {
 
       ctx.restore();
     }
-
-    // Restore context
-    ctx.restore();
   }, [
     elements,
     position,

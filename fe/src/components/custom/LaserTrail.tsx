@@ -5,7 +5,10 @@ interface LaserPoint {
   point: Position;
   opacity: number;
   timestamp: number;
+  color: string;
 }
+
+const NEON_RED = "#ff0000"; // Bright red
 
 export function useLaserTrail() {
   const [trail, setTrail] = useState<LaserPoint[]>([]);
@@ -19,17 +22,17 @@ export function useLaserTrail() {
         prevTrail
           .map((point) => ({
             ...point,
-            opacity: Math.max(0, 1 - (now - point.timestamp) / 500), // Fade over 0.5 seconds
+            opacity: Math.max(0, 1 - (now - point.timestamp) / 3000), // Fade over 3 seconds
           }))
           .filter((point) => point.opacity > 0)
       );
 
-      if (trail.length > 0) {
-        animationFrame.current = requestAnimationFrame(animate);
-      }
+      // Always keep animation frame running
+      animationFrame.current = requestAnimationFrame(animate);
     };
 
-    if (trail.length > 0 && !animationFrame.current) {
+    // Start animation immediately
+    if (!animationFrame.current) {
       animationFrame.current = requestAnimationFrame(animate);
     }
 
@@ -46,23 +49,53 @@ export function useLaserTrail() {
       lastPoint.current = point;
       setTrail((prev) => [
         ...prev,
-        { point, opacity: 1, timestamp: Date.now() },
+        {
+          point,
+          opacity: 1,
+          timestamp: Date.now(),
+          color: NEON_RED,
+        },
       ]);
       return;
     }
 
-    // Calculate distance from last point to avoid too many points
+    // Calculate distance from last point
     const dx = point.x - lastPoint.current.x;
     const dy = point.y - lastPoint.current.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance > 5) {
-      // Only add points if they're far enough apart
+    // Add interpolated points for smoother movement
+    if (distance > 2) {
+      // Smaller threshold for smoother movement
+      const numPoints = Math.max(1, Math.floor(distance / 2)); // Add a point every 2 pixels
+      const points: Position[] = [];
+
+      // Create interpolated points
+      for (let i = 1; i <= numPoints; i++) {
+        points.push({
+          x: lastPoint.current.x + (dx * i) / numPoints,
+          y: lastPoint.current.y + (dy * i) / numPoints,
+        });
+      }
+
       lastPoint.current = point;
-      setTrail((prev) => [
-        ...prev,
-        { point, opacity: 1, timestamp: Date.now() },
-      ]);
+
+      setTrail((prev) => {
+        // Keep more points for longer trail
+        const recentPoints = prev.filter(
+          (p) => Date.now() - p.timestamp < 2000
+        ); // 2 second trail length
+
+        // Add new interpolated points
+        const newPoints = points.map((p, i) => ({
+          point: p,
+          opacity: 1,
+          timestamp: Date.now() + i * 50, // Stagger timestamps for smoother fade
+          color: NEON_RED,
+        }));
+
+        return [...recentPoints, ...newPoints];
+      });
     }
   };
 
