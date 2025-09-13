@@ -12,13 +12,100 @@ import {
 } from "@/utils/StoreProgress";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
 
+import { useCollab } from "@/contexts/CollabContext";
+import { useCollaborativeCanvas } from "../../hooks/useCollabCanvas";
+
+
+// Cursor
+const CollabCursor = ({
+  collaborator,
+  position,
+  scale
+}: {
+  collaborator: any;
+  position: Position;
+  scale: number;
+}) => (
+  <div
+    className="absolute pointer-events-none z-50"
+    style={{
+      left: `${collaborator.cursor.x * scale + position.x}px`,
+      top: `${collaborator.cursor.y * scale + position.y}px`,
+      transform: 'translate(-2px, -2px)'
+    }}
+  >
+    <div className="relative">
+      <svg width="24" height="24" viewBox="0 0 24 24" className="drop-shadow-sm">
+        <path
+          d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+          fill={collaborator.color}
+          stroke="white"
+          strokeWidth="1"
+        />
+      </svg>
+      
+      <div 
+        className="absolute top-6 left-2 px-2 py-1 rounded text-white text-xs whitespace-nowrap shadow-lg"
+        style={{ backgroundColor: collaborator.color }}
+      >
+        {collaborator.name}
+        {collaborator.isDrawing && (
+          <span className="ml-1 animate-pulse">✏️</span>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+
+// Connection Status Component
+const ConnectionStatus = ({ 
+  isConnected, 
+  collaborators 
+}: { 
+  isConnected: boolean;
+  collaborators: any[];
+}) => (
+  <div className="absolute top-4 right-4 z-50 bg-white rounded-lg shadow-lg p-3 max-w-xs">
+    <div className="flex items-center space-x-2 mb-2">
+      <div 
+        className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+      />
+      <span className="text-sm font-medium">
+        {isConnected ? 'Connected' : 'Disconnected'}
+      </span>
+    </div>
+    
+    {collaborators.length > 0 && (
+      <div>
+        <h4 className="text-sm font-semibold mb-2">Active Users ({collaborators.length})</h4>
+        <div className="space-y-1 max-h-32 overflow-y-auto">
+          {collaborators.map(collaborator => (
+            <div key={collaborator.id} className="flex items-center space-x-2">
+              <div 
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: collaborator.color }}
+              />
+              <span className="text-sm truncate">{collaborator.name}</span>
+              {collaborator.isDrawing && (
+                <span className="text-xs text-gray-500">drawing...</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+);
+
 export const CanvasBoard = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrame = useRef<number | null>(null);
   const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
     useDrawing();
-  const [elements, setElements] = useState<Element[]>([]);
+  // Local state for non-collaborative mode
+  const [localElements, setLocalElements] = useState<Element[]>([]);
   const [drawing, setDrawing] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
   const [startPan, setStartPan] = useState<Position>({ x: 0, y: 0 });
@@ -43,10 +130,30 @@ export const CanvasBoard = () => {
   const [selectedElements, setSelectedElements] = useState<Element[]>([]);
   const laser = useLaserTrail();
 
+  const { state, endCollabSession } = useCollab();
+
+  const {
+    elements: collabElements,
+    setElements: setCollabElements,
+    collaborators,
+    isConnected,
+    sendOperation,
+    updateCursor,
+    updateDrawingStatus,
+    isCollaborating
+  } = useCollaborativeCanvas(
+    state.currentRoom?.id || null,
+    state.currentUser?.id || null
+  );
+
+  // Use collaborative or local elements based on mode
+  const elements = (isCollaborating ? collabElements : localElements);
+  const setElements = isCollaborating ? setCollabElements : setLocalElements;
+
   // Save in local storage and load from that
   useEffect(() => {
     const savedElements = loadFromLocalStorage();
-    if (savedElements.length > 0) {
+    if ((savedElements.length > 0) && !isCollaborating) {
       setElements(savedElements);
     }
 
@@ -61,14 +168,18 @@ export const CanvasBoard = () => {
     };
   }, []);
 
+  // Auto-save for local mode
   useEffect(() => {
-    const interval = setInterval(() => {
-      saveToLocalStorage(elements);
-    }, AUTO_SAVE_INTERVAL);
+    if (!isCollaborating && localElements.length > 0) {
+      const interval = setInterval(() => {
+        saveToLocalStorage(localElements);
+      }, AUTO_SAVE_INTERVAL);
 
-    return () => clearInterval(interval);
-  }, [elements]);
+      return () => clearInterval(interval);
+    }
+  }, [localElements, isCollaborating]);
 
+  // Redraw canvas
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -97,6 +208,12 @@ export const CanvasBoard = () => {
         roughness: element.roughness || 1,
         seed: element.seed || 1,
       };
+
+      // Add visual indicator for elements being drawn by others in collaborative mode
+      if (isCollaborating && element.isTemporary && element.authorId !== state.currentUser?.id) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+      }
 
       switch (element.type) {
         case "Image": {
@@ -271,6 +388,11 @@ export const CanvasBoard = () => {
           break;
         }
       }
+
+      if (isCollaborating && element.isTemporary && element.authorId !== state.currentUser?.id) {
+        ctx.restore();
+      }
+
     });
 
     // Draw selection area if active
@@ -883,8 +1005,12 @@ export const CanvasBoard = () => {
 
       // Handle Text tool - create text immediately and start editing
       if (selectedTool === "Text") {
+        const elementId = isCollaborating 
+          ? `${state.currentUser?.id || 'local'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
+          : Date.now().toString();
+
         const newElement: Element = {
-          id: Date.now().toString(),
+          id: elementId,
           type: selectedTool,
           x: point.x,
           y: point.y,
@@ -895,14 +1021,27 @@ export const CanvasBoard = () => {
           text: "Type here...",
           fontSize: 20,
           fontFamily: "Virgil",
+          authorId: isCollaborating ? state.currentUser?.id : 'local',
+          isTemporary: true
         };
 
         setElements((prev) => [...prev, newElement]);
         startTextEditing(newElement);
+
+        if(isCollaborating && sendOperation && state.currentRoom) {
+          sendOperation({
+            type: 'element_start',
+            roomId: state.currentRoom.id,
+            elementId: newElement.id,
+            authorId: state.currentUser!.id,
+            data: { element: newElement, tool: selectedTool }
+          })
+        }
         return;
       }
 
-      // Handle Image tool - trigger file input
+      // Handle Image tool - trigger file input 
+      // will handle its collab later
       if (selectedTool === "Image") {
         const input = document.getElementById(
           "imageUpload"
@@ -915,7 +1054,21 @@ export const CanvasBoard = () => {
       if (selectedTool === "Eraser") {
         const point = getTransformedPoint(e);
         setEraserPos(point);
-        setElements((prev) => eraseElements(prev, point, ERASER_RADIUS));
+        const newElements = eraseElements(elements, point, ERASER_RADIUS);
+        setElements(newElements);
+        
+        if (isCollaborating && sendOperation && state.currentRoom) {
+          const erasedElements = elements.filter(el => !newElements.includes(el));
+          erasedElements.forEach(el => {
+            sendOperation({
+              type: 'element_delete',
+              roomId: state.currentRoom!.id,
+              elementId: el.id,
+              authorId: state.currentUser!.id,
+              data: {}
+            });
+          });
+        }
         return;
       }
 
@@ -933,28 +1086,42 @@ export const CanvasBoard = () => {
         roughness: 1,
         seed: Math.floor(Math.random() * 1000),
         points: selectedTool === "Pencil" ? [point] : undefined,
+        authorId: isCollaborating ? state.currentUser?.id : 'local',
+        isTemporary: true
       };
 
       setCurrentElement(newElement);
       setElements((prev) => [...prev, newElement]);
+
+      if (isCollaborating && sendOperation && state.currentRoom) {
+        sendOperation({
+          type: 'element_start',
+          roomId: state.currentRoom.id,
+          elementId: newElement.id,
+          authorId: state.currentUser!.id,
+          data: { element: newElement, tool: selectedTool }
+        });
+        
+        updateDrawingStatus(true, newElement.id);
+      }
     },
     [
-      position,
-      selectedTool,
-      strokeColor,
-      strokeWidth,
-      getTransformedPoint,
-      getElementAtPoint,
-      startTextEditing,
-      isEditingText,
-      selectedElement,
-      selectedElements,
+      isEditingText, getTransformedPoint, updateCursor, isCollaborating, position,
+      selectedTool, getElementAtPoint, strokeColor, strokeWidth, elements,
+      sendOperation, state.currentUser, state.currentRoom, setElements, updateDrawingStatus,
+      selectedElements, startTextEditing, setSelectedElement, selectedElement
     ]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const point = getTransformedPoint(e);
+
+      // Update cursor for collaborators
+      if (isCollaborating && !isPanning && !drawing) {
+        updateCursor(point);
+      }
+
       if (isPanning) {
         requestAnimationFrame(() => {
           const newX = e.clientX - startPan.x;
@@ -979,263 +1146,226 @@ export const CanvasBoard = () => {
       if (selectedTool === "Eraser") {
         setEraserPos(point);
         if (e.buttons === 1) {
-          // Mouse is pressed
-          setElements((prev) => eraseElements(prev, point, ERASER_RADIUS));
+          const newElements = eraseElements(elements, point, ERASER_RADIUS);
+          setElements(newElements);
+          
+          if (isCollaborating && sendOperation && state.currentRoom) {
+            const erasedElements = elements.filter(el => !newElements.includes(el));
+            erasedElements.forEach(el => {
+              sendOperation({
+                type: 'element_delete',
+                roomId: state.currentRoom!.id,
+                elementId: el.id,
+                authorId: state.currentUser!.id,
+                data: {}
+              });
+            });
+          }
         }
         return;
       }
 
-      // Handle area selection
-      if (selectionArea) {
-        setSelectionArea((prev) => ({
-          start: prev!.start,
-          end: point,
-        }));
-        // Find elements within selection area
-        const selectionRect = {
-          left: Math.min(selectionArea.start.x, point.x),
-          right: Math.max(selectionArea.start.x, point.x),
-          top: Math.min(selectionArea.start.y, point.y),
-          bottom: Math.max(selectionArea.start.y, point.y),
-        };
+      // Handle selection area
+    if (selectedTool === "select" && e.buttons === 1 && !isDragging && !resizing) {
+      setSelectionArea((prev) => ({
+        start: prev?.start || point,
+        end: point,
+      }));
 
-        const elementsInSelection = elements.filter((el) => {
-          switch (el.type) {
-            case "Rectangle":
-            case "Diamond":
-            case "Circle":
-            case "Image": {
-              if (el.width && el.height) {
-                const elRect = {
-                  left: Math.min(el.x, el.x + el.width),
-                  right: Math.max(el.x, el.x + el.width),
-                  top: Math.min(el.y, el.y + el.height),
-                  bottom: Math.max(el.y, el.y + el.height),
-                };
-                return (
-                  elRect.left <= selectionRect.right &&
-                  elRect.right >= selectionRect.left &&
-                  elRect.top <= selectionRect.bottom &&
-                  elRect.bottom >= selectionRect.top
-                );
-              }
-              return false;
+      const selectionRect = {
+        left: Math.min(selectionArea?.start.x || point.x, point.x),
+        right: Math.max(selectionArea?.start.x || point.x, point.x),
+        top: Math.min(selectionArea?.start.y || point.y, point.y),
+        bottom: Math.max(selectionArea?.start.y || point.y, point.y),
+      };
+
+      const elementsInSelection = elements.filter((el) => {
+        switch (el.type) {
+          case "Rectangle":
+          case "Diamond":
+          case "Circle":
+          case "Image": {
+            if (el.width && el.height) {
+              const elRect = {
+                left: Math.min(el.x, el.x + el.width),
+                right: Math.max(el.x, el.x + el.width),
+                top: Math.min(el.y, el.y + el.height),
+                bottom: Math.max(el.y, el.y + el.height),
+              };
+              return (
+                elRect.left <= selectionRect.right &&
+                elRect.right >= selectionRect.left &&
+                elRect.top <= selectionRect.bottom &&
+                elRect.bottom >= selectionRect.top
+              );
             }
-            case "Line":
-            case "Arrow": {
-              if (el.width !== undefined && el.height !== undefined) {
-                const endX = el.x + el.width;
-                const endY = el.y + el.height;
-                const elRect = {
-                  left: Math.min(el.x, endX),
-                  right: Math.max(el.x, endX),
-                  top: Math.min(el.y, endY),
-                  bottom: Math.max(el.y, endY),
-                };
-                return (
-                  elRect.left <= selectionRect.right &&
-                  elRect.right >= selectionRect.left &&
-                  elRect.top <= selectionRect.bottom &&
-                  elRect.bottom >= selectionRect.top
-                );
-              }
-              return false;
-            }
-            case "Text": {
-              if (el.text) {
-                const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
-                const textHeight = el.fontSize || 20;
-                const elRect = {
-                  left: el.x,
-                  right: el.x + textWidth,
-                  top: el.y,
-                  bottom: el.y + textHeight,
-                };
-                return (
-                  elRect.left <= selectionRect.right &&
-                  elRect.right >= selectionRect.left &&
-                  elRect.top <= selectionRect.bottom &&
-                  elRect.bottom >= selectionRect.top
-                );
-              }
-              return false;
-            }
-            case "Pencil": {
-              if (el.points && el.points.length > 0) {
-                const xs = el.points.map((p) => p.x);
-                const ys = el.points.map((p) => p.y);
-                const elRect = {
-                  left: Math.min(...xs),
-                  right: Math.max(...xs),
-                  top: Math.min(...ys),
-                  bottom: Math.max(...ys),
-                };
-                return (
-                  elRect.left <= selectionRect.right &&
-                  elRect.right >= selectionRect.left &&
-                  elRect.top <= selectionRect.bottom &&
-                  elRect.bottom >= selectionRect.top
-                );
-              }
-              return false;
-            }
-            default:
-              return false;
+            return false;
           }
-        });
-        setSelectedElements(elementsInSelection);
-        return;
-      }
-
-      // Handle element dragging
-      if (isDragging) {
-        const newX = point.x - dragOffset.x;
-        const newY = point.y - dragOffset.y;
-
-        setElements((prev) =>
-          prev.map((el) => {
-            if (selectedElements.some((selected) => selected.id === el.id)) {
-              if (el.type === "Pencil" && el.points) {
-                // For pencil, move all points
-                const deltaX = newX - el.x;
-                const deltaY = newY - el.y;
-                return {
-                  ...el,
-                  x: newX,
-                  y: newY,
-                  points: el.points.map((p) => ({
-                    x: p.x + deltaX,
-                    y: p.y + deltaY,
-                  })),
-                };
-              } else {
-                // For other elements, just move the position
-                return { ...el, x: newX, y: newY };
-              }
+          case "Line":
+          case "Arrow": {
+            if (el.width !== undefined && el.height !== undefined) {
+              const endX = el.x + el.width;
+              const endY = el.y + el.height;
+              const elRect = {
+                left: Math.min(el.x, endX),
+                right: Math.max(el.x, endX),
+                top: Math.min(el.y, endY),
+                bottom: Math.max(el.y, endY),
+              };
+              return (
+                elRect.left <= selectionRect.right &&
+                elRect.right >= selectionRect.left &&
+                elRect.top <= selectionRect.bottom &&
+                elRect.bottom >= selectionRect.top
+              );
             }
-            return el;
-          })
-        );
+            return false;
+          }
+          case "Text": {
+            if (el.text) {
+              const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
+              const textHeight = el.fontSize || 20;
+              const elRect = {
+                left: el.x,
+                right: el.x + textWidth,
+                top: el.y,
+                bottom: el.y + textHeight,
+              };
+              return (
+                elRect.left <= selectionRect.right &&
+                elRect.right >= selectionRect.left &&
+                elRect.top <= selectionRect.bottom &&
+                elRect.bottom >= selectionRect.top
+              );
+            }
+            return false;
+          }
+          case "Pencil": {
+            if (el.points && el.points.length > 0) {
+              const xs = el.points.map((p) => p.x);
+              const ys = el.points.map((p) => p.y);
+              const elRect = {
+                left: Math.min(...xs),
+                right: Math.max(...xs),
+                top: Math.min(...ys),
+                bottom: Math.max(...ys),
+              };
+              return (
+                elRect.left <= selectionRect.right &&
+                elRect.right >= selectionRect.left &&
+                elRect.top <= selectionRect.bottom &&
+                elRect.bottom >= selectionRect.top
+              );
+            }
+            return false;
+          }
+          default:
+            return false;
+        }
+      });
+      setSelectedElements(elementsInSelection);
+      return;
+    }
 
-        // Update selected element reference
-        setSelectedElement((prev) =>
-          prev ? { ...prev, x: newX, y: newY } : null
-        );
-        return;
-      }
+    // Handle element dragging
+    if (isDragging) {
+      const newX = point.x - dragOffset.x;
+      const newY = point.y - dragOffset.y;
 
-      // Handle resizing
-      if (resizing && resizeStart && selectedElement) {
-        // Use 'point' from top-level declaration
-        setElements((prev) => {
-          let updatedElement: Element | null = null;
-          const updated = prev.map((el) => {
-            if (el.id !== resizing.elementId) return el;
-            switch (el.type) {
-              case "Image": {
-                // For images, maintain aspect ratio
-                const aspectRatio = el.aspectRatio || 1;
-                let newWidth = 0;
-                let newHeight = 0;
-                let newX = el.x;
-                let newY = el.y;
+      setElements((prev) => {
+        const updated = prev.map((el) => {
+          if (selectedElements.some((selected) => selected.id === el.id)) {
+            const newElement = { ...el };
+            if (el.type === "Pencil" && el.points) {
+              // For pencil, move all points
+              const deltaX = newX - el.x;
+              const deltaY = newY - el.y;
+              newElement.x = newX;
+              newElement.y = newY;
+              newElement.points = el.points.map((p) => ({
+                x: p.x + deltaX,
+                y: p.y + deltaY,
+              }));
+            } else {
+              // For other elements, just move the position
+              newElement.x = newX;
+              newElement.y = newY;
+            }
 
-                switch (resizing.corner) {
-                  case "tl": {
-                    newWidth = el.x + (el.width || 0) - point.x;
-                    newHeight = newWidth / aspectRatio;
-                    newX = point.x;
-                    newY = el.y + (el.height || 0) - newHeight;
-                    break;
-                  }
-                  case "tr": {
-                    newWidth = point.x - el.x;
-                    newHeight = newWidth / aspectRatio;
-                    newY = el.y + (el.height || 0) - newHeight;
-                    break;
-                  }
-                  case "br": {
-                    newWidth = point.x - el.x;
-                    newHeight = newWidth / aspectRatio;
-                    break;
-                  }
-                  case "bl": {
-                    newWidth = el.x + (el.width || 0) - point.x;
-                    newHeight = newWidth / aspectRatio;
-                    newX = point.x;
-                    break;
-                  }
+            // Send operation for collaborative mode
+            if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+              sendOperation({
+                type: 'element_update',
+                roomId: state.currentRoom.id,
+                elementId: el.id,
+                authorId: state.currentUser.id,
+                data: {
+                  x: newElement.x,
+                  y: newElement.y,
+                  ...(newElement.points ? { points: newElement.points } : {}),
+                },
+              });
+            }
+
+            return newElement;
+          }
+          return el;
+        });
+
+        return updated;
+      });
+
+      // Update selected element reference
+      setSelectedElement((prev) =>
+        prev ? { ...prev, x: newX, y: newY } : null
+      );
+      return;
+    }
+
+    // Handle resizing
+    if (resizing && resizeStart && selectedElement) {
+      setElements((prev) => {
+        let updatedElement: Element | null = null;
+        const updated = prev.map((el) => {
+          if (el.id !== resizing.elementId) return el;
+          switch (el.type) {
+            case "Image": {
+              // For images, maintain aspect ratio
+              const aspectRatio = el.aspectRatio || 1;
+              let newWidth = 0;
+              let newHeight = 0;
+              let newX = el.x;
+              let newY = el.y;
+
+              switch (resizing.corner) {
+                case "tl": {
+                  newWidth = el.x + (el.width || 0) - point.x;
+                  newHeight = newWidth / aspectRatio;
+                  newX = point.x;
+                  newY = el.y + (el.height || 0) - newHeight;
+                  break;
                 }
-
-                if (newWidth > 10 && newHeight > 10) {
-                  // Prevent too small sizes
-                  updatedElement = {
-                    ...el,
-                    x: newX,
-                    y: newY,
-                    width: newWidth,
-                    height: newHeight,
-                  };
-                  return updatedElement;
+                case "tr": {
+                  newWidth = point.x - el.x;
+                  newHeight = newWidth / aspectRatio;
+                  newY = el.y + (el.height || 0) - newHeight;
+                  break;
                 }
-                return el;
+                case "br": {
+                  newWidth = point.x - el.x;
+                  newHeight = newWidth / aspectRatio;
+                  break;
+                }
+                case "bl": {
+                  newWidth = el.x + (el.width || 0) - point.x;
+                  newHeight = newWidth / aspectRatio;
+                  newX = point.x;
+                  break;
+                }
               }
-              case "Rectangle":
-              case "Diamond":
-              case "Circle": {
-                let newX = el.x;
-                let newY = el.y;
-                let newWidth = el.width || 0;
-                let newHeight = el.height || 0;
 
-                switch (resizing.corner) {
-                  case "tl": {
-                    newWidth += newX - point.x;
-                    newHeight += newY - point.y;
-                    newX = point.x;
-                    newY = point.y;
-                    break;
-                  }
-                  case "tr": {
-                    newWidth = point.x - newX;
-                    newHeight += newY - point.y;
-                    newY = point.y;
-                    break;
-                  }
-                  case "br": {
-                    newWidth = point.x - newX;
-                    newHeight = point.y - newY;
-                    break;
-                  }
-                  case "bl": {
-                    newWidth += newX - point.x;
-                    newHeight = point.y - newY;
-                    newX = point.x;
-                    break;
-                  }
-                }
-                switch (resizing.corner) {
-                  case "tl":
-                    newWidth += newX - point.x;
-                    newHeight += newY - point.y;
-                    newX = point.x;
-                    newY = point.y;
-                    break;
-                  case "tr":
-                    newWidth = point.x - newX;
-                    newHeight += newY - point.y;
-                    newY = point.y;
-                    break;
-                  case "br":
-                    newWidth = point.x - newX;
-                    newHeight = point.y - newY;
-                    break;
-                  case "bl":
-                    newWidth += newX - point.x;
-                    newX = point.x;
-                    newHeight = point.y - newY;
-                    break;
-                }
+              if (newWidth > 10 && newHeight > 10) {
+                // Prevent too small sizes
                 updatedElement = {
                   ...el,
                   x: newX,
@@ -1243,132 +1373,245 @@ export const CanvasBoard = () => {
                   width: newWidth,
                   height: newHeight,
                 };
+
+                // Send operation for collaborative mode
+                if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+                  sendOperation({
+                    type: 'element_update',
+                    roomId: state.currentRoom.id,
+                    elementId: el.id,
+                    authorId: state.currentUser.id,
+                    data: {
+                      x: newX,
+                      y: newY,
+                      width: newWidth,
+                      height: newHeight,
+                    },
+                  });
+                }
+
                 return updatedElement;
               }
-              case "Line":
-              case "Arrow": {
-                updatedElement = {
-                  ...el,
-                  x: resizing.corner === "start" ? point.x : el.x,
-                  y: resizing.corner === "start" ? point.y : el.y,
-                  width:
-                    resizing.corner === "start"
-                      ? el.x + (el.width || 0) - point.x
-                      : point.x - el.x,
-                  height:
-                    resizing.corner === "start"
-                      ? el.y + (el.height || 0) - point.y
-                      : point.y - el.y,
-                  type: el.type,
-                };
-                return updatedElement;
-              }
-              default:
-                return el;
+              return el;
             }
-          });
-          // Update selectedElement to match the resized shape
-          if (updatedElement) setSelectedElement(updatedElement);
-          return updated;
-        });
-        return;
-      }
+            case "Rectangle":
+            case "Diamond":
+            case "Circle": {
+              let newX = el.x;
+              let newY = el.y;
+              let newWidth = el.width || 0;
+              let newHeight = el.height || 0;
 
-      // Handle drawing for non-select tools
-      if (!drawing || !currentElement) return;
+              switch (resizing.corner) {
+                case "tl": {
+                  newWidth = el.x + (el.width || 0) - point.x;
+                  newHeight = el.y + (el.height || 0) - point.y;
+                  newX = point.x;
+                  newY = point.y;
+                  break;
+                }
+                case "tr": {
+                  newWidth = point.x - el.x;
+                  newHeight = el.y + (el.height || 0) - point.y;
+                  newY = point.y;
+                  break;
+                }
+                case "br": {
+                  newWidth = point.x - el.x;
+                  newHeight = point.y - el.y;
+                  break;
+                }
+                case "bl": {
+                  newWidth = el.x + (el.width || 0) - point.x;
+                  newHeight = point.y - el.y;
+                  newX = point.x;
+                  break;
+                }
+              }
 
-      setElements((prev) => {
-        const index = prev.findIndex((el) => el.id === currentElement.id);
-        const updated = [...prev];
-
-        switch (currentElement.type) {
-          case "Rectangle": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-          case "Diamond": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-
-          case "Line": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-          case "Pencil": {
-            const currentPoints = updated[index].points || [];
-            const lastPoint = currentPoints[currentPoints.length - 1];
-
-            // Calculate distance from last point
-            const distance = lastPoint
-              ? Math.sqrt(
-                  Math.pow(point.x - lastPoint.x, 2) +
-                    Math.pow(point.y - lastPoint.y, 2)
-                )
-              : 0;
-
-            // Add point if it's far enough from the last point (reduces jitter)
-            // Reduced threshold for smoother drawing
-            if (!lastPoint || distance > 1) {
-              updated[index] = {
-                ...updated[index],
-                points: [...currentPoints, point],
+              updatedElement = {
+                ...el,
+                x: newX,
+                y: newY,
+                width: newWidth,
+                height: newHeight,
               };
+
+              // Send operation for collaborative mode
+              if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+                sendOperation({
+                  type: 'element_update',
+                  roomId: state.currentRoom.id,
+                  elementId: el.id,
+                  authorId: state.currentUser.id,
+                  data: {
+                    x: newX,
+                    y: newY,
+                    width: newWidth,
+                    height: newHeight,
+                  },
+                });
+              }
+
+              return updatedElement;
             }
-            break;
-          }
+            case "Line":
+            case "Arrow": {
+              updatedElement = {
+                ...el,
+                x: resizing.corner === "start" ? point.x : el.x,
+                y: resizing.corner === "start" ? point.y : el.y,
+                width:
+                  resizing.corner === "start"
+                    ? el.x + (el.width || 0) - point.x
+                    : point.x - el.x,
+                height:
+                  resizing.corner === "start"
+                    ? el.y + (el.height || 0) - point.y
+                    : point.y - el.y,
+              };
 
-          case "Circle": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-          case "Arrow": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-        }
+              // Send operation for collaborative mode
+              if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+                sendOperation({
+                  type: 'element_update',
+                  roomId: state.currentRoom.id,
+                  elementId: el.id,
+                  authorId: state.currentUser.id,
+                  data: {
+                    x: updatedElement.x,
+                    y: updatedElement.y,
+                    width: updatedElement.width,
+                    height: updatedElement.height,
+                  },
+                });
+              }
 
+              return updatedElement;
+            }
+            default:
+              return el;
+          }
+        });
+
+        // Update selectedElement to match the resized shape
+        if (updatedElement) setSelectedElement(updatedElement);
         return updated;
       });
-    },
-    [
-      drawing,
-      currentElement,
-      isPanning,
-      startPan.x,
-      startPan.y,
-      getTransformedPoint,
-      isDragging,
-      selectedElement,
-      dragOffset,
-      resizing,
-      resizeStart,
-      selectedTool,
-      laser,
-    ]
-  );
+      return;
+    }
+
+    // Handle drawing for non-select tools
+    if (!drawing || !currentElement) return;
+
+    setElements((prev) => {
+      const index = prev.findIndex((el) => el.id === currentElement.id);
+      if (index === -1) return prev;
+      const updated = [...prev];
+
+      switch (currentElement.type) {
+        case "Rectangle":
+        case "Diamond":
+        case "Circle":
+        case "Arrow":
+        case "Line": {
+          const updatedElement = {
+            ...currentElement,
+            width: point.x - currentElement.x,
+            height: point.y - currentElement.y,
+          };
+          updated[index] = updatedElement;
+
+          // Send operation for collaborative mode
+          if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+            sendOperation({
+              type: 'element_update',
+              roomId: state.currentRoom.id,
+              elementId: currentElement.id,
+              authorId: state.currentUser.id,
+              data: {
+                width: updatedElement.width,
+                height: updatedElement.height,
+              },
+            });
+          }
+          break;
+        }
+        case "Pencil": {
+          const currentPoints = updated[index].points || [];
+          const lastPoint = currentPoints[currentPoints.length - 1];
+          const distance = lastPoint
+            ? Math.sqrt(
+                Math.pow(point.x - lastPoint.x, 2) + Math.pow(point.y - lastPoint.y, 2)
+              )
+            : 0;
+
+          if (!lastPoint || distance > 1) {
+            const newPoints = [...currentPoints, point];
+            updated[index] = { ...updated[index], points: newPoints };
+
+            // Your provided snippet for Pencil updates
+            if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+              sendOperation({
+                type: 'element_update',
+                roomId: state.currentRoom.id,
+                elementId: currentElement.id,
+                authorId: state.currentUser.id,
+                data: { points: newPoints },
+              });
+            }
+          }
+          break;
+        }
+      }
+
+      return updated;
+    });
+  },
+  [
+    getTransformedPoint,
+    isCollaborating,
+    updateCursor,
+    isPanning,
+    startPan,
+    selectedTool,
+    laser,
+    elements,
+    currentElement,
+    isDragging,
+    dragOffset,
+    resizing,
+    resizeStart,
+    selectionArea,
+    selectedElements,
+    sendOperation,
+    state.currentRoom,
+    state.currentUser,
+    setElements,
+    setSelectedElement,
+  ]
+);
 
   const handleMouseUp = useCallback(() => {
+
+    if (drawing && currentElement && isCollaborating && sendOperation && state.currentRoom) {
+      // Complete the element
+      const completedElement = { ...currentElement, isTemporary: false };
+      setElements(prev => prev.map(el => 
+        el.id === currentElement.id ? completedElement : el
+      ));
+      
+      sendOperation({
+        type: 'element_complete',
+        roomId: state.currentRoom.id,
+        elementId: currentElement.id,
+        authorId: state.currentUser!.id,
+        data: { element: completedElement }
+      });
+      
+      updateDrawingStatus(false);
+    }
+
     setDrawing(false);
     setCurrentElement(null);
     setIsPanning(false);
@@ -1476,6 +1719,24 @@ export const CanvasBoard = () => {
     [strokeColor, strokeWidth, setSelectedTool, scale, position, canvasRef]
   );
 
+  // Reset state when session ends (removed setLocalElements([]) to preserve loaded local state)
+  useEffect(() => {
+    if (!isCollaborating) {
+      setCurrentElement(null);
+      setSelectedElement(null);
+      setSelectedElements([]);
+      setDrawing(false);
+      setIsPanning(false);
+      setIsDragging(false);
+      setResizing(null);
+      setResizeStart(null);
+      setEraserPos(null);
+      setSelectionArea(null);
+      setEditingTextId(null);
+      setIsEditingText(false);
+    }
+  }, [isCollaborating]);
+
   return (
     <div
       ref={containerRef}
@@ -1503,6 +1764,45 @@ export const CanvasBoard = () => {
         onChange={handleImageUpload}
       />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
+
+      {/* Collaborative Features */}
+      {isCollaborating && (
+        <>
+          {state.isCollaborating && (
+                <div className="absolute right-0 top-0 text-align-center p-4 z-10">
+                  Room: {state.currentRoom?.name}
+                </div>
+              )}
+            
+          {/* Connection Status */}
+          <ConnectionStatus 
+            isConnected={isConnected}
+            collaborators={collaborators}
+          />
+
+          {/* Collaborator Cursors */}
+          {collaborators.map(collaborator => 
+            collaborator.cursor && collaborator.id !== state.currentUser?.id && (
+              <CollabCursor
+                key={collaborator.id}
+                collaborator={collaborator}
+                position={position}
+                scale={scale}
+              />
+            )
+          )}
+
+          {/* End Session Button for creator */}
+          {state.isCreator && (
+            <button
+              className="absolute top-4 left-4 z-50 bg-red-500 text-white px-4 py-2 rounded shadow hover:bg-red-600"
+              onClick={endCollabSession}
+            >
+              End Session
+            </button>
+          )}
+        </>
+      )}
 
       {/* Text Input Overlay */}
       {isEditingText && selectedElement && selectedElement.type === "Text" && (

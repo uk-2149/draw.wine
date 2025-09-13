@@ -37,6 +37,8 @@ export interface DrawingOperation {
 export interface RoomState {
     id: string;
     elements: { [key: string]: Element };
+    name: string;
+    isPublic: boolean;
     collaborators: Array<{
         id: string;
         name: string;
@@ -46,6 +48,8 @@ export interface RoomState {
         currentElementId?: string;
         joinedAt: number;
     }>;
+    createdBy: string;
+    createdAt: string;
     lastModified: number;
     version: number;
 }
@@ -66,4 +70,14 @@ export interface DatabaseOperation {
   timestamp: number;
   sequenceNumber: number;
   operationData: any;
+}
+
+export interface Collaborator {
+  id: string;
+  name: string;
+  color: string;
+  cursor?: { x: number; y: number };
+  isDrawing?: boolean;
+  currentElementId?: string;
+  joinedAt: number;
 }

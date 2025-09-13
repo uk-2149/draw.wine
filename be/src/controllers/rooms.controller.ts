@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { verifyJWT } from "../utils/jwt";
+import { generateToken, verifyJWT } from "../utils/jwt";
 import { v4 as uuidv4 } from 'uuid';
 import { httpServer } from "../index";
 import type { RoomState } from "../types";
@@ -7,26 +7,38 @@ import { CollabDrawingServer } from "../services/socket.service";
 
 export const CreateRoom = async (req: Request, res: Response) => {
     try {
-        const { name, isPublic = true } = req.body;
-        const token = req.cookies.token;
-        const userId = verifyJWT(token, "access") as string;
+        const { username, name, isPublic = true } = req.body;
+        const userId = uuidv4();
+        const token = generateToken(username);
+
+        // Store username and userId in cookie as JSON string
+        res.cookie('user', JSON.stringify({ token, userId }), {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'none',
+          maxAge: 24 * 60 * 60 * 1000, // 1 day
+        });
 
         const roomId = uuidv4();
 
         // Save the room in the database
-        
         const roomState: RoomState = {
             id: roomId,
+            name: name.trim(),
             elements: {},
             collaborators: [],
+            isPublic: isPublic,
             lastModified: Date.now(),
+            createdBy: username,
+            createdAt: new Date().toISOString(),
             version: 0
-        }
+        };
 
         CollabDrawingServer.getInstance(httpServer).roomStates.set(roomId, roomState);
+        CollabDrawingServer.getInstance(httpServer).roomConnections.set(roomId, new Set())
 
         res.status(201).json({ 
-            roomId, 
+            id: roomId, 
             name: name.trim(), 
             isPublic,
             createdBy: userId,
@@ -42,22 +54,24 @@ export const CreateRoom = async (req: Request, res: Response) => {
 export const getRoomInfo = async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
+    const server = CollabDrawingServer.getInstance(httpServer);
+    const roomState = server.roomStates.get(roomId);
 
-    if (!roomId || typeof roomId !== 'string') {
-      return res.status(400).json({ error: 'Invalid room ID' });
+    if (!roomState) {
+      return res.status(404).json({ error: "Room not found" });
     }
 
-    // Get room from db
-
-    // mock (will be changed later)
     res.json({
-      roomId,
-      name: `Room ${roomId.slice(-8)}`,
-      isPublic: true,
-      createdAt: new Date().toISOString()
+      id: roomState.id,
+      name: roomState.name,
+      isPublic: roomState.isPublic,
+      createdBy: roomState.createdBy,
+      createdAt: roomState.createdAt,
+      collaborators: roomState.collaborators,
+      connectionCount: server.roomConnections.get(roomId)?.size || 0
     });
   } catch (error) {
-    console.error('Error getting room info:', error);
-    res.status(500).json({ error: 'Failed to get room info' });
+    console.error("Error getting room info:", error);
+    res.status(500).json({ error: "Failed to get room info" });
   }
-}
+};

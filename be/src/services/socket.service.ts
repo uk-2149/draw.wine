@@ -1,35 +1,38 @@
-import express from 'express';
 import { Server as httpServer } from 'http';
 import { Server as SocketServer, Socket } from 'socket.io';
-import helmet from 'helmet';
 import * as cookie from 'cookie';
-import jwt from 'jsonwebtoken';
 import { performance } from 'perf_hooks';
 
-import type { RoomState, DrawingOperation } from '../types';
+import type { RoomState, DrawingOperation, Collaborator } from '../types/index';
 import redisClient, { pub, sub } from '../utils/redisClient';
+import { verifyJWT } from '../utils/jwt';
+import { userInfo } from 'os';
 
 export class CollabDrawingServer {
     private static instance: CollabDrawingServer;
     private io: SocketServer;
     private redis: typeof redisClient;
-    private db: any; // database
+    // private db: any; // database
     public roomStates: Map<string, RoomState> = new Map();
     private userColors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F39C12', '#E74C3C', '#9B59B6'];
 
     // Performance optimization
     private operationQueues: Map<string, DrawingOperation[]> = new Map();
     private batchTimers: Map<string, NodeJS.Timeout> = new Map();
-    private sequenceCounters: Map<string, number> = new Map();
 
     // Connection tracking
     private connections: Map<string, { userId: string; roomId: string; connectedAt: number }> = new Map();
-    private roomConnections: Map<string, Set<string>> = new Map();
+    public roomConnections: Map<string, Set<string>> = new Map();
+
+    // Instance ID for multi-server deduplication
+    private serverId: string;
 
     constructor(server: httpServer) {
+        this.serverId = process.env.INSTANCE_ID || 'default-server';
+        console.log("Server ID:", this.serverId);
         this.io = new SocketServer(server, {
             cors: {
-                origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+                origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
                 methods: ['GET', 'POST'],
                 credentials: true
             },
@@ -55,92 +58,105 @@ export class CollabDrawingServer {
     }
 
     private setupSocketHandlers() {
-        // JWT authentication middleware
+
+        console.log("Setting up socket handlers...");
+        // JWT authentication middleware (updated for guest support)
         this.io.use(async (socket: Socket, next) => {
             try {
+                let token: string | undefined;
+                let userId: string | undefined;
+                let userName: string | undefined;
+
                 const cookies = socket.handshake.headers.cookie;
-                if (!cookies) return next(new Error('No cookies found'));
+                if (cookies) {
+                    const parsedCookie = cookie.parse(cookies);
+                    if (parsedCookie.user) {
+                        try {
+                            const userObj = JSON.parse(parsedCookie.user);
+                            token = userObj.token;
+                            userId = userObj.userId;
+                        } catch (err) {
+                            // Malformed cookie, fallback to auth
+                        }
+                    }
+                }
 
-                const parsedCookie = cookie.parse(cookies);
-                const token = parsedCookie.token;
+                // If no valid cookie/token, fallback to auth for guests
+                if (!token || !userId) {
+                    userId = socket.handshake.auth?.userId as string;
+                    userName = socket.handshake.auth?.userName as string;
+                    if (!userId) {
+                        return next(new Error('userId required'));
+                    }
+                    if (!userName) {
+                        userName = `Guest-${userId.slice(-4)}`;
+                    }
+                } else {
+                    // Authenticated user
+                    userName = verifyJWT(token) as string;
+                }
 
-                if (!token) return next(new Error('Authentication token required'));
-
-                const payload = jwt.verify(token, process.env.JWT_SECRET as string) as { userId: string };
-                
                 // Get roomId from handshake auth or query
                 const roomId = socket.handshake.auth?.roomId || socket.handshake.query?.roomId as string;
-                const userName = socket.handshake.auth?.userName || `User ${payload.userId.slice(-4)}`;
-                
                 if (!roomId) return next(new Error('Room ID required'));
+
+                console.log('roomId:', roomId);
+                console.log('userId:', userId);
 
                 // Set socket data
                 socket.data = {
-                    userId: payload.userId,
+                    userId,
                     roomId,
-                    userName
+                    userName: userName!
                 };
-                
                 next();
             } catch (error) {
-                next(new Error('Invalid authentication token'));
+                next(new Error('Authentication failed'));
             }
         });
 
         this.io.on('connection', (socket: Socket) => {
             const { userId, roomId, userName } = socket.data;
-
+            console.log('roomId:', roomId);
+            console.log('userId:', userId);
             if (!roomId || !userId) {
                 socket.disconnect();
                 return;
             }
-
             console.log(`User ${userId} connected to room ${roomId}`);
-
-            // Join the room
             socket.join(roomId);
-
-            // Track connection
             this.connections.set(socket.id, {
                 userId,
                 roomId,
                 connectedAt: Date.now()
             });
-
             if (!this.roomConnections.has(roomId)) {
                 this.roomConnections.set(roomId, new Set());
             }
             this.roomConnections.get(roomId)?.add(socket.id);
-
-            // Send current room state and add collaborator
             this.handleUserJoin(socket, roomId, userId, userName || `User ${userId.slice(-4)}`);
-
-            // Handle drawing operations
+            // Periodically emit room state to all clients in the room
+            const intervalId = setInterval(async () => {
+                const roomState = await this.getRoomState(roomId);
+                this.io.to(roomId).emit('room-state-sync', {
+                    elements: Object.values(roomState.elements),
+                    collaborators: roomState.collaborators,
+                    version: roomState.version
+                });
+            }, 7000); // every 7 seconds
             socket.on('operation', async (operation: DrawingOperation) => {
                 await this.processOperation(socket, operation);
             });
-
-            // Handle cursor updates
-            socket.on('cursor-update', async (data: {
-                userId: string;
-                position: { x: number; y: number };
-                timestamp: number;
-            }) => {
+            socket.on('cursor-update', async (data: { userId: string; position: { x: number; y: number }; timestamp: number; }) => {
                 await this.updateCollaboratorCursor(roomId, data.userId, data.position);
                 socket.to(roomId).emit('collaborator-cursor', data);
             });
-
-            // Handle drawing status
-            socket.on('drawing-status', async (data: {
-                userId: string;
-                isDrawing: boolean;
-                elementId?: string;
-            }) => {
+            socket.on('drawing-status', async (data: { userId: string; isDrawing: boolean; elementId?: string; }) => {
                 await this.updateCollaboratorDrawingStatus(roomId, data.userId, data.isDrawing, data.elementId);
                 socket.to(roomId).emit('collaborator-drawing-status', data);
             });
-
             socket.on('disconnect', () => {
+                clearInterval(intervalId);
                 this.handleUserDisconnect(socket, roomId, userId);
             });
         });
@@ -170,6 +186,9 @@ export class CollabDrawingServer {
     private async processOperation(socket: Socket, operation: DrawingOperation) {
         try {
             const startTime = performance.now();
+
+            // Add serverId for deduplication
+            (operation as any).serverId = this.serverId;
 
             // Validate operation
             if (!this.validateOperation(operation)) {
@@ -311,6 +330,8 @@ export class CollabDrawingServer {
 
             let updatedState = roomState;
             operations.forEach(op => {
+                // Add serverId to each operation in batch
+                (op as any).serverId = this.serverId;
                 updatedState = this.applyOperationToState(updatedState, op);
             });
 
@@ -356,6 +377,10 @@ export class CollabDrawingServer {
             elements: {},
             collaborators: [],
             lastModified: Date.now(),
+            createdAt: new Date().toISOString(),
+            createdBy: '',
+            isPublic: true,
+            name: '',
             version: 0
         };
 
@@ -369,10 +394,11 @@ export class CollabDrawingServer {
         this.roomStates.set(roomId, roomState);
 
         try {
-            await this.redis.setex(
-                `room:${roomId}:state`,
-                3600, // 1 hour TTL
-                JSON.stringify(roomState)
+             await this.redis.set(
+  `room:${roomId}:state`,
+  JSON.stringify(roomState),
+  { EX: 3600 } // 1 hour TTL
+
             );
         } catch (error) {
             console.error('Error updating room state in cache:', error);
@@ -384,7 +410,6 @@ export class CollabDrawingServer {
         
         const existingIndex = roomState.collaborators.findIndex(c => c.id === userId);
 
-        // FIXED: Check if user doesn't exist (=== -1, not !== -1)
         if (existingIndex === -1) {
             const usedColors = roomState.collaborators.map(c => c.color);
             const availableColor = this.userColors.find(color => !usedColors.includes(color)) 
@@ -395,12 +420,15 @@ export class CollabDrawingServer {
                 name: userName,
                 color: availableColor,
                 joinedAt: Date.now(),
+                // Optional fields will be undefined initially
+                cursor: undefined,
+                isDrawing: undefined,
+                currentElementId: undefined
             };
 
             roomState.collaborators.push(newCollaborator);
             await this.updateRoomStateCache(roomId, roomState);
 
-            // FIXED: Emit correct event name
             this.io.to(roomId).emit('collaborator-joined', newCollaborator);
         }
     } 
@@ -423,7 +451,7 @@ export class CollabDrawingServer {
         
         if (collaborator) {
             collaborator.cursor = cursor;
-            // Don't persist cursor updates to Redis, keep in memory only
+            // No need to update cache for transient cursor data
         }
     }
 
@@ -439,6 +467,7 @@ export class CollabDrawingServer {
         if (collaborator) {
             collaborator.isDrawing = isDrawing;
             collaborator.currentElementId = elementId;
+            // No need to update cache for transient status
         }
     }
 
@@ -476,10 +505,12 @@ export class CollabDrawingServer {
 
     private setupRedisSubscriptions() {
         // Subscribe to operations from other server instances
-        sub.psubscribe('room:*:operation', (message: string, channel: string) => {
+        sub.subscribe('room:*:operation', (message: string, channel: string) => {
             try {
-                const operation = JSON.parse(message) as DrawingOperation;
-                // Broadcast to local connections (this prevents infinite loops)
+                const operation: any = JSON.parse(message);
+                // Skip if from this server instance
+                if (operation.serverId === this.serverId) return;
+                // Broadcast to local connections
                 this.io.to(operation.roomId).emit('operation', operation);
             } catch (error) {
                 console.error('Error processing Redis operation message:', error);
@@ -487,13 +518,12 @@ export class CollabDrawingServer {
         });
 
         // Subscribe to batched operations
-        sub.psubscribe('room:*:operations_batch', (message: string, channel: string) => {
+        sub.subscribe('room:*:operations_batch', (message: string, channel: string) => {
             try {
-                const operations = JSON.parse(message) as DrawingOperation[];
-                if (operations.length > 0) {
-                    const roomId = operations[0].roomId;
-                    this.io.to(roomId).emit('operations_batch', operations);
-                }
+                const operations: any[] = JSON.parse(message);
+                if (operations.length > 0 && operations[0].serverId === this.serverId) return;
+                const roomId = operations[0].roomId;
+                this.io.to(roomId).emit('operations_batch', operations);
             } catch (error) {
                 console.error('Error processing Redis batch message:', error);
             }

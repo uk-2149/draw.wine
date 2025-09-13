@@ -17,14 +17,33 @@ import { MdSaveAlt } from "react-icons/md";
 import { MdOutlineImage } from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
 import { LuBadgeHelp } from "react-icons/lu";
+import { useState } from "react";
+import { useCollab } from "@/contexts/CollabContext";
+import { CreateRoomModal } from "../modals/CreateRoomModal";
 
 export const Left3bar = () => {
+  const [ showCreateRoom, setShowCreateRoom ] = useState(false);
+  const { state, dispatch } = useCollab();
+
   const gotoGithub = () => {
     const url = "https://github.com/pandarudra/draw.wine";
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  const handleTeamClick = () => {
+    setShowCreateRoom(true);
+  }
+
+  const handleRoomCreated = (room: any, user: any, isCreator: boolean) => {
+    console.log("Room created:", room, "User:", user, isCreator);
+    dispatch({
+      type: 'START_COLLABORATION',
+      payload: { room, user, isCreator }
+    })
+  }
+
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline">
@@ -55,7 +74,7 @@ export const Left3bar = () => {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>Team</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleTeamClick}>Team</DropdownMenuItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
             <DropdownMenuPortal>
@@ -83,5 +102,12 @@ export const Left3bar = () => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <CreateRoomModal
+      isOpen={showCreateRoom}
+      onClose={() => setShowCreateRoom(false)}
+      onRoomCreated={handleRoomCreated}
+    />
+    </>
   );
 };
