@@ -83,7 +83,8 @@
     "esModuleInterop": true /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */,
     // "preserveSymlinks": true,                         /* Disable resolving symlinks to their realpath. This correlates to the same flag in node. */
     "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
-    "ignoreDeprecations": "6.0" /* Silence deprecation warnings for options deprecated in TypeScript 6.0 */,
+    // "ignoreDeprecations": "6.0"
+     /* Silence deprecation warnings for options deprecated in TypeScript 6.0 */,
 
     /* Type Checking */
     "strict": true /* Enable all strict type-checking options. */,
