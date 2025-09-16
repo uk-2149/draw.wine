@@ -1,6 +1,13 @@
 import { Server as SocketServer } from "socket.io";
 import { Server as HTTPServer } from "http";
 import { ExecSocketEvents } from "../events/socket.event";
+import dotenv from "dotenv";
+dotenv.config();
+
+const fe_url =
+  process.env.NODE_ENV === "prod"
+    ? process.env.FE_URL_PROD
+    : "http://localhost:5173";
 
 export class CollabDrawingServer {
   private static instance: CollabDrawingServer;
@@ -9,7 +16,7 @@ export class CollabDrawingServer {
   private constructor(httpServer: HTTPServer) {
     this._io = new SocketServer(httpServer, {
       cors: {
-        origin: "http://localhost:5173",
+        origin: fe_url,
         credentials: true,
       },
     });

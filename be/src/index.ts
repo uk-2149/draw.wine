@@ -6,6 +6,8 @@ import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { CollabDrawingServer } from "./services/socket.service";
 import roomRouter from "./routes/rooms.routes";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 
@@ -15,13 +17,18 @@ export const httpServer = createServer(app);
 // Initialize collaborative server - this sets up Socket.IO
 const collabServer = CollabDrawingServer.getInstance(httpServer);
 
+const fe_url =
+  process.env.NODE_ENV === "prod"
+    ? process.env.FE_URL_PROD
+    : "http://localhost:5173";
+
 // Middleware
 app.use(helmet());
 app.use(compression());
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: fe_url,
     methods: ["GET", "POST"],
     credentials: true,
   })

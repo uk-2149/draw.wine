@@ -1,6 +1,11 @@
 import React, { useReducer, useEffect, useContext } from "react";
 import { io, Socket } from "socket.io-client";
 
+const be_url =
+  import.meta.env.VITE_ENV === "prod"
+    ? import.meta.env.VITE_BE_URL
+    : "http://localhost:3000";
+
 interface CollabState {
   isConnected: boolean;
   isConnecting: boolean;
@@ -156,7 +161,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     dispatch({ type: "SOCKET_CONNECTING" });
 
-    const socket = io("http://localhost:3000", {
+    const socket = io(be_url, {
       withCredentials: true,
       transports: ["websocket", "polling"],
     });
