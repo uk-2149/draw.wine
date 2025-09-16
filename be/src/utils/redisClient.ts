@@ -1,16 +1,16 @@
-import { createClient } from "redis";
+// import { createClient } from "redis";
 
-const redisClient = createClient();
-redisClient.connect();
+// const redisClient = createClient();
+// redisClient.connect();
 
-// Publisher client
-const pub = redisClient.duplicate();
-pub.connect();
+// // Publisher client
+// const pub = redisClient.duplicate();
+// pub.connect();
 
-// Subscriber client
-const sub = redisClient.duplicate();
-sub.connect();
+// // Subscriber client
+// const sub = redisClient.duplicate();
+// sub.connect();
 
-export { pub, sub };
+// export { pub, sub };
 
-export default redisClient;
+// export default redisClient;
