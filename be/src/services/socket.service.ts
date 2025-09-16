@@ -6,9 +6,6 @@ export class CollabDrawingServer {
   private static instance: CollabDrawingServer;
   private _io: SocketServer;
 
-  private userData: Map<string, any> = new Map();
-  // user_name -> { socket_id , user canvas state }
-
   private constructor(httpServer: HTTPServer) {
     this._io = new SocketServer(httpServer, {
       cors: {
@@ -34,6 +31,7 @@ export class CollabDrawingServer {
   public getConnectionStats() {
     return {
       totalConnections: this._io.engine.clientsCount,
+      totalRooms: this._io.sockets.adapter.rooms.size,
     };
   }
 }

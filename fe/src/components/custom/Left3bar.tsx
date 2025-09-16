@@ -18,12 +18,12 @@ import { MdOutlineImage } from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
 import { LuBadgeHelp } from "react-icons/lu";
 import { useState } from "react";
-import { useCollab } from "@/contexts/CollabContext";
-import { CreateRoomModal } from "../modals/CreateRoomModal";
+import { CreateRoomModal } from "./modals/CreateRoomModal";
+import { JoinRoomModal } from "./modals/JoinRoomModal";
 
 export const Left3bar = () => {
-  const [ showCreateRoom, setShowCreateRoom ] = useState(false);
-  const { state, dispatch } = useCollab();
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [showJoinRoom, setShowJoinRoom] = useState(false);
 
   const gotoGithub = () => {
     const url = "https://github.com/pandarudra/draw.wine";
@@ -32,82 +32,83 @@ export const Left3bar = () => {
 
   const handleTeamClick = () => {
     setShowCreateRoom(true);
-  }
+  };
 
-  const handleRoomCreated = (room: any, user: any, isCreator: boolean) => {
-    console.log("Room created:", room, "User:", user, isCreator);
-    dispatch({
-      type: 'START_COLLABORATION',
-      payload: { room, user, isCreator }
-    })
-  }
+  const handleJoinRoomClick = () => {
+    setShowJoinRoom(true);
+  };
 
   return (
     <>
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline">
-          <RxHamburgerMenu />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="start">
-        <DropdownMenuGroup>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline">
+            <RxHamburgerMenu />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56" align="start">
+          <DropdownMenuGroup>
+            <DropdownMenuItem>
+              <MdSaveAlt className="mr-2" />
+              Save to...
+              <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <MdOutlineImage className="mr-2" />
+              Export image...
+              <DropdownMenuShortcut>Ctrl+Shift+E</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <LuBadgeHelp className="mr-2" />
+              Help
+              <DropdownMenuShortcut>?</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <RiResetLeftFill className="mr-2" />
+              Reset the canvas
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={handleTeamClick}>
+              Create Room
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleJoinRoomClick}>
+              Join Room
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem>Email</DropdownMenuItem>
+                  <DropdownMenuItem>Message</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>More...</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>
+          <DropdownMenuItem>Support</DropdownMenuItem>
+          <DropdownMenuItem disabled>API</DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem>
-            <MdSaveAlt className="mr-2" />
-            Save to...
-            <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
+            Log out
+            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <MdOutlineImage className="mr-2" />
-            Export image...
-            <DropdownMenuShortcut>Ctrl+Shift+E</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <LuBadgeHelp className="mr-2" />
-            Help
-            <DropdownMenuShortcut>?</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem>
-            <RiResetLeftFill className="mr-2" />
-            Reset the canvas
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleTeamClick}>Team</DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem>Email</DropdownMenuItem>
-                <DropdownMenuItem>Message</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>More...</DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
-          <DropdownMenuItem>
-            New Team
-            <DropdownMenuShortcut>⌘+T</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>
-        <DropdownMenuItem>Support</DropdownMenuItem>
-        <DropdownMenuItem disabled>API</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          Log out
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-    <CreateRoomModal
-      isOpen={showCreateRoom}
-      onClose={() => setShowCreateRoom(false)}
-      onRoomCreated={handleRoomCreated}
-    />
+      <CreateRoomModal
+        isOpen={showCreateRoom}
+        onClose={() => setShowCreateRoom(false)}
+      />
+
+      <JoinRoomModal
+        isOpen={showJoinRoom}
+        onClose={() => setShowJoinRoom(false)}
+      />
     </>
   );
 };

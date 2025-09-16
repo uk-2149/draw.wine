@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
+
 import rough from "roughjs";
 import type { Position, Element } from "@/types";
 import { useLaserTrail } from "./LaserTrail";
@@ -11,16 +12,13 @@ import {
   saveToLocalStorage,
 } from "@/utils/StoreProgress";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
-
 import { useCollab } from "@/contexts/CollabContext";
-import { useCollaborativeCanvas } from "../../hooks/useCollabCanvas";
-
 
 // Cursor
 const CollabCursor = ({
   collaborator,
   position,
-  scale
+  scale,
 }: {
   collaborator: any;
   position: Position;
@@ -31,11 +29,16 @@ const CollabCursor = ({
     style={{
       left: `${collaborator.cursor.x * scale + position.x}px`,
       top: `${collaborator.cursor.y * scale + position.y}px`,
-      transform: 'translate(-2px, -2px)'
+      transform: "translate(-2px, -2px)",
     }}
   >
     <div className="relative">
-      <svg width="24" height="24" viewBox="0 0 24 24" className="drop-shadow-sm">
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        className="drop-shadow-sm"
+      >
         <path
           d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
           fill={collaborator.color}
@@ -43,8 +46,8 @@ const CollabCursor = ({
           strokeWidth="1"
         />
       </svg>
-      
-      <div 
+
+      <div
         className="absolute top-6 left-2 px-2 py-1 rounded text-white text-xs whitespace-nowrap shadow-lg"
         style={{ backgroundColor: collaborator.color }}
       >
@@ -57,32 +60,35 @@ const CollabCursor = ({
   </div>
 );
 
-
 // Connection Status Component
-const ConnectionStatus = ({ 
-  isConnected, 
-  collaborators 
-}: { 
+const ConnectionStatus = ({
+  isConnected,
+  collaborators,
+}: {
   isConnected: boolean;
   collaborators: any[];
 }) => (
   <div className="absolute top-4 right-4 z-50 bg-white rounded-lg shadow-lg p-3 max-w-xs">
     <div className="flex items-center space-x-2 mb-2">
-      <div 
-        className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+      <div
+        className={`w-3 h-3 rounded-full ${
+          isConnected ? "bg-green-500" : "bg-red-500"
+        }`}
       />
       <span className="text-sm font-medium">
-        {isConnected ? 'Connected' : 'Disconnected'}
+        {isConnected ? "Connected" : "Disconnected"}
       </span>
     </div>
-    
+
     {collaborators.length > 0 && (
       <div>
-        <h4 className="text-sm font-semibold mb-2">Active Users ({collaborators.length})</h4>
+        <h4 className="text-sm font-semibold mb-2">
+          Active Users ({collaborators.length})
+        </h4>
         <div className="space-y-1 max-h-32 overflow-y-auto">
-          {collaborators.map(collaborator => (
+          {collaborators.map((collaborator) => (
             <div key={collaborator.id} className="flex items-center space-x-2">
-              <div 
+              <div
                 className="w-3 h-3 rounded-full"
                 style={{ backgroundColor: collaborator.color }}
               />
@@ -104,8 +110,30 @@ export const CanvasBoard = () => {
   const animationFrame = useRef<number | null>(null);
   const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
     useDrawing();
+
+  // Get collaboration state
+  const { state, sendOperation, updateCursor, updateDrawingStatus } =
+    useCollab();
+
   // Local state for non-collaborative mode
   const [localElements, setLocalElements] = useState<Element[]>([]);
+  const [collaborativeElements, setCollaborativeElements] = useState<Element[]>(
+    []
+  );
+
+  // Debug collaborative elements
+  useEffect(() => {
+    console.log("=== FRONTEND: Collaborative elements updated ===");
+    console.log("Count:", collaborativeElements.length);
+    console.log(
+      "Elements:",
+      collaborativeElements.map((el) => ({
+        id: el.id,
+        type: el.type,
+        isTemporary: el.isTemporary,
+      }))
+    );
+  }, [collaborativeElements]);
   const [drawing, setDrawing] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
   const [startPan, setStartPan] = useState<Position>({ x: 0, y: 0 });
@@ -130,31 +158,221 @@ export const CanvasBoard = () => {
   const [selectedElements, setSelectedElements] = useState<Element[]>([]);
   const laser = useLaserTrail();
 
-  const { state, endCollabSession } = useCollab();
-
-  const {
-    elements: collabElements,
-    setElements: setCollabElements,
-    collaborators,
-    isConnected,
-    sendOperation,
-    updateCursor,
-    updateDrawingStatus,
-    isCollaborating
-  } = useCollaborativeCanvas(
-    state.currentRoom?.id || null,
-    state.currentUser?.id || null
-  );
+  // Determine if we're in collaboration mode
+  const isCollaborating = state.isCollaborating;
+  const collaborators = state.collaborators;
+  const isConnected = state.isConnected;
 
   // Use collaborative or local elements based on mode
-  const elements = (isCollaborating ? collabElements : localElements);
-  const setElements = isCollaborating ? setCollabElements : setLocalElements;
+  const elements = isCollaborating
+    ? [...localElements, ...collaborativeElements]
+    : localElements;
+
+  const setElements = isCollaborating
+    ? setCollaborativeElements
+    : setLocalElements;
+
+  // Store collaborative laser trails from other users
+  const [collaborativeLaserTrails, setCollaborativeLaserTrails] = useState<
+    Map<
+      string,
+      Array<{
+        point: { x: number; y: number };
+        opacity: number;
+        timestamp: number;
+        color: string;
+      }>
+    >
+  >(new Map());
+
+  // Debug logging for elements
+  useEffect(() => {
+    if (isCollaborating) {
+      console.log("=== CANVAS ELEMENTS DEBUG ===");
+      console.log("Local elements count:", localElements.length);
+      console.log(
+        "Collaborative elements count:",
+        collaborativeElements.length
+      );
+      console.log("Total elements count:", elements.length);
+      console.log("Collaborative elements:", collaborativeElements);
+    }
+  }, [
+    isCollaborating,
+    localElements.length,
+    collaborativeElements.length,
+    collaborativeElements,
+    elements.length,
+  ]);
+
+  // Listen for collaborative operations
+  useEffect(() => {
+    const handleCollabOperation = (event: CustomEvent) => {
+      const operation = event.detail; // Operation should now be directly here
+      console.log("CanvasBoard: Received collaborative operation", operation);
+
+      if (!operation || !operation.type) {
+        console.error("Invalid operation structure:", operation);
+        return;
+      }
+
+      // Only process operations from other users
+      if (operation.authorId === state.userId) {
+        console.log("Ignoring operation from self");
+        return;
+      }
+
+      console.log("Processing operation type:", operation.type);
+      switch (operation.type) {
+        case "element_start":
+        case "element_add": {
+          console.log("Processing element_start operation", operation);
+          const element = operation.data?.element;
+          if (element) {
+            console.log("Adding collaborative element:", element);
+            setCollaborativeElements((prev) => {
+              const exists = prev.find((el) => el.id === element.id);
+              if (exists) {
+                console.log("Element already exists, skipping");
+                return prev;
+              }
+              console.log("Adding new collaborative element", element);
+              const newElements = [...prev, { ...element, isTemporary: true }];
+              console.log("Collaborative elements count:", newElements.length);
+              return newElements;
+            });
+          } else {
+            console.warn("No element data in operation", operation);
+          }
+          break;
+        }
+
+        case "element_update": {
+          console.log("Processing element_update operation", operation);
+          setCollaborativeElements((prev) =>
+            prev.map((el) =>
+              el.id === operation.elementId ? { ...el, ...operation.data } : el
+            )
+          );
+          break;
+        }
+
+        case "element_complete": {
+          console.log("Processing element_complete operation", operation);
+          const completeElement = operation.data?.element;
+          if (completeElement) {
+            setCollaborativeElements((prev) =>
+              prev.map((el) =>
+                el.id === operation.elementId
+                  ? { ...el, ...completeElement, isTemporary: false }
+                  : el
+              )
+            );
+          }
+          break;
+        }
+
+        case "element_delete": {
+          console.log("Processing element_delete operation", operation);
+          setCollaborativeElements((prev) =>
+            prev.filter((el) => el.id !== operation.elementId)
+          );
+          break;
+        }
+
+        default:
+          console.log("Unknown operation type:", operation.type);
+      }
+    };
+
+    const handleRoomJoined = (event: CustomEvent) => {
+      console.log("CanvasBoard: Room joined event received", event.detail);
+      const { elements } = event.detail;
+      console.log("Elements from room:", elements);
+      if (elements && elements.length > 0) {
+        console.log("Loading room elements:", elements);
+        setCollaborativeElements(elements);
+      } else {
+        console.log("No elements to load from room");
+      }
+    };
+
+    if (isCollaborating) {
+      window.addEventListener(
+        "collab_operation",
+        handleCollabOperation as EventListener
+      );
+      window.addEventListener("room_joined", handleRoomJoined as EventListener);
+
+      // Handle collaborative laser events
+      const handleLaserPoint = (event: CustomEvent) => {
+        const { userId, point, timestamp } = event.detail;
+        setCollaborativeLaserTrails((prev) => {
+          const newTrails = new Map(prev);
+          const userTrail = newTrails.get(userId) || [];
+
+          // Add new point with fade effect
+          const newPoint = {
+            point,
+            opacity: 1,
+            timestamp,
+            color: "#ff0000", // Red for other users
+          };
+
+          // Keep recent points (last 2 seconds)
+          const recentPoints = userTrail.filter(
+            (p) => timestamp - p.timestamp < 2000
+          );
+          newTrails.set(userId, [...recentPoints, newPoint]);
+
+          return newTrails;
+        });
+      };
+
+      const handleLaserClear = (event: CustomEvent) => {
+        const { userId } = event.detail;
+        setCollaborativeLaserTrails((prev) => {
+          const newTrails = new Map(prev);
+          newTrails.delete(userId);
+          return newTrails;
+        });
+      };
+
+      window.addEventListener(
+        "collab_laser_point",
+        handleLaserPoint as EventListener
+      );
+      window.addEventListener(
+        "collab_laser_clear",
+        handleLaserClear as EventListener
+      );
+
+      return () => {
+        window.removeEventListener(
+          "collab_operation",
+          handleCollabOperation as EventListener
+        );
+        window.removeEventListener(
+          "room_joined",
+          handleRoomJoined as EventListener
+        );
+        window.removeEventListener(
+          "collab_laser_point",
+          handleLaserPoint as EventListener
+        );
+        window.removeEventListener(
+          "collab_laser_clear",
+          handleLaserClear as EventListener
+        );
+      };
+    }
+  }, [isCollaborating, state.userId]);
 
   // Save in local storage and load from that
   useEffect(() => {
     const savedElements = loadFromLocalStorage();
-    if ((savedElements.length > 0) && !isCollaborating) {
-      setElements(savedElements);
+    if (savedElements.length > 0 && !isCollaborating) {
+      setLocalElements(savedElements);
     }
 
     const frameRef = animationFrame;
@@ -166,7 +384,7 @@ export const CanvasBoard = () => {
         cancelAnimationFrame(frameRef.current);
       }
     };
-  }, []);
+  }, [isCollaborating]);
 
   // Auto-save for local mode
   useEffect(() => {
@@ -210,7 +428,11 @@ export const CanvasBoard = () => {
       };
 
       // Add visual indicator for elements being drawn by others in collaborative mode
-      if (isCollaborating && element.isTemporary && element.authorId !== state.currentUser?.id) {
+      if (
+        isCollaborating &&
+        element.isTemporary &&
+        element.authorId !== state.userId
+      ) {
         ctx.save();
         ctx.globalAlpha = 0.7;
       }
@@ -389,10 +611,13 @@ export const CanvasBoard = () => {
         }
       }
 
-      if (isCollaborating && element.isTemporary && element.authorId !== state.currentUser?.id) {
+      if (
+        isCollaborating &&
+        element.isTemporary &&
+        element.authorId !== state.userId
+      ) {
         ctx.restore();
       }
-
     });
 
     // Draw selection area if active
@@ -499,53 +724,88 @@ export const CanvasBoard = () => {
     }
 
     // Draw laser trail
-    if (selectedTool === "Laser") {
-      ctx.save();
-
-      // Draw the trail with glow effect
-      if (laser.trail.length > 1) {
-        // Set common properties
+    const drawLaserTrail = (
+      trail: Array<{ point: { x: number; y: number }; opacity?: number }>,
+      color: string,
+      opacity: number
+    ) => {
+      if (trail.length > 1) {
+        ctx.save();
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
         // Function to draw the path
         const drawPath = () => {
           ctx.beginPath();
-          ctx.moveTo(laser.trail[0].point.x, laser.trail[0].point.y);
-          for (let i = 1; i < laser.trail.length; i++) {
-            ctx.lineTo(laser.trail[i].point.x, laser.trail[i].point.y);
+          ctx.moveTo(trail[0].point.x, trail[0].point.y);
+          for (let i = 1; i < trail.length; i++) {
+            ctx.lineTo(trail[i].point.x, trail[i].point.y);
           }
         };
 
         // Draw outer glow
         ctx.shadowBlur = 20;
         ctx.lineWidth = 15;
-        ctx.strokeStyle = "#ff0000";
-        ctx.shadowColor = "#ff0000";
-        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        ctx.globalAlpha = opacity * 0.3;
         drawPath();
         ctx.stroke();
 
         // Draw middle layer
         ctx.shadowBlur = 10;
         ctx.lineWidth = 8;
-        ctx.globalAlpha = 0.6;
+        ctx.globalAlpha = opacity * 0.6;
         drawPath();
         ctx.stroke();
 
         // Draw core
         ctx.shadowBlur = 0;
         ctx.lineWidth = 3;
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = opacity;
         ctx.strokeStyle = "#ffffff";
         drawPath();
         ctx.stroke();
-      }
 
-      // Draw current laser point if trail exists
-      if (laser.trail.length > 0) {
-        const lastPoint = laser.trail[laser.trail.length - 1].point;
-        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    };
+
+    // Draw current user's laser trail
+    if (selectedTool === "Laser" && laser.trail.length > 0) {
+      drawLaserTrail(laser.trail, "#ff0000", 1.0);
+
+      // Draw current laser point
+      ctx.save();
+      const lastPoint = laser.trail[laser.trail.length - 1].point;
+      ctx.globalAlpha = 1;
+      const gradient = ctx.createRadialGradient(
+        lastPoint.x,
+        lastPoint.y,
+        0,
+        lastPoint.x,
+        lastPoint.y,
+        5
+      );
+      gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
+      gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Draw collaborative laser trails from other users
+    collaborativeLaserTrails.forEach((trail) => {
+      if (trail.length > 0) {
+        drawLaserTrail(trail, "#00ff00", 0.8); // Green for other users
+
+        // Draw their current laser point
+        ctx.save();
+        const lastPoint = trail[trail.length - 1].point;
+        ctx.globalAlpha = 0.8;
         const gradient = ctx.createRadialGradient(
           lastPoint.x,
           lastPoint.y,
@@ -554,17 +814,18 @@ export const CanvasBoard = () => {
           lastPoint.y,
           5
         );
-        gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
-        gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+        gradient.addColorStop(0, "rgba(0, 255, 0, 1)");
+        gradient.addColorStop(1, "rgba(0, 255, 0, 0)");
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
+        ctx.arc(lastPoint.x, lastPoint.y, 8, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       }
+    });
 
-      ctx.restore();
-    }
+    ctx.restore();
   }, [
     elements,
     position,
@@ -575,6 +836,8 @@ export const CanvasBoard = () => {
     selectedTool,
     laser.trail,
     selectionArea,
+    isCollaborating,
+    state.userId,
   ]);
 
   // Initialize canvas size
@@ -778,22 +1041,60 @@ export const CanvasBoard = () => {
     (newText: string) => {
       if (editingTextId) {
         if (newText.trim()) {
-          setElements((prev) =>
-            prev.map((el) =>
-              el.id === editingTextId ? { ...el, text: newText.trim() } : el
-            )
-          );
+          const updatedElement = elements.find((el) => el.id === editingTextId);
+          if (updatedElement) {
+            const completedElement = {
+              ...updatedElement,
+              text: newText.trim(),
+              isTemporary: false,
+            };
+
+            setElements((prev) =>
+              prev.map((el) =>
+                el.id === editingTextId ? completedElement : el
+              )
+            );
+
+            // Send collaboration update for text completion
+            if (isCollaborating && sendOperation && state.roomId) {
+              sendOperation({
+                type: "element_complete",
+                roomId: state.roomId,
+                elementId: editingTextId,
+                authorId: state.userId!,
+                data: { element: completedElement },
+              });
+            }
+          }
         } else {
           // Remove empty text elements
           setElements((prev) => prev.filter((el) => el.id !== editingTextId));
           setSelectedElement(null);
+
+          // Send collaboration update for text deletion
+          if (isCollaborating && sendOperation && state.roomId) {
+            sendOperation({
+              type: "element_delete",
+              roomId: state.roomId,
+              elementId: editingTextId,
+              authorId: state.userId!,
+              data: {},
+            });
+          }
         }
       }
 
       setIsEditingText(false);
       setEditingTextId(null);
     },
-    [editingTextId]
+    [
+      editingTextId,
+      elements,
+      isCollaborating,
+      sendOperation,
+      state.roomId,
+      state.userId,
+    ]
   );
 
   // Handle clicking outside text input to finish editing
@@ -1005,8 +1306,10 @@ export const CanvasBoard = () => {
 
       // Handle Text tool - create text immediately and start editing
       if (selectedTool === "Text") {
-        const elementId = isCollaborating 
-          ? `${state.currentUser?.id || 'local'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` 
+        const elementId = isCollaborating
+          ? `${state.userId || "local"}-${Date.now()}-${Math.random()
+              .toString(36)
+              .substr(2, 9)}`
           : Date.now().toString();
 
         const newElement: Element = {
@@ -1021,26 +1324,26 @@ export const CanvasBoard = () => {
           text: "Type here...",
           fontSize: 20,
           fontFamily: "Virgil",
-          authorId: isCollaborating ? state.currentUser?.id : 'local',
-          isTemporary: true
+          authorId: isCollaborating ? state.userId || "local" : "local",
+          isTemporary: true,
         };
 
         setElements((prev) => [...prev, newElement]);
         startTextEditing(newElement);
 
-        if(isCollaborating && sendOperation && state.currentRoom) {
+        if (isCollaborating && sendOperation && state.roomId) {
           sendOperation({
-            type: 'element_start',
-            roomId: state.currentRoom.id,
+            type: "element_start",
+            roomId: state.roomId,
             elementId: newElement.id,
-            authorId: state.currentUser!.id,
-            data: { element: newElement, tool: selectedTool }
-          })
+            authorId: state.userId!,
+            data: { element: newElement, tool: selectedTool },
+          });
         }
         return;
       }
 
-      // Handle Image tool - trigger file input 
+      // Handle Image tool - trigger file input
       // will handle its collab later
       if (selectedTool === "Image") {
         const input = document.getElementById(
@@ -1056,16 +1359,18 @@ export const CanvasBoard = () => {
         setEraserPos(point);
         const newElements = eraseElements(elements, point, ERASER_RADIUS);
         setElements(newElements);
-        
-        if (isCollaborating && sendOperation && state.currentRoom) {
-          const erasedElements = elements.filter(el => !newElements.includes(el));
-          erasedElements.forEach(el => {
+
+        if (isCollaborating && sendOperation && state.roomId) {
+          const erasedElements = elements.filter(
+            (el) => !newElements.includes(el)
+          );
+          erasedElements.forEach((el) => {
             sendOperation({
-              type: 'element_delete',
-              roomId: state.currentRoom!.id,
+              type: "element_delete",
+              roomId: state.roomId,
               elementId: el.id,
-              authorId: state.currentUser!.id,
-              data: {}
+              authorId: state.userId!,
+              data: {},
             });
           });
         }
@@ -1086,30 +1391,45 @@ export const CanvasBoard = () => {
         roughness: 1,
         seed: Math.floor(Math.random() * 1000),
         points: selectedTool === "Pencil" ? [point] : undefined,
-        authorId: isCollaborating ? state.currentUser?.id : 'local',
-        isTemporary: true
+        authorId: isCollaborating ? state.userId || "local" : "local",
+        isTemporary: true,
       };
 
       setCurrentElement(newElement);
       setElements((prev) => [...prev, newElement]);
 
-      if (isCollaborating && sendOperation && state.currentRoom) {
+      if (isCollaborating && sendOperation && state.roomId) {
         sendOperation({
-          type: 'element_start',
-          roomId: state.currentRoom.id,
+          type: "element_start",
+          roomId: state.roomId,
           elementId: newElement.id,
-          authorId: state.currentUser!.id,
-          data: { element: newElement, tool: selectedTool }
+          authorId: state.userId!,
+          data: { element: newElement, tool: selectedTool },
         });
-        
+
         updateDrawingStatus(true, newElement.id);
       }
     },
     [
-      isEditingText, getTransformedPoint, updateCursor, isCollaborating, position,
-      selectedTool, getElementAtPoint, strokeColor, strokeWidth, elements,
-      sendOperation, state.currentUser, state.currentRoom, setElements, updateDrawingStatus,
-      selectedElements, startTextEditing, setSelectedElement, selectedElement
+      isEditingText,
+      getTransformedPoint,
+      updateCursor,
+      isCollaborating,
+      position,
+      selectedTool,
+      getElementAtPoint,
+      strokeColor,
+      strokeWidth,
+      elements,
+      sendOperation,
+      state.userId,
+      state.roomId,
+      setElements,
+      updateDrawingStatus,
+      selectedElements,
+      startTextEditing,
+      setSelectedElement,
+      selectedElement,
     ]
   );
 
@@ -1136,8 +1456,31 @@ export const CanvasBoard = () => {
         if (e.buttons === 1) {
           // Only add points when mouse button is pressed
           laser.addPoint(point);
+
+          // Send laser point to collaborators
+          if (isCollaborating && updateCursor && state.roomId) {
+            updateCursor({ x: point.x, y: point.y });
+
+            // Send laser trail point to other users
+            if (state.socket) {
+              state.socket.emit("laser_point", {
+                roomId: state.roomId,
+                point: point,
+                userId: state.userId,
+                timestamp: Date.now(),
+              });
+            }
+          }
         } else {
           laser.clearTrail();
+
+          // Send laser clear to collaborators
+          if (isCollaborating && state.socket && state.roomId) {
+            state.socket.emit("laser_clear", {
+              roomId: state.roomId,
+              userId: state.userId,
+            });
+          }
         }
         return;
       }
@@ -1148,16 +1491,18 @@ export const CanvasBoard = () => {
         if (e.buttons === 1) {
           const newElements = eraseElements(elements, point, ERASER_RADIUS);
           setElements(newElements);
-          
-          if (isCollaborating && sendOperation && state.currentRoom) {
-            const erasedElements = elements.filter(el => !newElements.includes(el));
-            erasedElements.forEach(el => {
+
+          if (isCollaborating && sendOperation && state.roomId) {
+            const erasedElements = elements.filter(
+              (el) => !newElements.includes(el)
+            );
+            erasedElements.forEach((el) => {
               sendOperation({
-                type: 'element_delete',
-                roomId: state.currentRoom!.id,
+                type: "element_delete",
+                roomId: state.roomId!,
                 elementId: el.id,
-                authorId: state.currentUser!.id,
-                data: {}
+                authorId: state.userId!,
+                data: {},
               });
             });
           }
@@ -1166,206 +1511,284 @@ export const CanvasBoard = () => {
       }
 
       // Handle selection area
-    if (selectedTool === "select" && e.buttons === 1 && !isDragging && !resizing) {
-      setSelectionArea((prev) => ({
-        start: prev?.start || point,
-        end: point,
-      }));
+      if (
+        selectedTool === "select" &&
+        e.buttons === 1 &&
+        !isDragging &&
+        !resizing
+      ) {
+        setSelectionArea((prev) => ({
+          start: prev?.start || point,
+          end: point,
+        }));
 
-      const selectionRect = {
-        left: Math.min(selectionArea?.start.x || point.x, point.x),
-        right: Math.max(selectionArea?.start.x || point.x, point.x),
-        top: Math.min(selectionArea?.start.y || point.y, point.y),
-        bottom: Math.max(selectionArea?.start.y || point.y, point.y),
-      };
+        const selectionRect = {
+          left: Math.min(selectionArea?.start.x || point.x, point.x),
+          right: Math.max(selectionArea?.start.x || point.x, point.x),
+          top: Math.min(selectionArea?.start.y || point.y, point.y),
+          bottom: Math.max(selectionArea?.start.y || point.y, point.y),
+        };
 
-      const elementsInSelection = elements.filter((el) => {
-        switch (el.type) {
-          case "Rectangle":
-          case "Diamond":
-          case "Circle":
-          case "Image": {
-            if (el.width && el.height) {
-              const elRect = {
-                left: Math.min(el.x, el.x + el.width),
-                right: Math.max(el.x, el.x + el.width),
-                top: Math.min(el.y, el.y + el.height),
-                bottom: Math.max(el.y, el.y + el.height),
-              };
-              return (
-                elRect.left <= selectionRect.right &&
-                elRect.right >= selectionRect.left &&
-                elRect.top <= selectionRect.bottom &&
-                elRect.bottom >= selectionRect.top
-              );
-            }
-            return false;
-          }
-          case "Line":
-          case "Arrow": {
-            if (el.width !== undefined && el.height !== undefined) {
-              const endX = el.x + el.width;
-              const endY = el.y + el.height;
-              const elRect = {
-                left: Math.min(el.x, endX),
-                right: Math.max(el.x, endX),
-                top: Math.min(el.y, endY),
-                bottom: Math.max(el.y, endY),
-              };
-              return (
-                elRect.left <= selectionRect.right &&
-                elRect.right >= selectionRect.left &&
-                elRect.top <= selectionRect.bottom &&
-                elRect.bottom >= selectionRect.top
-              );
-            }
-            return false;
-          }
-          case "Text": {
-            if (el.text) {
-              const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
-              const textHeight = el.fontSize || 20;
-              const elRect = {
-                left: el.x,
-                right: el.x + textWidth,
-                top: el.y,
-                bottom: el.y + textHeight,
-              };
-              return (
-                elRect.left <= selectionRect.right &&
-                elRect.right >= selectionRect.left &&
-                elRect.top <= selectionRect.bottom &&
-                elRect.bottom >= selectionRect.top
-              );
-            }
-            return false;
-          }
-          case "Pencil": {
-            if (el.points && el.points.length > 0) {
-              const xs = el.points.map((p) => p.x);
-              const ys = el.points.map((p) => p.y);
-              const elRect = {
-                left: Math.min(...xs),
-                right: Math.max(...xs),
-                top: Math.min(...ys),
-                bottom: Math.max(...ys),
-              };
-              return (
-                elRect.left <= selectionRect.right &&
-                elRect.right >= selectionRect.left &&
-                elRect.top <= selectionRect.bottom &&
-                elRect.bottom >= selectionRect.top
-              );
-            }
-            return false;
-          }
-          default:
-            return false;
-        }
-      });
-      setSelectedElements(elementsInSelection);
-      return;
-    }
-
-    // Handle element dragging
-    if (isDragging) {
-      const newX = point.x - dragOffset.x;
-      const newY = point.y - dragOffset.y;
-
-      setElements((prev) => {
-        const updated = prev.map((el) => {
-          if (selectedElements.some((selected) => selected.id === el.id)) {
-            const newElement = { ...el };
-            if (el.type === "Pencil" && el.points) {
-              // For pencil, move all points
-              const deltaX = newX - el.x;
-              const deltaY = newY - el.y;
-              newElement.x = newX;
-              newElement.y = newY;
-              newElement.points = el.points.map((p) => ({
-                x: p.x + deltaX,
-                y: p.y + deltaY,
-              }));
-            } else {
-              // For other elements, just move the position
-              newElement.x = newX;
-              newElement.y = newY;
-            }
-
-            // Send operation for collaborative mode
-            if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
-              sendOperation({
-                type: 'element_update',
-                roomId: state.currentRoom.id,
-                elementId: el.id,
-                authorId: state.currentUser.id,
-                data: {
-                  x: newElement.x,
-                  y: newElement.y,
-                  ...(newElement.points ? { points: newElement.points } : {}),
-                },
-              });
-            }
-
-            return newElement;
-          }
-          return el;
-        });
-
-        return updated;
-      });
-
-      // Update selected element reference
-      setSelectedElement((prev) =>
-        prev ? { ...prev, x: newX, y: newY } : null
-      );
-      return;
-    }
-
-    // Handle resizing
-    if (resizing && resizeStart && selectedElement) {
-      setElements((prev) => {
-        let updatedElement: Element | null = null;
-        const updated = prev.map((el) => {
-          if (el.id !== resizing.elementId) return el;
+        const elementsInSelection = elements.filter((el) => {
           switch (el.type) {
+            case "Rectangle":
+            case "Diamond":
+            case "Circle":
             case "Image": {
-              // For images, maintain aspect ratio
-              const aspectRatio = el.aspectRatio || 1;
-              let newWidth = 0;
-              let newHeight = 0;
-              let newX = el.x;
-              let newY = el.y;
+              if (el.width && el.height) {
+                const elRect = {
+                  left: Math.min(el.x, el.x + el.width),
+                  right: Math.max(el.x, el.x + el.width),
+                  top: Math.min(el.y, el.y + el.height),
+                  bottom: Math.max(el.y, el.y + el.height),
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            case "Line":
+            case "Arrow": {
+              if (el.width !== undefined && el.height !== undefined) {
+                const endX = el.x + el.width;
+                const endY = el.y + el.height;
+                const elRect = {
+                  left: Math.min(el.x, endX),
+                  right: Math.max(el.x, endX),
+                  top: Math.min(el.y, endY),
+                  bottom: Math.max(el.y, endY),
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            case "Text": {
+              if (el.text) {
+                const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
+                const textHeight = el.fontSize || 20;
+                const elRect = {
+                  left: el.x,
+                  right: el.x + textWidth,
+                  top: el.y,
+                  bottom: el.y + textHeight,
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            case "Pencil": {
+              if (el.points && el.points.length > 0) {
+                const xs = el.points.map((p) => p.x);
+                const ys = el.points.map((p) => p.y);
+                const elRect = {
+                  left: Math.min(...xs),
+                  right: Math.max(...xs),
+                  top: Math.min(...ys),
+                  bottom: Math.max(...ys),
+                };
+                return (
+                  elRect.left <= selectionRect.right &&
+                  elRect.right >= selectionRect.left &&
+                  elRect.top <= selectionRect.bottom &&
+                  elRect.bottom >= selectionRect.top
+                );
+              }
+              return false;
+            }
+            default:
+              return false;
+          }
+        });
+        setSelectedElements(elementsInSelection);
+        return;
+      }
 
-              switch (resizing.corner) {
-                case "tl": {
-                  newWidth = el.x + (el.width || 0) - point.x;
-                  newHeight = newWidth / aspectRatio;
-                  newX = point.x;
-                  newY = el.y + (el.height || 0) - newHeight;
-                  break;
-                }
-                case "tr": {
-                  newWidth = point.x - el.x;
-                  newHeight = newWidth / aspectRatio;
-                  newY = el.y + (el.height || 0) - newHeight;
-                  break;
-                }
-                case "br": {
-                  newWidth = point.x - el.x;
-                  newHeight = newWidth / aspectRatio;
-                  break;
-                }
-                case "bl": {
-                  newWidth = el.x + (el.width || 0) - point.x;
-                  newHeight = newWidth / aspectRatio;
-                  newX = point.x;
-                  break;
-                }
+      // Handle element dragging
+      if (isDragging) {
+        const newX = point.x - dragOffset.x;
+        const newY = point.y - dragOffset.y;
+
+        setElements((prev) => {
+          const updated = prev.map((el) => {
+            if (selectedElements.some((selected) => selected.id === el.id)) {
+              const newElement = { ...el };
+              if (el.type === "Pencil" && el.points) {
+                // For pencil, move all points
+                const deltaX = newX - el.x;
+                const deltaY = newY - el.y;
+                newElement.x = newX;
+                newElement.y = newY;
+                newElement.points = el.points.map((p) => ({
+                  x: p.x + deltaX,
+                  y: p.y + deltaY,
+                }));
+              } else {
+                // For other elements, just move the position
+                newElement.x = newX;
+                newElement.y = newY;
               }
 
-              if (newWidth > 10 && newHeight > 10) {
-                // Prevent too small sizes
+              // Send operation for collaborative mode
+              if (
+                isCollaborating &&
+                sendOperation &&
+                state.roomId &&
+                state.userId
+              ) {
+                sendOperation({
+                  type: "element_update",
+                  roomId: state.roomId!,
+                  elementId: el.id,
+                  authorId: state.userId!,
+                  data: {
+                    x: newElement.x,
+                    y: newElement.y,
+                    ...(newElement.points ? { points: newElement.points } : {}),
+                  },
+                });
+              }
+
+              return newElement;
+            }
+            return el;
+          });
+
+          return updated;
+        });
+
+        // Update selected element reference
+        setSelectedElement((prev) =>
+          prev ? { ...prev, x: newX, y: newY } : null
+        );
+        return;
+      }
+
+      // Handle resizing
+      if (resizing && resizeStart && selectedElement) {
+        setElements((prev) => {
+          let updatedElement: Element | null = null;
+          const updated = prev.map((el) => {
+            if (el.id !== resizing.elementId) return el;
+            switch (el.type) {
+              case "Image": {
+                // For images, maintain aspect ratio
+                const aspectRatio = el.aspectRatio || 1;
+                let newWidth = 0;
+                let newHeight = 0;
+                let newX = el.x;
+                let newY = el.y;
+
+                switch (resizing.corner) {
+                  case "tl": {
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = newWidth / aspectRatio;
+                    newX = point.x;
+                    newY = el.y + (el.height || 0) - newHeight;
+                    break;
+                  }
+                  case "tr": {
+                    newWidth = point.x - el.x;
+                    newHeight = newWidth / aspectRatio;
+                    newY = el.y + (el.height || 0) - newHeight;
+                    break;
+                  }
+                  case "br": {
+                    newWidth = point.x - el.x;
+                    newHeight = newWidth / aspectRatio;
+                    break;
+                  }
+                  case "bl": {
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = newWidth / aspectRatio;
+                    newX = point.x;
+                    break;
+                  }
+                }
+
+                if (newWidth > 10 && newHeight > 10) {
+                  // Prevent too small sizes
+                  updatedElement = {
+                    ...el,
+                    x: newX,
+                    y: newY,
+                    width: newWidth,
+                    height: newHeight,
+                  };
+
+                  // Send operation for collaborative mode
+                  if (
+                    isCollaborating &&
+                    sendOperation &&
+                    state.roomId &&
+                    state.userId
+                  ) {
+                    sendOperation({
+                      type: "element_update",
+                      roomId: state.roomId!,
+                      elementId: el.id,
+                      authorId: state.userId!,
+                      data: {
+                        x: newX,
+                        y: newY,
+                        width: newWidth,
+                        height: newHeight,
+                      },
+                    });
+                  }
+
+                  return updatedElement;
+                }
+                return el;
+              }
+              case "Rectangle":
+              case "Diamond":
+              case "Circle": {
+                let newX = el.x;
+                let newY = el.y;
+                let newWidth = el.width || 0;
+                let newHeight = el.height || 0;
+
+                switch (resizing.corner) {
+                  case "tl": {
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = el.y + (el.height || 0) - point.y;
+                    newX = point.x;
+                    newY = point.y;
+                    break;
+                  }
+                  case "tr": {
+                    newWidth = point.x - el.x;
+                    newHeight = el.y + (el.height || 0) - point.y;
+                    newY = point.y;
+                    break;
+                  }
+                  case "br": {
+                    newWidth = point.x - el.x;
+                    newHeight = point.y - el.y;
+                    break;
+                  }
+                  case "bl": {
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = point.y - el.y;
+                    newX = point.x;
+                    break;
+                  }
+                }
+
                 updatedElement = {
                   ...el,
                   x: newX,
@@ -1375,12 +1798,17 @@ export const CanvasBoard = () => {
                 };
 
                 // Send operation for collaborative mode
-                if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
+                if (
+                  isCollaborating &&
+                  sendOperation &&
+                  state.roomId &&
+                  state.userId
+                ) {
                   sendOperation({
-                    type: 'element_update',
-                    roomId: state.currentRoom.id,
+                    type: "element_update",
+                    roomId: state.roomId!,
                     elementId: el.id,
-                    authorId: state.currentUser.id,
+                    authorId: state.userId!,
                     data: {
                       x: newX,
                       y: newY,
@@ -1392,223 +1820,181 @@ export const CanvasBoard = () => {
 
                 return updatedElement;
               }
-              return el;
-            }
-            case "Rectangle":
-            case "Diamond":
-            case "Circle": {
-              let newX = el.x;
-              let newY = el.y;
-              let newWidth = el.width || 0;
-              let newHeight = el.height || 0;
+              case "Line":
+              case "Arrow": {
+                updatedElement = {
+                  ...el,
+                  x: resizing.corner === "start" ? point.x : el.x,
+                  y: resizing.corner === "start" ? point.y : el.y,
+                  width:
+                    resizing.corner === "start"
+                      ? el.x + (el.width || 0) - point.x
+                      : point.x - el.x,
+                  height:
+                    resizing.corner === "start"
+                      ? el.y + (el.height || 0) - point.y
+                      : point.y - el.y,
+                };
 
-              switch (resizing.corner) {
-                case "tl": {
-                  newWidth = el.x + (el.width || 0) - point.x;
-                  newHeight = el.y + (el.height || 0) - point.y;
-                  newX = point.x;
-                  newY = point.y;
-                  break;
+                // Send operation for collaborative mode
+                if (
+                  isCollaborating &&
+                  sendOperation &&
+                  state.roomId &&
+                  state.userId
+                ) {
+                  sendOperation({
+                    type: "element_update",
+                    roomId: state.roomId!,
+                    elementId: el.id,
+                    authorId: state.userId!,
+                    data: {
+                      x: updatedElement.x,
+                      y: updatedElement.y,
+                      width: updatedElement.width,
+                      height: updatedElement.height,
+                    },
+                  });
                 }
-                case "tr": {
-                  newWidth = point.x - el.x;
-                  newHeight = el.y + (el.height || 0) - point.y;
-                  newY = point.y;
-                  break;
-                }
-                case "br": {
-                  newWidth = point.x - el.x;
-                  newHeight = point.y - el.y;
-                  break;
-                }
-                case "bl": {
-                  newWidth = el.x + (el.width || 0) - point.x;
-                  newHeight = point.y - el.y;
-                  newX = point.x;
-                  break;
-                }
+
+                return updatedElement;
               }
-
-              updatedElement = {
-                ...el,
-                x: newX,
-                y: newY,
-                width: newWidth,
-                height: newHeight,
-              };
-
-              // Send operation for collaborative mode
-              if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
-                sendOperation({
-                  type: 'element_update',
-                  roomId: state.currentRoom.id,
-                  elementId: el.id,
-                  authorId: state.currentUser.id,
-                  data: {
-                    x: newX,
-                    y: newY,
-                    width: newWidth,
-                    height: newHeight,
-                  },
-                });
-              }
-
-              return updatedElement;
+              default:
+                return el;
             }
-            case "Line":
-            case "Arrow": {
-              updatedElement = {
-                ...el,
-                x: resizing.corner === "start" ? point.x : el.x,
-                y: resizing.corner === "start" ? point.y : el.y,
-                width:
-                  resizing.corner === "start"
-                    ? el.x + (el.width || 0) - point.x
-                    : point.x - el.x,
-                height:
-                  resizing.corner === "start"
-                    ? el.y + (el.height || 0) - point.y
-                    : point.y - el.y,
-              };
+          });
 
-              // Send operation for collaborative mode
-              if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
-                sendOperation({
-                  type: 'element_update',
-                  roomId: state.currentRoom.id,
-                  elementId: el.id,
-                  authorId: state.currentUser.id,
-                  data: {
-                    x: updatedElement.x,
-                    y: updatedElement.y,
-                    width: updatedElement.width,
-                    height: updatedElement.height,
-                  },
-                });
-              }
-
-              return updatedElement;
-            }
-            default:
-              return el;
-          }
+          // Update selectedElement to match the resized shape
+          if (updatedElement) setSelectedElement(updatedElement);
+          return updated;
         });
-
-        // Update selectedElement to match the resized shape
-        if (updatedElement) setSelectedElement(updatedElement);
-        return updated;
-      });
-      return;
-    }
-
-    // Handle drawing for non-select tools
-    if (!drawing || !currentElement) return;
-
-    setElements((prev) => {
-      const index = prev.findIndex((el) => el.id === currentElement.id);
-      if (index === -1) return prev;
-      const updated = [...prev];
-
-      switch (currentElement.type) {
-        case "Rectangle":
-        case "Diamond":
-        case "Circle":
-        case "Arrow":
-        case "Line": {
-          const updatedElement = {
-            ...currentElement,
-            width: point.x - currentElement.x,
-            height: point.y - currentElement.y,
-          };
-          updated[index] = updatedElement;
-
-          // Send operation for collaborative mode
-          if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
-            sendOperation({
-              type: 'element_update',
-              roomId: state.currentRoom.id,
-              elementId: currentElement.id,
-              authorId: state.currentUser.id,
-              data: {
-                width: updatedElement.width,
-                height: updatedElement.height,
-              },
-            });
-          }
-          break;
-        }
-        case "Pencil": {
-          const currentPoints = updated[index].points || [];
-          const lastPoint = currentPoints[currentPoints.length - 1];
-          const distance = lastPoint
-            ? Math.sqrt(
-                Math.pow(point.x - lastPoint.x, 2) + Math.pow(point.y - lastPoint.y, 2)
-              )
-            : 0;
-
-          if (!lastPoint || distance > 1) {
-            const newPoints = [...currentPoints, point];
-            updated[index] = { ...updated[index], points: newPoints };
-
-            // Your provided snippet for Pencil updates
-            if (isCollaborating && sendOperation && state.currentRoom && state.currentUser) {
-              sendOperation({
-                type: 'element_update',
-                roomId: state.currentRoom.id,
-                elementId: currentElement.id,
-                authorId: state.currentUser.id,
-                data: { points: newPoints },
-              });
-            }
-          }
-          break;
-        }
+        return;
       }
 
-      return updated;
-    });
-  },
-  [
-    getTransformedPoint,
-    isCollaborating,
-    updateCursor,
-    isPanning,
-    startPan,
-    selectedTool,
-    laser,
-    elements,
-    currentElement,
-    isDragging,
-    dragOffset,
-    resizing,
-    resizeStart,
-    selectionArea,
-    selectedElements,
-    sendOperation,
-    state.currentRoom,
-    state.currentUser,
-    setElements,
-    setSelectedElement,
-  ]
-);
+      // Handle drawing for non-select tools
+      if (!drawing || !currentElement) return;
+
+      setElements((prev) => {
+        const index = prev.findIndex((el) => el.id === currentElement.id);
+        if (index === -1) return prev;
+        const updated = [...prev];
+
+        switch (currentElement.type) {
+          case "Rectangle":
+          case "Diamond":
+          case "Circle":
+          case "Arrow":
+          case "Line": {
+            const updatedElement = {
+              ...currentElement,
+              width: point.x - currentElement.x,
+              height: point.y - currentElement.y,
+            };
+            updated[index] = updatedElement;
+
+            // Send operation for collaborative mode
+            if (
+              isCollaborating &&
+              sendOperation &&
+              state.roomId &&
+              state.userId
+            ) {
+              sendOperation({
+                type: "element_update",
+                roomId: state.roomId!,
+                elementId: currentElement.id,
+                authorId: state.userId!,
+                data: {
+                  width: updatedElement.width,
+                  height: updatedElement.height,
+                },
+              });
+            }
+            break;
+          }
+          case "Pencil": {
+            const currentPoints = updated[index].points || [];
+            const lastPoint = currentPoints[currentPoints.length - 1];
+            const distance = lastPoint
+              ? Math.sqrt(
+                  Math.pow(point.x - lastPoint.x, 2) +
+                    Math.pow(point.y - lastPoint.y, 2)
+                )
+              : 0;
+
+            if (!lastPoint || distance > 1) {
+              const newPoints = [...currentPoints, point];
+              updated[index] = { ...updated[index], points: newPoints };
+
+              // Your provided snippet for Pencil updates
+              if (
+                isCollaborating &&
+                sendOperation &&
+                state.roomId &&
+                state.userId
+              ) {
+                sendOperation({
+                  type: "element_update",
+                  roomId: state.roomId!,
+                  elementId: currentElement.id,
+                  authorId: state.userId!,
+                  data: { points: newPoints },
+                });
+              }
+            }
+            break;
+          }
+        }
+
+        return updated;
+      });
+    },
+    [
+      getTransformedPoint,
+      isCollaborating,
+      updateCursor,
+      isPanning,
+      startPan,
+      selectedTool,
+      laser,
+      elements,
+      currentElement,
+      isDragging,
+      dragOffset,
+      resizing,
+      resizeStart,
+      selectionArea,
+      selectedElements,
+      sendOperation,
+      state.roomId,
+      state.userId,
+      setElements,
+      setSelectedElement,
+    ]
+  );
 
   const handleMouseUp = useCallback(() => {
-
-    if (drawing && currentElement && isCollaborating && sendOperation && state.currentRoom) {
+    if (
+      drawing &&
+      currentElement &&
+      isCollaborating &&
+      sendOperation &&
+      state.roomId
+    ) {
       // Complete the element
       const completedElement = { ...currentElement, isTemporary: false };
-      setElements(prev => prev.map(el => 
-        el.id === currentElement.id ? completedElement : el
-      ));
-      
+      setElements((prev) =>
+        prev.map((el) => (el.id === currentElement.id ? completedElement : el))
+      );
+
       sendOperation({
-        type: 'element_complete',
-        roomId: state.currentRoom.id,
+        type: "element_complete",
+        roomId: state.roomId!,
         elementId: currentElement.id,
-        authorId: state.currentUser!.id,
-        data: { element: completedElement }
+        authorId: state.userId!,
+        data: { element: completedElement },
       });
-      
+
       updateDrawingStatus(false);
     }
 
@@ -1710,18 +2096,41 @@ export const CanvasBoard = () => {
             setElements((prev) => [...prev, newElement]);
             setSelectedElement(newElement);
             setSelectedTool("select"); // Switch to select tool after placing image
+
+            // Send collaborative operation for image upload
+            if (isCollaborating) {
+              console.log("Sending image upload operation:", newElement);
+              sendOperation({
+                type: "element_create",
+                element: newElement,
+                roomId: state.roomId,
+                userId: state.userId,
+              });
+            }
           };
           img.src = imageUrl;
         };
         reader.readAsDataURL(file);
       }
     },
-    [strokeColor, strokeWidth, setSelectedTool, scale, position, canvasRef]
+    [
+      strokeColor,
+      strokeWidth,
+      setSelectedTool,
+      scale,
+      position,
+      canvasRef,
+      isCollaborating,
+      sendOperation,
+      state.roomId,
+      state.userId,
+    ]
   );
 
-  // Reset state when session ends (removed setLocalElements([]) to preserve loaded local state)
+  // Reset state when session ends
   useEffect(() => {
     if (!isCollaborating) {
+      setCollaborativeElements([]);
       setCurrentElement(null);
       setSelectedElement(null);
       setSelectedElements([]);
@@ -1768,38 +2177,29 @@ export const CanvasBoard = () => {
       {/* Collaborative Features */}
       {isCollaborating && (
         <>
-          {state.isCollaborating && (
-                <div className="absolute right-0 top-0 text-align-center p-4 z-10">
-                  Room: {state.currentRoom?.name}
-                </div>
-              )}
-            
+          {/* Room Info */}
+          <div className="absolute right-0 top-0 text-align-center p-4 z-10">
+            Room: {state.roomId}
+          </div>
+
           {/* Connection Status */}
-          <ConnectionStatus 
+          <ConnectionStatus
             isConnected={isConnected}
             collaborators={collaborators}
           />
 
           {/* Collaborator Cursors */}
-          {collaborators.map(collaborator => 
-            collaborator.cursor && collaborator.id !== state.currentUser?.id && (
-              <CollabCursor
-                key={collaborator.id}
-                collaborator={collaborator}
-                position={position}
-                scale={scale}
-              />
-            )
-          )}
-
-          {/* End Session Button for creator */}
-          {state.isCreator && (
-            <button
-              className="absolute top-4 left-4 z-50 bg-red-500 text-white px-4 py-2 rounded shadow hover:bg-red-600"
-              onClick={endCollabSession}
-            >
-              End Session
-            </button>
+          {collaborators.map(
+            (collaborator) =>
+              collaborator.cursor &&
+              collaborator.id !== state.userId && (
+                <CollabCursor
+                  key={collaborator.id}
+                  collaborator={collaborator}
+                  position={position}
+                  scale={scale}
+                />
+              )
           )}
         </>
       )}
