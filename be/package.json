@@ -14,6 +14,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/cors": "^2.8.19",
     "compression": "^1.8.1",
     "cookie": "^1.0.2",
     "express": "^5.1.0",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.3",
-    "@types/jsonwebtoken": "^9.0.10"
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.5.0"
   }
 }
