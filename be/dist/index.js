@@ -22,37 +22,34 @@ app.use((0, helmet_1.default)());
 app.use((0, compression_1.default)());
 app.use(express_1.default.json());
 app.use((0, cors_1.default)({
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true,
 }));
 // Rate limiting
 const limiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100,
-    message: { error: 'Too many requests from this IP' }
+    message: { error: "Too many requests from this IP" },
 });
 app.use(limiter);
 // Health check route
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
     const stats = collabServer.getConnectionStats();
     res.json({
-        status: 'healthy',
+        status: "healthy",
         timestamp: Date.now(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        connections: stats
+        connections: stats,
     });
 });
-app.use('/api/rooms', rooms_routes_1.default);
+app.use("/api/rooms", rooms_routes_1.default);
 const PORT = 3000;
-exports.httpServer.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.log(`Socket.IO server initialized and ready for connections`);
-});
+exports.httpServer.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 // Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
+process.on("SIGTERM", () => {
+    console.log("SIGTERM received, shutting down gracefully");
     exports.httpServer.close(() => {
         process.exit(0);
     });
