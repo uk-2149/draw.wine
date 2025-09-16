@@ -1,6 +1,20 @@
-export interface Position {
-  x: number;
-  y: number;
+export interface User {
+  id: string;
+  name: string;
+  color: string;
+  cursor?: { x: number; y: number };
+  socketId: string;
+  isDrawing?: boolean;
+  currentElementId?: string;
+  joinedAt: number;
+}
+
+export interface Room {
+  id: string;
+  users: Map<string, User>;
+  elements: Element[];
+  lastActivity: number;
+  createdAt: number;
 }
 
 export interface Element {
@@ -10,7 +24,6 @@ export interface Element {
   y: number;
   width?: number;
   height?: number;
-  points?: Position[];
   strokeColor: string;
   strokeWidth: number;
   roughness?: number;
@@ -18,52 +31,22 @@ export interface Element {
   text?: string;
   fontSize?: number;
   fontFamily?: string;
-  imageUrl?: string; // URL or base64 string for the image
-  aspectRatio?: number; // To maintain image proportions while resizing
+  points?: Array<{ x: number; y: number }>;
+  imageUrl?: string;
+  aspectRatio?: number;
+  authorId?: string;
+  isTemporary?: boolean;
 }
-
 
 export interface DrawingOperation {
-    id: string;
-    type: 'element_start' | 'element_update' | 'element_complete' | 'element_delete' | 'element_transform';
-    elementId: string;
-    authorId: string;
-    timestamp: number;
-    roomId: string;
-    data: any;
-    isTemporary?: boolean;
-}
-
-export interface RoomState {
-    id: string;
-    elements: { [key: string]: Element };
-    collaborators: Array<{
-        id: string;
-        name: string;
-        color: string;
-        cursor?: { x: number; y: number };
-        isDrawing?: boolean;
-        currentElementId?: string;
-        joinedAt: number;
-    }>;
-    lastModified: number;
-    version: number;
-}
-
-export interface AuthPayload {
-  userId: string;
+  type:
+    | "element_start"
+    | "element_update"
+    | "element_complete"
+    | "element_delete";
   roomId: string;
-  userName?: string;
-  role?: string;
-}
-
-export interface DatabaseOperation {
-  id: string;
-  roomId: string;
-  operationType: string;
   elementId: string;
   authorId: string;
-  timestamp: number;
-  sequenceNumber: number;
-  operationData: any;
+  data: any;
+  timestamp?: number;
 }

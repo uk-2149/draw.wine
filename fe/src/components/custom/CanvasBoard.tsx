@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
+
 import rough from "roughjs";
 import type { Position, Element } from "@/types";
 import { useLaserTrail } from "./LaserTrail";
@@ -11,6 +12,97 @@ import {
   saveToLocalStorage,
 } from "@/utils/StoreProgress";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
+import { useCollab } from "@/contexts/CollabContext";
+
+// Cursor
+const CollabCursor = ({
+  collaborator,
+  position,
+  scale,
+}: {
+  collaborator: any;
+  position: Position;
+  scale: number;
+}) => (
+  <div
+    className="absolute pointer-events-none z-50"
+    style={{
+      left: `${collaborator.cursor.x * scale + position.x}px`,
+      top: `${collaborator.cursor.y * scale + position.y}px`,
+      transform: "translate(-2px, -2px)",
+    }}
+  >
+    <div className="relative">
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        className="drop-shadow-sm"
+      >
+        <path
+          d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+          fill={collaborator.color}
+          stroke="white"
+          strokeWidth="1"
+        />
+      </svg>
+
+      <div
+        className="absolute top-6 left-2 px-2 py-1 rounded text-white text-xs whitespace-nowrap shadow-lg"
+        style={{ backgroundColor: collaborator.color }}
+      >
+        {collaborator.name}
+        {collaborator.isDrawing && (
+          <span className="ml-1 animate-pulse">✏️</span>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+// Connection Status Component
+const ConnectionStatus = ({
+  isConnected,
+  collaborators,
+}: {
+  isConnected: boolean;
+  collaborators: any[];
+}) => (
+  <div className="absolute top-4 right-4 z-50 bg-white rounded-lg shadow-lg p-3 max-w-xs">
+    <div className="flex items-center space-x-2 mb-2">
+      <div
+        className={`w-3 h-3 rounded-full ${
+          isConnected ? "bg-green-500" : "bg-red-500"
+        }`}
+      />
+      <span className="text-sm font-medium">
+        {isConnected ? "Connected" : "Disconnected"}
+      </span>
+    </div>
+
+    {collaborators.length > 0 && (
+      <div>
+        <h4 className="text-sm font-semibold mb-2">
+          Active Users ({collaborators.length})
+        </h4>
+        <div className="space-y-1 max-h-32 overflow-y-auto">
+          {collaborators.map((collaborator) => (
+            <div key={collaborator.id} className="flex items-center space-x-2">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: collaborator.color }}
+              />
+              <span className="text-sm truncate">{collaborator.name}</span>
+              {collaborator.isDrawing && (
+                <span className="text-xs text-gray-500">drawing...</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+);
 
 export const CanvasBoard = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,7 +110,30 @@ export const CanvasBoard = () => {
   const animationFrame = useRef<number | null>(null);
   const { selectedTool, strokeColor, strokeWidth, setSelectedTool } =
     useDrawing();
-  const [elements, setElements] = useState<Element[]>([]);
+
+  // Get collaboration state
+  const { state, sendOperation, updateCursor, updateDrawingStatus } =
+    useCollab();
+
+  // Local state for non-collaborative mode
+  const [localElements, setLocalElements] = useState<Element[]>([]);
+  const [collaborativeElements, setCollaborativeElements] = useState<Element[]>(
+    []
+  );
+
+  // Debug collaborative elements
+  useEffect(() => {
+    console.log("=== FRONTEND: Collaborative elements updated ===");
+    console.log("Count:", collaborativeElements.length);
+    console.log(
+      "Elements:",
+      collaborativeElements.map((el) => ({
+        id: el.id,
+        type: el.type,
+        isTemporary: el.isTemporary,
+      }))
+    );
+  }, [collaborativeElements]);
   const [drawing, setDrawing] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
   const [startPan, setStartPan] = useState<Position>({ x: 0, y: 0 });
@@ -43,11 +158,221 @@ export const CanvasBoard = () => {
   const [selectedElements, setSelectedElements] = useState<Element[]>([]);
   const laser = useLaserTrail();
 
+  // Determine if we're in collaboration mode
+  const isCollaborating = state.isCollaborating;
+  const collaborators = state.collaborators;
+  const isConnected = state.isConnected;
+
+  // Use collaborative or local elements based on mode
+  const elements = isCollaborating
+    ? [...localElements, ...collaborativeElements]
+    : localElements;
+
+  const setElements = isCollaborating
+    ? setCollaborativeElements
+    : setLocalElements;
+
+  // Store collaborative laser trails from other users
+  const [collaborativeLaserTrails, setCollaborativeLaserTrails] = useState<
+    Map<
+      string,
+      Array<{
+        point: { x: number; y: number };
+        opacity: number;
+        timestamp: number;
+        color: string;
+      }>
+    >
+  >(new Map());
+
+  // Debug logging for elements
+  useEffect(() => {
+    if (isCollaborating) {
+      console.log("=== CANVAS ELEMENTS DEBUG ===");
+      console.log("Local elements count:", localElements.length);
+      console.log(
+        "Collaborative elements count:",
+        collaborativeElements.length
+      );
+      console.log("Total elements count:", elements.length);
+      console.log("Collaborative elements:", collaborativeElements);
+    }
+  }, [
+    isCollaborating,
+    localElements.length,
+    collaborativeElements.length,
+    collaborativeElements,
+    elements.length,
+  ]);
+
+  // Listen for collaborative operations
+  useEffect(() => {
+    const handleCollabOperation = (event: CustomEvent) => {
+      const operation = event.detail; // Operation should now be directly here
+      console.log("CanvasBoard: Received collaborative operation", operation);
+
+      if (!operation || !operation.type) {
+        console.error("Invalid operation structure:", operation);
+        return;
+      }
+
+      // Only process operations from other users
+      if (operation.authorId === state.userId) {
+        console.log("Ignoring operation from self");
+        return;
+      }
+
+      console.log("Processing operation type:", operation.type);
+      switch (operation.type) {
+        case "element_start":
+        case "element_add": {
+          console.log("Processing element_start operation", operation);
+          const element = operation.data?.element;
+          if (element) {
+            console.log("Adding collaborative element:", element);
+            setCollaborativeElements((prev) => {
+              const exists = prev.find((el) => el.id === element.id);
+              if (exists) {
+                console.log("Element already exists, skipping");
+                return prev;
+              }
+              console.log("Adding new collaborative element", element);
+              const newElements = [...prev, { ...element, isTemporary: true }];
+              console.log("Collaborative elements count:", newElements.length);
+              return newElements;
+            });
+          } else {
+            console.warn("No element data in operation", operation);
+          }
+          break;
+        }
+
+        case "element_update": {
+          console.log("Processing element_update operation", operation);
+          setCollaborativeElements((prev) =>
+            prev.map((el) =>
+              el.id === operation.elementId ? { ...el, ...operation.data } : el
+            )
+          );
+          break;
+        }
+
+        case "element_complete": {
+          console.log("Processing element_complete operation", operation);
+          const completeElement = operation.data?.element;
+          if (completeElement) {
+            setCollaborativeElements((prev) =>
+              prev.map((el) =>
+                el.id === operation.elementId
+                  ? { ...el, ...completeElement, isTemporary: false }
+                  : el
+              )
+            );
+          }
+          break;
+        }
+
+        case "element_delete": {
+          console.log("Processing element_delete operation", operation);
+          setCollaborativeElements((prev) =>
+            prev.filter((el) => el.id !== operation.elementId)
+          );
+          break;
+        }
+
+        default:
+          console.log("Unknown operation type:", operation.type);
+      }
+    };
+
+    const handleRoomJoined = (event: CustomEvent) => {
+      console.log("CanvasBoard: Room joined event received", event.detail);
+      const { elements } = event.detail;
+      console.log("Elements from room:", elements);
+      if (elements && elements.length > 0) {
+        console.log("Loading room elements:", elements);
+        setCollaborativeElements(elements);
+      } else {
+        console.log("No elements to load from room");
+      }
+    };
+
+    if (isCollaborating) {
+      window.addEventListener(
+        "collab_operation",
+        handleCollabOperation as EventListener
+      );
+      window.addEventListener("room_joined", handleRoomJoined as EventListener);
+
+      // Handle collaborative laser events
+      const handleLaserPoint = (event: CustomEvent) => {
+        const { userId, point, timestamp } = event.detail;
+        setCollaborativeLaserTrails((prev) => {
+          const newTrails = new Map(prev);
+          const userTrail = newTrails.get(userId) || [];
+
+          // Add new point with fade effect
+          const newPoint = {
+            point,
+            opacity: 1,
+            timestamp,
+            color: "#ff0000", // Red for other users
+          };
+
+          // Keep recent points (last 2 seconds)
+          const recentPoints = userTrail.filter(
+            (p) => timestamp - p.timestamp < 2000
+          );
+          newTrails.set(userId, [...recentPoints, newPoint]);
+
+          return newTrails;
+        });
+      };
+
+      const handleLaserClear = (event: CustomEvent) => {
+        const { userId } = event.detail;
+        setCollaborativeLaserTrails((prev) => {
+          const newTrails = new Map(prev);
+          newTrails.delete(userId);
+          return newTrails;
+        });
+      };
+
+      window.addEventListener(
+        "collab_laser_point",
+        handleLaserPoint as EventListener
+      );
+      window.addEventListener(
+        "collab_laser_clear",
+        handleLaserClear as EventListener
+      );
+
+      return () => {
+        window.removeEventListener(
+          "collab_operation",
+          handleCollabOperation as EventListener
+        );
+        window.removeEventListener(
+          "room_joined",
+          handleRoomJoined as EventListener
+        );
+        window.removeEventListener(
+          "collab_laser_point",
+          handleLaserPoint as EventListener
+        );
+        window.removeEventListener(
+          "collab_laser_clear",
+          handleLaserClear as EventListener
+        );
+      };
+    }
+  }, [isCollaborating, state.userId]);
+
   // Save in local storage and load from that
   useEffect(() => {
     const savedElements = loadFromLocalStorage();
-    if (savedElements.length > 0) {
-      setElements(savedElements);
+    if (savedElements.length > 0 && !isCollaborating) {
+      setLocalElements(savedElements);
     }
 
     const frameRef = animationFrame;
@@ -59,16 +384,20 @@ export const CanvasBoard = () => {
         cancelAnimationFrame(frameRef.current);
       }
     };
-  }, []);
+  }, [isCollaborating]);
 
+  // Auto-save for local mode
   useEffect(() => {
-    const interval = setInterval(() => {
-      saveToLocalStorage(elements);
-    }, AUTO_SAVE_INTERVAL);
+    if (!isCollaborating && localElements.length > 0) {
+      const interval = setInterval(() => {
+        saveToLocalStorage(localElements);
+      }, AUTO_SAVE_INTERVAL);
 
-    return () => clearInterval(interval);
-  }, [elements]);
+      return () => clearInterval(interval);
+    }
+  }, [localElements, isCollaborating]);
 
+  // Redraw canvas
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -97,6 +426,16 @@ export const CanvasBoard = () => {
         roughness: element.roughness || 1,
         seed: element.seed || 1,
       };
+
+      // Add visual indicator for elements being drawn by others in collaborative mode
+      if (
+        isCollaborating &&
+        element.isTemporary &&
+        element.authorId !== state.userId
+      ) {
+        ctx.save();
+        ctx.globalAlpha = 0.7;
+      }
 
       switch (element.type) {
         case "Image": {
@@ -271,6 +610,14 @@ export const CanvasBoard = () => {
           break;
         }
       }
+
+      if (
+        isCollaborating &&
+        element.isTemporary &&
+        element.authorId !== state.userId
+      ) {
+        ctx.restore();
+      }
     });
 
     // Draw selection area if active
@@ -377,53 +724,88 @@ export const CanvasBoard = () => {
     }
 
     // Draw laser trail
-    if (selectedTool === "Laser") {
-      ctx.save();
-
-      // Draw the trail with glow effect
-      if (laser.trail.length > 1) {
-        // Set common properties
+    const drawLaserTrail = (
+      trail: Array<{ point: { x: number; y: number }; opacity?: number }>,
+      color: string,
+      opacity: number
+    ) => {
+      if (trail.length > 1) {
+        ctx.save();
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
         // Function to draw the path
         const drawPath = () => {
           ctx.beginPath();
-          ctx.moveTo(laser.trail[0].point.x, laser.trail[0].point.y);
-          for (let i = 1; i < laser.trail.length; i++) {
-            ctx.lineTo(laser.trail[i].point.x, laser.trail[i].point.y);
+          ctx.moveTo(trail[0].point.x, trail[0].point.y);
+          for (let i = 1; i < trail.length; i++) {
+            ctx.lineTo(trail[i].point.x, trail[i].point.y);
           }
         };
 
         // Draw outer glow
         ctx.shadowBlur = 20;
         ctx.lineWidth = 15;
-        ctx.strokeStyle = "#ff0000";
-        ctx.shadowColor = "#ff0000";
-        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        ctx.globalAlpha = opacity * 0.3;
         drawPath();
         ctx.stroke();
 
         // Draw middle layer
         ctx.shadowBlur = 10;
         ctx.lineWidth = 8;
-        ctx.globalAlpha = 0.6;
+        ctx.globalAlpha = opacity * 0.6;
         drawPath();
         ctx.stroke();
 
         // Draw core
         ctx.shadowBlur = 0;
         ctx.lineWidth = 3;
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = opacity;
         ctx.strokeStyle = "#ffffff";
         drawPath();
         ctx.stroke();
-      }
 
-      // Draw current laser point if trail exists
-      if (laser.trail.length > 0) {
-        const lastPoint = laser.trail[laser.trail.length - 1].point;
-        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    };
+
+    // Draw current user's laser trail
+    if (selectedTool === "Laser" && laser.trail.length > 0) {
+      drawLaserTrail(laser.trail, "#ff0000", 1.0);
+
+      // Draw current laser point
+      ctx.save();
+      const lastPoint = laser.trail[laser.trail.length - 1].point;
+      ctx.globalAlpha = 1;
+      const gradient = ctx.createRadialGradient(
+        lastPoint.x,
+        lastPoint.y,
+        0,
+        lastPoint.x,
+        lastPoint.y,
+        5
+      );
+      gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
+      gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Draw collaborative laser trails from other users
+    collaborativeLaserTrails.forEach((trail) => {
+      if (trail.length > 0) {
+        drawLaserTrail(trail, "#00ff00", 0.8); // Green for other users
+
+        // Draw their current laser point
+        ctx.save();
+        const lastPoint = trail[trail.length - 1].point;
+        ctx.globalAlpha = 0.8;
         const gradient = ctx.createRadialGradient(
           lastPoint.x,
           lastPoint.y,
@@ -432,17 +814,18 @@ export const CanvasBoard = () => {
           lastPoint.y,
           5
         );
-        gradient.addColorStop(0, "rgba(255, 0, 0, 1)");
-        gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
+        gradient.addColorStop(0, "rgba(0, 255, 0, 1)");
+        gradient.addColorStop(1, "rgba(0, 255, 0, 0)");
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
+        ctx.arc(lastPoint.x, lastPoint.y, 8, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
       }
+    });
 
-      ctx.restore();
-    }
+    ctx.restore();
   }, [
     elements,
     position,
@@ -453,6 +836,8 @@ export const CanvasBoard = () => {
     selectedTool,
     laser.trail,
     selectionArea,
+    isCollaborating,
+    state.userId,
   ]);
 
   // Initialize canvas size
@@ -656,22 +1041,60 @@ export const CanvasBoard = () => {
     (newText: string) => {
       if (editingTextId) {
         if (newText.trim()) {
-          setElements((prev) =>
-            prev.map((el) =>
-              el.id === editingTextId ? { ...el, text: newText.trim() } : el
-            )
-          );
+          const updatedElement = elements.find((el) => el.id === editingTextId);
+          if (updatedElement) {
+            const completedElement = {
+              ...updatedElement,
+              text: newText.trim(),
+              isTemporary: false,
+            };
+
+            setElements((prev) =>
+              prev.map((el) =>
+                el.id === editingTextId ? completedElement : el
+              )
+            );
+
+            // Send collaboration update for text completion
+            if (isCollaborating && sendOperation && state.roomId) {
+              sendOperation({
+                type: "element_complete",
+                roomId: state.roomId,
+                elementId: editingTextId,
+                authorId: state.userId!,
+                data: { element: completedElement },
+              });
+            }
+          }
         } else {
           // Remove empty text elements
           setElements((prev) => prev.filter((el) => el.id !== editingTextId));
           setSelectedElement(null);
+
+          // Send collaboration update for text deletion
+          if (isCollaborating && sendOperation && state.roomId) {
+            sendOperation({
+              type: "element_delete",
+              roomId: state.roomId,
+              elementId: editingTextId,
+              authorId: state.userId!,
+              data: {},
+            });
+          }
         }
       }
 
       setIsEditingText(false);
       setEditingTextId(null);
     },
-    [editingTextId]
+    [
+      editingTextId,
+      elements,
+      isCollaborating,
+      sendOperation,
+      state.roomId,
+      state.userId,
+    ]
   );
 
   // Handle clicking outside text input to finish editing
@@ -883,8 +1306,14 @@ export const CanvasBoard = () => {
 
       // Handle Text tool - create text immediately and start editing
       if (selectedTool === "Text") {
+        const elementId = isCollaborating
+          ? `${state.userId || "local"}-${Date.now()}-${Math.random()
+              .toString(36)
+              .substr(2, 9)}`
+          : Date.now().toString();
+
         const newElement: Element = {
-          id: Date.now().toString(),
+          id: elementId,
           type: selectedTool,
           x: point.x,
           y: point.y,
@@ -895,14 +1324,27 @@ export const CanvasBoard = () => {
           text: "Type here...",
           fontSize: 20,
           fontFamily: "Virgil",
+          authorId: isCollaborating ? state.userId || "local" : "local",
+          isTemporary: true,
         };
 
         setElements((prev) => [...prev, newElement]);
         startTextEditing(newElement);
+
+        if (isCollaborating && sendOperation && state.roomId) {
+          sendOperation({
+            type: "element_start",
+            roomId: state.roomId,
+            elementId: newElement.id,
+            authorId: state.userId!,
+            data: { element: newElement, tool: selectedTool },
+          });
+        }
         return;
       }
 
       // Handle Image tool - trigger file input
+      // will handle its collab later
       if (selectedTool === "Image") {
         const input = document.getElementById(
           "imageUpload"
@@ -915,7 +1357,23 @@ export const CanvasBoard = () => {
       if (selectedTool === "Eraser") {
         const point = getTransformedPoint(e);
         setEraserPos(point);
-        setElements((prev) => eraseElements(prev, point, ERASER_RADIUS));
+        const newElements = eraseElements(elements, point, ERASER_RADIUS);
+        setElements(newElements);
+
+        if (isCollaborating && sendOperation && state.roomId) {
+          const erasedElements = elements.filter(
+            (el) => !newElements.includes(el)
+          );
+          erasedElements.forEach((el) => {
+            sendOperation({
+              type: "element_delete",
+              roomId: state.roomId,
+              elementId: el.id,
+              authorId: state.userId!,
+              data: {},
+            });
+          });
+        }
         return;
       }
 
@@ -933,28 +1391,57 @@ export const CanvasBoard = () => {
         roughness: 1,
         seed: Math.floor(Math.random() * 1000),
         points: selectedTool === "Pencil" ? [point] : undefined,
+        authorId: isCollaborating ? state.userId || "local" : "local",
+        isTemporary: true,
       };
 
       setCurrentElement(newElement);
       setElements((prev) => [...prev, newElement]);
+
+      if (isCollaborating && sendOperation && state.roomId) {
+        sendOperation({
+          type: "element_start",
+          roomId: state.roomId,
+          elementId: newElement.id,
+          authorId: state.userId!,
+          data: { element: newElement, tool: selectedTool },
+        });
+
+        updateDrawingStatus(true, newElement.id);
+      }
     },
     [
+      isEditingText,
+      getTransformedPoint,
+      updateCursor,
+      isCollaborating,
       position,
       selectedTool,
+      getElementAtPoint,
       strokeColor,
       strokeWidth,
-      getTransformedPoint,
-      getElementAtPoint,
-      startTextEditing,
-      isEditingText,
-      selectedElement,
+      elements,
+      sendOperation,
+      state.userId,
+      state.roomId,
+      setElements,
+      updateDrawingStatus,
       selectedElements,
+      startTextEditing,
+      setSelectedElement,
+      selectedElement,
     ]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const point = getTransformedPoint(e);
+
+      // Update cursor for collaborators
+      if (isCollaborating && !isPanning && !drawing) {
+        updateCursor(point);
+      }
+
       if (isPanning) {
         requestAnimationFrame(() => {
           const newX = e.clientX - startPan.x;
@@ -969,8 +1456,31 @@ export const CanvasBoard = () => {
         if (e.buttons === 1) {
           // Only add points when mouse button is pressed
           laser.addPoint(point);
+
+          // Send laser point to collaborators
+          if (isCollaborating && updateCursor && state.roomId) {
+            updateCursor({ x: point.x, y: point.y });
+
+            // Send laser trail point to other users
+            if (state.socket) {
+              state.socket.emit("laser_point", {
+                roomId: state.roomId,
+                point: point,
+                userId: state.userId,
+                timestamp: Date.now(),
+              });
+            }
+          }
         } else {
           laser.clearTrail();
+
+          // Send laser clear to collaborators
+          if (isCollaborating && state.socket && state.roomId) {
+            state.socket.emit("laser_clear", {
+              roomId: state.roomId,
+              userId: state.userId,
+            });
+          }
         }
         return;
       }
@@ -979,24 +1489,44 @@ export const CanvasBoard = () => {
       if (selectedTool === "Eraser") {
         setEraserPos(point);
         if (e.buttons === 1) {
-          // Mouse is pressed
-          setElements((prev) => eraseElements(prev, point, ERASER_RADIUS));
+          const newElements = eraseElements(elements, point, ERASER_RADIUS);
+          setElements(newElements);
+
+          if (isCollaborating && sendOperation && state.roomId) {
+            const erasedElements = elements.filter(
+              (el) => !newElements.includes(el)
+            );
+            erasedElements.forEach((el) => {
+              sendOperation({
+                type: "element_delete",
+                roomId: state.roomId!,
+                elementId: el.id,
+                authorId: state.userId!,
+                data: {},
+              });
+            });
+          }
         }
         return;
       }
 
-      // Handle area selection
-      if (selectionArea) {
+      // Handle selection area
+      if (
+        selectedTool === "select" &&
+        e.buttons === 1 &&
+        !isDragging &&
+        !resizing
+      ) {
         setSelectionArea((prev) => ({
-          start: prev!.start,
+          start: prev?.start || point,
           end: point,
         }));
-        // Find elements within selection area
+
         const selectionRect = {
-          left: Math.min(selectionArea.start.x, point.x),
-          right: Math.max(selectionArea.start.x, point.x),
-          top: Math.min(selectionArea.start.y, point.y),
-          bottom: Math.max(selectionArea.start.y, point.y),
+          left: Math.min(selectionArea?.start.x || point.x, point.x),
+          right: Math.max(selectionArea?.start.x || point.x, point.x),
+          top: Math.min(selectionArea?.start.y || point.y, point.y),
+          bottom: Math.max(selectionArea?.start.y || point.y, point.y),
         };
 
         const elementsInSelection = elements.filter((el) => {
@@ -1092,30 +1622,53 @@ export const CanvasBoard = () => {
         const newX = point.x - dragOffset.x;
         const newY = point.y - dragOffset.y;
 
-        setElements((prev) =>
-          prev.map((el) => {
+        setElements((prev) => {
+          const updated = prev.map((el) => {
             if (selectedElements.some((selected) => selected.id === el.id)) {
+              const newElement = { ...el };
               if (el.type === "Pencil" && el.points) {
                 // For pencil, move all points
                 const deltaX = newX - el.x;
                 const deltaY = newY - el.y;
-                return {
-                  ...el,
-                  x: newX,
-                  y: newY,
-                  points: el.points.map((p) => ({
-                    x: p.x + deltaX,
-                    y: p.y + deltaY,
-                  })),
-                };
+                newElement.x = newX;
+                newElement.y = newY;
+                newElement.points = el.points.map((p) => ({
+                  x: p.x + deltaX,
+                  y: p.y + deltaY,
+                }));
               } else {
                 // For other elements, just move the position
-                return { ...el, x: newX, y: newY };
+                newElement.x = newX;
+                newElement.y = newY;
               }
+
+              // Send operation for collaborative mode
+              if (
+                isCollaborating &&
+                sendOperation &&
+                state.roomId &&
+                state.userId
+              ) {
+                sendOperation({
+                  type: "element_update",
+                  roomId: state.roomId!,
+                  elementId: el.id,
+                  authorId: state.userId!,
+                  data: {
+                    x: newElement.x,
+                    y: newElement.y,
+                    ...(newElement.points ? { points: newElement.points } : {}),
+                  },
+                });
+              }
+
+              return newElement;
             }
             return el;
-          })
-        );
+          });
+
+          return updated;
+        });
 
         // Update selected element reference
         setSelectedElement((prev) =>
@@ -1126,7 +1679,6 @@ export const CanvasBoard = () => {
 
       // Handle resizing
       if (resizing && resizeStart && selectedElement) {
-        // Use 'point' from top-level declaration
         setElements((prev) => {
           let updatedElement: Element | null = null;
           const updated = prev.map((el) => {
@@ -1176,6 +1728,28 @@ export const CanvasBoard = () => {
                     width: newWidth,
                     height: newHeight,
                   };
+
+                  // Send operation for collaborative mode
+                  if (
+                    isCollaborating &&
+                    sendOperation &&
+                    state.roomId &&
+                    state.userId
+                  ) {
+                    sendOperation({
+                      type: "element_update",
+                      roomId: state.roomId!,
+                      elementId: el.id,
+                      authorId: state.userId!,
+                      data: {
+                        x: newX,
+                        y: newY,
+                        width: newWidth,
+                        height: newHeight,
+                      },
+                    });
+                  }
+
                   return updatedElement;
                 }
                 return el;
@@ -1190,52 +1764,31 @@ export const CanvasBoard = () => {
 
                 switch (resizing.corner) {
                   case "tl": {
-                    newWidth += newX - point.x;
-                    newHeight += newY - point.y;
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = el.y + (el.height || 0) - point.y;
                     newX = point.x;
                     newY = point.y;
                     break;
                   }
                   case "tr": {
-                    newWidth = point.x - newX;
-                    newHeight += newY - point.y;
+                    newWidth = point.x - el.x;
+                    newHeight = el.y + (el.height || 0) - point.y;
                     newY = point.y;
                     break;
                   }
                   case "br": {
-                    newWidth = point.x - newX;
-                    newHeight = point.y - newY;
+                    newWidth = point.x - el.x;
+                    newHeight = point.y - el.y;
                     break;
                   }
                   case "bl": {
-                    newWidth += newX - point.x;
-                    newHeight = point.y - newY;
+                    newWidth = el.x + (el.width || 0) - point.x;
+                    newHeight = point.y - el.y;
                     newX = point.x;
                     break;
                   }
                 }
-                switch (resizing.corner) {
-                  case "tl":
-                    newWidth += newX - point.x;
-                    newHeight += newY - point.y;
-                    newX = point.x;
-                    newY = point.y;
-                    break;
-                  case "tr":
-                    newWidth = point.x - newX;
-                    newHeight += newY - point.y;
-                    newY = point.y;
-                    break;
-                  case "br":
-                    newWidth = point.x - newX;
-                    newHeight = point.y - newY;
-                    break;
-                  case "bl":
-                    newWidth += newX - point.x;
-                    newX = point.x;
-                    newHeight = point.y - newY;
-                    break;
-                }
+
                 updatedElement = {
                   ...el,
                   x: newX,
@@ -1243,6 +1796,28 @@ export const CanvasBoard = () => {
                   width: newWidth,
                   height: newHeight,
                 };
+
+                // Send operation for collaborative mode
+                if (
+                  isCollaborating &&
+                  sendOperation &&
+                  state.roomId &&
+                  state.userId
+                ) {
+                  sendOperation({
+                    type: "element_update",
+                    roomId: state.roomId!,
+                    elementId: el.id,
+                    authorId: state.userId!,
+                    data: {
+                      x: newX,
+                      y: newY,
+                      width: newWidth,
+                      height: newHeight,
+                    },
+                  });
+                }
+
                 return updatedElement;
               }
               case "Line":
@@ -1259,14 +1834,36 @@ export const CanvasBoard = () => {
                     resizing.corner === "start"
                       ? el.y + (el.height || 0) - point.y
                       : point.y - el.y,
-                  type: el.type,
                 };
+
+                // Send operation for collaborative mode
+                if (
+                  isCollaborating &&
+                  sendOperation &&
+                  state.roomId &&
+                  state.userId
+                ) {
+                  sendOperation({
+                    type: "element_update",
+                    roomId: state.roomId!,
+                    elementId: el.id,
+                    authorId: state.userId!,
+                    data: {
+                      x: updatedElement.x,
+                      y: updatedElement.y,
+                      width: updatedElement.width,
+                      height: updatedElement.height,
+                    },
+                  });
+                }
+
                 return updatedElement;
               }
               default:
                 return el;
             }
           });
+
           // Update selectedElement to match the resized shape
           if (updatedElement) setSelectedElement(updatedElement);
           return updated;
@@ -1279,39 +1876,45 @@ export const CanvasBoard = () => {
 
       setElements((prev) => {
         const index = prev.findIndex((el) => el.id === currentElement.id);
+        if (index === -1) return prev;
         const updated = [...prev];
 
         switch (currentElement.type) {
-          case "Rectangle": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-          case "Diamond": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-
+          case "Rectangle":
+          case "Diamond":
+          case "Circle":
+          case "Arrow":
           case "Line": {
-            updated[index] = {
+            const updatedElement = {
               ...currentElement,
               width: point.x - currentElement.x,
               height: point.y - currentElement.y,
             };
+            updated[index] = updatedElement;
+
+            // Send operation for collaborative mode
+            if (
+              isCollaborating &&
+              sendOperation &&
+              state.roomId &&
+              state.userId
+            ) {
+              sendOperation({
+                type: "element_update",
+                roomId: state.roomId!,
+                elementId: currentElement.id,
+                authorId: state.userId!,
+                data: {
+                  width: updatedElement.width,
+                  height: updatedElement.height,
+                },
+              });
+            }
             break;
           }
           case "Pencil": {
             const currentPoints = updated[index].points || [];
             const lastPoint = currentPoints[currentPoints.length - 1];
-
-            // Calculate distance from last point
             const distance = lastPoint
               ? Math.sqrt(
                   Math.pow(point.x - lastPoint.x, 2) +
@@ -1319,31 +1922,26 @@ export const CanvasBoard = () => {
                 )
               : 0;
 
-            // Add point if it's far enough from the last point (reduces jitter)
-            // Reduced threshold for smoother drawing
             if (!lastPoint || distance > 1) {
-              updated[index] = {
-                ...updated[index],
-                points: [...currentPoints, point],
-              };
-            }
-            break;
-          }
+              const newPoints = [...currentPoints, point];
+              updated[index] = { ...updated[index], points: newPoints };
 
-          case "Circle": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
-            break;
-          }
-          case "Arrow": {
-            updated[index] = {
-              ...currentElement,
-              width: point.x - currentElement.x,
-              height: point.y - currentElement.y,
-            };
+              // Your provided snippet for Pencil updates
+              if (
+                isCollaborating &&
+                sendOperation &&
+                state.roomId &&
+                state.userId
+              ) {
+                sendOperation({
+                  type: "element_update",
+                  roomId: state.roomId!,
+                  elementId: currentElement.id,
+                  authorId: state.userId!,
+                  data: { points: newPoints },
+                });
+              }
+            }
             break;
           }
         }
@@ -1352,23 +1950,54 @@ export const CanvasBoard = () => {
       });
     },
     [
-      drawing,
-      currentElement,
-      isPanning,
-      startPan.x,
-      startPan.y,
       getTransformedPoint,
+      isCollaborating,
+      updateCursor,
+      isPanning,
+      startPan,
+      selectedTool,
+      laser,
+      elements,
+      currentElement,
       isDragging,
-      selectedElement,
       dragOffset,
       resizing,
       resizeStart,
-      selectedTool,
-      laser,
+      selectionArea,
+      selectedElements,
+      sendOperation,
+      state.roomId,
+      state.userId,
+      setElements,
+      setSelectedElement,
     ]
   );
 
   const handleMouseUp = useCallback(() => {
+    if (
+      drawing &&
+      currentElement &&
+      isCollaborating &&
+      sendOperation &&
+      state.roomId
+    ) {
+      // Complete the element
+      const completedElement = { ...currentElement, isTemporary: false };
+      setElements((prev) =>
+        prev.map((el) => (el.id === currentElement.id ? completedElement : el))
+      );
+
+      sendOperation({
+        type: "element_complete",
+        roomId: state.roomId!,
+        elementId: currentElement.id,
+        authorId: state.userId!,
+        data: { element: completedElement },
+      });
+
+      updateDrawingStatus(false);
+    }
+
     setDrawing(false);
     setCurrentElement(null);
     setIsPanning(false);
@@ -1467,14 +2096,55 @@ export const CanvasBoard = () => {
             setElements((prev) => [...prev, newElement]);
             setSelectedElement(newElement);
             setSelectedTool("select"); // Switch to select tool after placing image
+
+            // Send collaborative operation for image upload
+            if (isCollaborating) {
+              console.log("Sending image upload operation:", newElement);
+              sendOperation({
+                type: "element_create",
+                element: newElement,
+                roomId: state.roomId,
+                userId: state.userId,
+              });
+            }
           };
           img.src = imageUrl;
         };
         reader.readAsDataURL(file);
       }
     },
-    [strokeColor, strokeWidth, setSelectedTool, scale, position, canvasRef]
+    [
+      strokeColor,
+      strokeWidth,
+      setSelectedTool,
+      scale,
+      position,
+      canvasRef,
+      isCollaborating,
+      sendOperation,
+      state.roomId,
+      state.userId,
+    ]
   );
+
+  // Reset state when session ends
+  useEffect(() => {
+    if (!isCollaborating) {
+      setCollaborativeElements([]);
+      setCurrentElement(null);
+      setSelectedElement(null);
+      setSelectedElements([]);
+      setDrawing(false);
+      setIsPanning(false);
+      setIsDragging(false);
+      setResizing(null);
+      setResizeStart(null);
+      setEraserPos(null);
+      setSelectionArea(null);
+      setEditingTextId(null);
+      setIsEditingText(false);
+    }
+  }, [isCollaborating]);
 
   return (
     <div
@@ -1503,6 +2173,36 @@ export const CanvasBoard = () => {
         onChange={handleImageUpload}
       />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
+
+      {/* Collaborative Features */}
+      {isCollaborating && (
+        <>
+          {/* Room Info */}
+          <div className="absolute right-0 top-0 text-align-center p-4 z-10">
+            Room: {state.roomId}
+          </div>
+
+          {/* Connection Status */}
+          <ConnectionStatus
+            isConnected={isConnected}
+            collaborators={collaborators}
+          />
+
+          {/* Collaborator Cursors */}
+          {collaborators.map(
+            (collaborator) =>
+              collaborator.cursor &&
+              collaborator.id !== state.userId && (
+                <CollabCursor
+                  key={collaborator.id}
+                  collaborator={collaborator}
+                  position={position}
+                  scale={scale}
+                />
+              )
+          )}
+        </>
+      )}
 
       {/* Text Input Overlay */}
       {isEditingText && selectedElement && selectedElement.type === "Text" && (
