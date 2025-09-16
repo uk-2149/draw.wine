@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import helmet from "helmet";
 import cors from "cors";
 import compression from "compression";
@@ -43,7 +43,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Health check route
-app.get("/health", (req, res) => {
+app.get("/health", (req: Request, res: Response) => {
   const stats = collabServer.getConnectionStats();
   res.json({
     status: "healthy",
