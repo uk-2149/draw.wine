@@ -209,9 +209,6 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     socket.on("operation_applied", (data) => {
-      console.log("=== FRONTEND: Received operation_applied ===");
-      console.log("Data received:", JSON.stringify(data, null, 2));
-
       // Dispatch custom event for drawing components to handle
       window.dispatchEvent(
         new CustomEvent("collab_operation", { detail: data })

@@ -12,17 +12,22 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const http_1 = require("http");
 const socket_service_1 = require("./services/socket.service");
 const rooms_routes_1 = __importDefault(require("./routes/rooms.routes"));
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const app = (0, express_1.default)();
 // Create HTTP server FIRST
 exports.httpServer = (0, http_1.createServer)(app);
 // Initialize collaborative server - this sets up Socket.IO
 const collabServer = socket_service_1.CollabDrawingServer.getInstance(exports.httpServer);
+const fe_url = process.env.NODE_ENV === "prod"
+    ? process.env.FE_URL_PROD
+    : "http://localhost:5173";
 // Middleware
 app.use((0, helmet_1.default)());
 app.use((0, compression_1.default)());
 app.use(express_1.default.json());
 app.use((0, cors_1.default)({
-    origin: "http://localhost:5173",
+    origin: fe_url,
     methods: ["GET", "POST"],
     credentials: true,
 }));
