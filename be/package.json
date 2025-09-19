@@ -18,8 +18,8 @@
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
-    "http": "^0.0.1-security",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",
