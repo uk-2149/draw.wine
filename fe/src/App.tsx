@@ -4,6 +4,7 @@ import { LoadingFallback } from "./pages/LoadingFallback";
 import WebFont from "webfontloader";
 import { CollabProvider } from "./contexts/CollabContext";
 import CollabRoom from "./pages/CollabRoom";
+import { Toaster } from "./components/ui/sonner";
 
 const Landing = lazy(() =>
   import("./pages/Landing").then((module) => ({
@@ -34,14 +35,15 @@ export const App = () => {
 
   return (
     <BrowserRouter>
-    <CollabProvider>
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/board/:id" element={<PlayGround />} />
-          <Route path="/collab" element={<CollabRoom />} />
-        </Routes>
-      </Suspense>
+      <CollabProvider>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/board/:id" element={<PlayGround />} />
+            <Route path="/collab" element={<CollabRoom />} />
+          </Routes>
+        </Suspense>
+        <Toaster />
       </CollabProvider>
     </BrowserRouter>
   );

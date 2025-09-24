@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
 import { useDrawing } from "@/contexts/DrawingContext";
 
 import rough from "roughjs";
@@ -164,9 +170,13 @@ export const CanvasBoard = () => {
   const isConnected = state.isConnected;
 
   // Use collaborative or local elements based on mode
-  const elements = isCollaborating
-    ? [...localElements, ...collaborativeElements]
-    : localElements;
+  const elements = useMemo(
+    () =>
+      isCollaborating
+        ? [...localElements, ...collaborativeElements]
+        : localElements,
+    [isCollaborating, localElements, collaborativeElements]
+  );
 
   const setElements = isCollaborating
     ? setCollaborativeElements
@@ -396,6 +406,27 @@ export const CanvasBoard = () => {
       return () => clearInterval(interval);
     }
   }, [localElements, isCollaborating]);
+
+  // Listen for external canvas element updates (from import)
+  useEffect(() => {
+    const handleCanvasElementsUpdate = () => {
+      if (!isCollaborating) {
+        const updatedElements = loadFromLocalStorage();
+        setLocalElements(updatedElements);
+      }
+    };
+
+    window.addEventListener(
+      "canvas-elements-updated",
+      handleCanvasElementsUpdate
+    );
+    return () => {
+      window.removeEventListener(
+        "canvas-elements-updated",
+        handleCanvasElementsUpdate
+      );
+    };
+  }, [isCollaborating]);
 
   // Redraw canvas
   const redrawCanvas = useCallback(() => {

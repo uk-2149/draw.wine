@@ -13,19 +13,32 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { MdSaveAlt } from "react-icons/md";
-import { MdOutlineImage } from "react-icons/md";
+import { MdSaveAlt, MdOutlineImage, MdOutlineFileUpload } from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
-import { LuBadgeHelp } from "react-icons/lu";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { CreateRoomModal } from "./modals/CreateRoomModal";
 import { JoinRoomModal } from "./modals/JoinRoomModal";
+import { ExportModal } from "./modals/ExportModal";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { STORAGE_KEY } from "@/constants/canvas";
-import { set } from "date-fns";
+import {
+  exportCanvasAsImage,
+  saveCanvasAsJSON,
+  loadCanvasFromJSON,
+  type ExportOptions,
+} from "@/utils/export";
+import {
+  getCanvasElement,
+  getCanvasElements,
+  getCanvasViewport,
+  setCanvasElements,
+} from "@/utils/canvasState";
+import { toast } from "sonner";
 
 export const Left3bar = () => {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const gotoGithub = () => {
     const url = "https://github.com/pandarudra/draw.wine";
@@ -45,13 +58,65 @@ export const Left3bar = () => {
     window.location.reload();
   };
 
-  const onExportImg = () => {
-    console.log("Export image");
-  };
+  const onExportImg = useCallback(() => {
+    setShowExportModal(true);
+  }, []);
 
-  const onSave = () => {
-    console.log("Save Canvas");
-  };
+  const handleExport = useCallback((options: ExportOptions) => {
+    const canvas = getCanvasElement();
+    if (!canvas) {
+      toast.error("Canvas not available for export");
+      return;
+    }
+
+    try {
+      const elements = getCanvasElements();
+      const viewport = getCanvasViewport();
+
+      exportCanvasAsImage(
+        { current: canvas },
+        elements,
+        viewport.position,
+        viewport.scale,
+        options
+      );
+      toast.success(`Drawing exported as ${options.format.toUpperCase()}`);
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error("Failed to export drawing");
+    }
+  }, []);
+
+  const onSave = useCallback(() => {
+    try {
+      const elements = getCanvasElements();
+      saveCanvasAsJSON(elements);
+      toast.success("Drawing saved successfully");
+    } catch (error) {
+      console.error("Save failed:", error);
+      toast.error("Failed to save drawing");
+    }
+  }, []);
+
+  const onImport = useCallback(async () => {
+    try {
+      const importedElements = await loadCanvasFromJSON();
+      setCanvasElements(importedElements);
+      // Trigger a re-render by dispatching a custom event
+      window.dispatchEvent(new CustomEvent("canvas-elements-updated"));
+      toast.success(`Loaded ${importedElements.length} elements`);
+    } catch (error) {
+      console.error("Import failed:", error);
+      toast.error("Failed to import drawing");
+    }
+  }, []);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onSave,
+    onExport: onExportImg,
+    onImport,
+  });
 
   return (
     <>
@@ -67,6 +132,11 @@ export const Left3bar = () => {
               <MdSaveAlt className="mr-2" />
               Save to...
               <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onImport}>
+              <MdOutlineFileUpload className="mr-2" />
+              Load from...
+              <DropdownMenuShortcut>Ctrl+O</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportImg}>
               <MdOutlineImage className="mr-2" />
@@ -112,6 +182,12 @@ export const Left3bar = () => {
       <JoinRoomModal
         isOpen={showJoinRoom}
         onClose={() => setShowJoinRoom(false)}
+      />
+
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExport}
       />
     </>
   );
