@@ -19,9 +19,8 @@ const app = (0, express_1.default)();
 exports.httpServer = (0, http_1.createServer)(app);
 // Initialize collaborative server - this sets up Socket.IO
 const collabServer = socket_service_1.CollabDrawingServer.getInstance(exports.httpServer);
-const fe_url = process.env.NODE_ENV === "prod"
-    ? process.env.FE_URL_PROD
-    : "http://localhost:5173";
+const fe_url = process.env.FE_URL_PROD;
+console.log(fe_url);
 // Middleware
 app.use((0, helmet_1.default)());
 app.use((0, compression_1.default)());

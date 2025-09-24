@@ -17,10 +17,10 @@ export const httpServer = createServer(app);
 // Initialize collaborative server - this sets up Socket.IO
 const collabServer = CollabDrawingServer.getInstance(httpServer);
 
-const fe_url =
-  process.env.NODE_ENV === "prod"
-    ? process.env.FE_URL_PROD
-    : "http://localhost:5173";
+const fe_url = process.env.FE_URL_PROD
+
+// console.log(fe_url)
+    
 
 // Middleware
 app.use(helmet());
