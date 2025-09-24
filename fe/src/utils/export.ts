@@ -51,9 +51,15 @@ export const exportCanvasAsImage = (
   ctx.scale(options.scale || 1, options.scale || 1);
 
   // Translate to center content or use bounds offset
-  const offsetX = bounds.width > 0 ? -bounds.minX + padding : contentWidth / 2;
+  // Use viewport position to properly position elements
+  const offsetX =
+    bounds.width > 0
+      ? -bounds.minX + padding - position.x / scale
+      : contentWidth / 2;
   const offsetY =
-    bounds.height > 0 ? -bounds.minY + padding : contentHeight / 2;
+    bounds.height > 0
+      ? -bounds.minY + padding - position.y / scale
+      : contentHeight / 2;
   ctx.translate(offsetX, offsetY);
 
   // Create rough canvas for drawing
