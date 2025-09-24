@@ -1,13 +1,7 @@
 import { Server as SocketServer } from "socket.io";
 import { Server as HTTPServer } from "http";
 import { ExecSocketEvents } from "../events/socket.event";
-import dotenv from "dotenv";
-dotenv.config();
-
-const fe_url =
-  process.env.NODE_ENV === "prod"
-    ? process.env.FE_URL_PROD
-    : "http://localhost:5173";
+import { fe_url } from "../env/e";
 
 export class CollabDrawingServer {
   private static instance: CollabDrawingServer;

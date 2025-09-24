@@ -7,6 +7,7 @@ import { createServer } from "http";
 import { CollabDrawingServer } from "./services/socket.service";
 import roomRouter from "./routes/rooms.routes";
 import dotenv from "dotenv";
+import { fe_url, PORT } from "./env/e";
 dotenv.config();
 
 const app = express();
@@ -16,11 +17,6 @@ export const httpServer = createServer(app);
 
 // Initialize collaborative server - this sets up Socket.IO
 const collabServer = CollabDrawingServer.getInstance(httpServer);
-
-const fe_url =
-  process.env.NODE_ENV === "prod"
-    ? process.env.FE_URL_PROD
-    : "http://localhost:5173";
 
 // Middleware
 app.use(helmet());
@@ -48,22 +44,10 @@ app.get("/health", (req: Request, res: Response) => {
   res.json({
     status: "healthy",
     timestamp: Date.now(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
     connections: stats,
   });
 });
 
 app.use("/api/rooms", roomRouter);
 
-const PORT = 3000;
-
 httpServer.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-
-// Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully");
-  httpServer.close(() => {
-    process.exit(0);
-  });
-});
