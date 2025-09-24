@@ -20,6 +20,8 @@ import { LuBadgeHelp } from "react-icons/lu";
 import { useState } from "react";
 import { CreateRoomModal } from "./modals/CreateRoomModal";
 import { JoinRoomModal } from "./modals/JoinRoomModal";
+import { STORAGE_KEY } from "@/constants/canvas";
+import { set } from "date-fns";
 
 export const Left3bar = () => {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -38,6 +40,19 @@ export const Left3bar = () => {
     setShowJoinRoom(true);
   };
 
+  const handleCanvasReset = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    window.location.reload();
+  };
+
+  const onExportImg = () => {
+    console.log("Export image");
+  };
+
+  const onSave = () => {
+    console.log("Save Canvas");
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -48,22 +63,18 @@ export const Left3bar = () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="start">
           <DropdownMenuGroup>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={onSave}>
               <MdSaveAlt className="mr-2" />
               Save to...
               <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={onExportImg}>
               <MdOutlineImage className="mr-2" />
               Export image...
               <DropdownMenuShortcut>Ctrl+Shift+E</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <LuBadgeHelp className="mr-2" />
-              Help
-              <DropdownMenuShortcut>?</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
+
+            <DropdownMenuItem onClick={handleCanvasReset}>
               <RiResetLeftFill className="mr-2" />
               Reset the canvas
             </DropdownMenuItem>
@@ -81,22 +92,15 @@ export const Left3bar = () => {
               <DropdownMenuPortal>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem>Email</DropdownMenuItem>
-                  <DropdownMenuItem>Message</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>More...</DropdownMenuItem>
+                  <DropdownMenuItem disabled={true}>
+                    Message (Coming soon...)
+                  </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuPortal>
             </DropdownMenuSub>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>
-          <DropdownMenuItem>Support</DropdownMenuItem>
-          <DropdownMenuItem disabled>API</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            Log out
-            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
