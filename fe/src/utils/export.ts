@@ -51,7 +51,7 @@ export const exportCanvasAsImage = (
   ctx.scale(options.scale || 1, options.scale || 1);
 
   // Translate to center content or use bounds offset
-  // Use viewport position to properly position elements
+  // Use viewport position and scale to properly position elements
   const offsetX =
     bounds.width > 0
       ? -bounds.minX + padding - position.x / scale
