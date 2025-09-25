@@ -1,10 +1,6 @@
+import { be_url } from "@/env/e";
 import React, { useReducer, useEffect, useContext } from "react";
 import { io, Socket } from "socket.io-client";
-
-const be_url =
-  import.meta.env.VITE_ENV === "prod"
-    ? import.meta.env.VITE_BE_URL
-    : "http://localhost:3000";
 
 interface CollabState {
   isConnected: boolean;

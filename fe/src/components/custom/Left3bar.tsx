@@ -19,6 +19,7 @@ import { useState, useCallback } from "react";
 import { CreateRoomModal } from "./modals/CreateRoomModal";
 import { JoinRoomModal } from "./modals/JoinRoomModal";
 import { ExportModal } from "./modals/ExportModal";
+import { EmailInviteModal } from "./modals/EmailInviteModal";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { STORAGE_KEY } from "@/constants/canvas";
 import {
@@ -33,12 +34,17 @@ import {
   getCanvasViewport,
   setCanvasElements,
 } from "@/utils/canvasState";
+import { useCollab } from "@/contexts/CollabContext";
 import { toast } from "sonner";
 
 export const Left3bar = () => {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showEmailInvite, setShowEmailInvite] = useState(false);
+
+  // Get collaboration context for room information
+  const { state } = useCollab();
 
   const gotoGithub = () => {
     const url = "https://github.com/pandarudra/draw.wine";
@@ -51,6 +57,10 @@ export const Left3bar = () => {
 
   const handleJoinRoomClick = () => {
     setShowJoinRoom(true);
+  };
+
+  const handleEmailInviteClick = () => {
+    setShowEmailInvite(true);
   };
 
   const handleCanvasReset = () => {
@@ -161,7 +171,9 @@ export const Left3bar = () => {
               <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
               <DropdownMenuPortal>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem>Email</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleEmailInviteClick}>
+                    Email
+                  </DropdownMenuItem>
                   <DropdownMenuItem disabled={true}>
                     Message (Coming soon...)
                   </DropdownMenuItem>
@@ -188,6 +200,12 @@ export const Left3bar = () => {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         onExport={handleExport}
+      />
+      <EmailInviteModal
+        isOpen={showEmailInvite}
+        onClose={() => setShowEmailInvite(false)}
+        roomId={state.roomId || undefined}
+        roomName={state.roomId ? `Room ${state.roomId}` : undefined}
       />
     </>
   );
