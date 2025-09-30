@@ -778,7 +778,7 @@ export const CanvasBoard = () => {
         } else {
           // For multiple points, use quadratic curves for smoothness
           for (let i = 0; i < points.length - 2; i++) {
-            const p0 = points[i];
+            // ...existing code...
             const p1 = points[i + 1];
             const p2 = points[i + 2];
 
