@@ -292,6 +292,54 @@ export const ExecSocketEvents = (io: SocketServer) => {
       }
     );
 
+    socket.on(
+      "check-if-in-room",
+      ({ roomId, userId }: { roomId: string; userId: string }) => {
+        try {
+          const room = rooms.get(roomId);
+          let isInRoom = false;
+          let userInfo = null;
+
+          if (room) {
+            const user = room.users.get(userId);
+            if (user && user.socketId === socket.id) {
+              isInRoom = true;
+              userInfo = {
+                id: user.id,
+                name: user.name,
+                color: user.color,
+                joinedAt: user.joinedAt,
+              };
+            }
+          }
+
+          socket.emit("room-status-response", {
+            roomId,
+            userId,
+            isInRoom,
+            userInfo,
+            roomExists: !!room,
+            collaboratorsCount: room?.users.size || 0,
+          });
+
+          console.log(
+            `Room status check for user ${userId} in room ${roomId}: ${isInRoom}`
+          );
+        } catch (error) {
+          console.error("Error checking room status:", error);
+          socket.emit("room-status-response", {
+            roomId,
+            userId,
+            isInRoom: false,
+            userInfo: null,
+            roomExists: false,
+            collaboratorsCount: 0,
+            error: "Failed to check room status",
+          });
+        }
+      }
+    );
+
     socket.on("leave_room", ({ roomId }: { roomId: string }) => {
       try {
         const room = rooms.get(roomId);
@@ -315,12 +363,20 @@ export const ExecSocketEvents = (io: SocketServer) => {
               }))
             );
 
+            // Send confirmation to the leaving user
+            socket.emit("room_left", { roomId, success: true });
+
             console.log(`User ${user.name} left room ${roomId}`);
             break;
           }
         }
       } catch (error) {
         console.error("Error leaving room:", error);
+        socket.emit("room_left", {
+          roomId,
+          success: false,
+          error: "Failed to leave room",
+        });
       }
     });
 

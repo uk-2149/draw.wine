@@ -44,7 +44,11 @@ export const Left3bar = () => {
   const [showEmailInvite, setShowEmailInvite] = useState(false);
 
   // Get collaboration context for room information
-  const { state } = useCollab();
+  const { state, isUserInCurrentRoom, leaveRoom } = useCollab();
+
+  // Check if user is in a room to enable/disable invite functionality
+  const isInRoom =
+    state.isCollaborating && state.roomId && isUserInCurrentRoom();
 
   const gotoGithub = () => {
     const url = "https://github.com/pandarudra/draw.wine";
@@ -60,7 +64,68 @@ export const Left3bar = () => {
   };
 
   const handleEmailInviteClick = () => {
+    if (!isInRoom) {
+      toast.error("You need to be in a room to invite users");
+      return;
+    }
     setShowEmailInvite(true);
+  };
+
+  const handleLeaveRoomClick = () => {
+    console.log("Leaving room:", state.roomId);
+    console.log("Current state:", {
+      isCollaborating: state.isCollaborating,
+      roomId: state.roomId,
+      hasSocket: !!state.socket,
+    });
+
+    if (!state.socket || !state.roomId) {
+      toast.error("Cannot leave room: not properly connected");
+      return;
+    }
+
+    // Set up event listeners for room leave responses
+    const handleSuccess = () => {
+      toast.success("Left the room successfully");
+      window.removeEventListener("room_left_success", handleSuccess);
+      window.removeEventListener(
+        "room_left_error",
+        handleError as EventListener
+      );
+    };
+
+    const handleError = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      toast.error(
+        "Failed to leave room: " +
+          (customEvent.detail?.error || "Unknown error")
+      );
+      window.removeEventListener("room_left_success", handleSuccess);
+      window.removeEventListener(
+        "room_left_error",
+        handleError as EventListener
+      );
+    };
+
+    window.addEventListener("room_left_success", handleSuccess);
+    window.addEventListener("room_left_error", handleError as EventListener);
+
+    try {
+      leaveRoom();
+      toast.info("Leaving room...");
+      console.log("Leave room called successfully");
+    } catch (error) {
+      console.error("Error leaving room:", error);
+      toast.error("Failed to leave room");
+      // Clean up event listeners
+      window.removeEventListener("room_left_success", handleSuccess);
+      window.removeEventListener(
+        "room_left_error",
+        handleError as EventListener
+      );
+    }
+
+    window.location.href = "/";
   };
 
   const handleCanvasReset = () => {
@@ -161,17 +226,49 @@ export const Left3bar = () => {
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={handleTeamClick}>
-              Create Room
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleJoinRoomClick}>
-              Join Room
-            </DropdownMenuItem>
+            {/* Room Status Indicator */}
+            {isInRoom ? (
+              <DropdownMenuItem disabled className="text-green-900 font-medium">
+                ✓ In Room {state.roomId}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled className="text-gray-500">
+                ○ Not in a room
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+
+            {!isInRoom && (
+              <>
+                <DropdownMenuItem onClick={handleTeamClick}>
+                  Create Room
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleJoinRoomClick}>
+                  Join Room
+                </DropdownMenuItem>
+              </>
+            )}
+            {isInRoom && (
+              <DropdownMenuItem
+                onClick={handleLeaveRoomClick}
+                className="text-red-600"
+              >
+                Leave Room
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Invite users</DropdownMenuSubTrigger>
+              <DropdownMenuSubTrigger
+                disabled={!isInRoom}
+                className={!isInRoom ? "opacity-50" : ""}
+              >
+                Invite Users
+              </DropdownMenuSubTrigger>
               <DropdownMenuPortal>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={handleEmailInviteClick}>
+                  <DropdownMenuItem
+                    onClick={handleEmailInviteClick}
+                    disabled={!isInRoom}
+                  >
                     Email
                   </DropdownMenuItem>
                   <DropdownMenuItem disabled={true}>

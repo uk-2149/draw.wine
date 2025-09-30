@@ -754,52 +754,82 @@ export const CanvasBoard = () => {
       ctx.restore();
     }
 
-    // Draw laser trail
     const drawLaserTrail = (
       trail: Array<{ point: { x: number; y: number }; opacity?: number }>,
       color: string,
       opacity: number
     ) => {
-      if (trail.length > 1) {
-        ctx.save();
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
+      if (trail.length < 2) return;
 
-        // Function to draw the path
-        const drawPath = () => {
-          ctx.beginPath();
-          ctx.moveTo(trail[0].point.x, trail[0].point.y);
-          for (let i = 1; i < trail.length; i++) {
-            ctx.lineTo(trail[i].point.x, trail[i].point.y);
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      // Function to draw smooth path using quadratic curves
+      const drawSmoothPath = () => {
+        const points = trail.map((t) => t.point);
+
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+
+        if (points.length === 2) {
+          // For just 2 points, draw a straight line
+          ctx.lineTo(points[1].x, points[1].y);
+        } else {
+          // For multiple points, use quadratic curves for smoothness
+          for (let i = 0; i < points.length - 2; i++) {
+            const p0 = points[i];
+            const p1 = points[i + 1];
+            const p2 = points[i + 2];
+
+            // Calculate control point using Catmull-Rom style
+            const cp1x = p1.x;
+            const cp1y = p1.y;
+
+            // Midpoint between current and next point
+            const midX = (p1.x + p2.x) / 2;
+            const midY = (p1.y + p2.y) / 2;
+
+            ctx.quadraticCurveTo(cp1x, cp1y, midX, midY);
           }
-        };
 
-        // Draw outer glow
-        ctx.shadowBlur = 20;
-        ctx.lineWidth = 15;
-        ctx.strokeStyle = color;
-        ctx.shadowColor = color;
-        ctx.globalAlpha = opacity * 0.3;
-        drawPath();
-        ctx.stroke();
+          // Draw to the last point
+          const lastPoint = points[points.length - 1];
+          const secondLastPoint = points[points.length - 2];
+          ctx.quadraticCurveTo(
+            secondLastPoint.x,
+            secondLastPoint.y,
+            lastPoint.x,
+            lastPoint.y
+          );
+        }
+      };
 
-        // Draw middle layer
-        ctx.shadowBlur = 10;
-        ctx.lineWidth = 8;
-        ctx.globalAlpha = opacity * 0.6;
-        drawPath();
-        ctx.stroke();
+      // Draw outer glow
+      ctx.shadowBlur = 20;
+      ctx.lineWidth = 15;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.globalAlpha = opacity * 0.3;
+      drawSmoothPath();
+      ctx.stroke();
 
-        // Draw core
-        ctx.shadowBlur = 0;
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = opacity;
-        ctx.strokeStyle = "#ffffff";
-        drawPath();
-        ctx.stroke();
+      // Draw middle layer
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = 8;
+      ctx.globalAlpha = opacity * 0.6;
+      drawSmoothPath();
+      ctx.stroke();
 
-        ctx.restore();
-      }
+      // Draw core
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = opacity;
+      ctx.strokeStyle = "#ffffff";
+      drawSmoothPath();
+      ctx.stroke();
+
+      ctx.restore();
     };
 
     // Draw current user's laser trail
