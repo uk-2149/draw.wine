@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Suspense, lazy, useEffect, useState } from "react";
-import { LoadingFallback } from "./pages/LoadingFallback";
+import { LoadingFallback } from "./components/custom/fallbacks/LoadingFallback";
 import WebFont from "webfontloader";
 import { CollabProvider } from "./contexts/CollabContext";
 import CollabRoom from "./pages/CollabRoom";
