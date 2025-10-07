@@ -57,14 +57,15 @@ class EmailService {
   private initializeTransporter(): void {
     try {
       this.transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false, // true for 465, false for other ports
-        auth: {
-          user: process.env.EMAIL,
-          pass: process.env.OTP_PASS?.trim(),
-        },
-      });
+      service: "gmail",
+      auth: {
+        type: "OAuth2",
+        user: process.env.EMAIL,
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        refreshToken: process.env.GOOGLE_REFRESH_TOKEN!,
+      },
+    });
 
       this.isConfigured = true;
       console.log("✅ Email service initialized with SMTP transporter");

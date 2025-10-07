@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-export const PORT = Number(process.env.PORT);
+export const PORT = Number(process.env.PORT) || 3000;
 
 export const fe_url =
   process.env.NODE_ENV === "prod"
