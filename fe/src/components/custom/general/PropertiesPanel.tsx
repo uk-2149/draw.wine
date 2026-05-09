@@ -4,6 +4,48 @@ import { cn } from "@/helpers/cn.h";
 import { STROKE_COLORS, STROKE_WIDTHS } from "@/constants/ext";
 import { STROKE_PATTERNS } from "@/helpers/stroke.h";
 
+/** Dashed frame with solid sharp 90° at top-left. */
+const EdgeSharpGlyph = () => (
+  <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden>
+    <path
+      d="M17 10H23V23H10V17"
+      stroke="currentColor"
+      strokeWidth="1.65"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeDasharray="3 2.65"
+    />
+    <path
+      d="M10 17V10H17"
+      stroke="currentColor"
+      strokeWidth="2.05"
+      strokeLinecap="square"
+      strokeLinejoin="miter"
+    />
+  </svg>
+);
+
+/** Same dashed outline; solid quadratic fillet at top-left (rounded). */
+const EdgeCurveGlyph = () => (
+  <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden>
+    <path
+      d="M17 10H23V23H10V17"
+      stroke="currentColor"
+      strokeWidth="1.65"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeDasharray="3 2.65"
+    />
+    <path
+      d="M10 17Q10 10 17 10"
+      stroke="currentColor"
+      strokeWidth="2.05"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 const StrokePatternPreview = ({
   pattern,
 }: {
@@ -61,15 +103,24 @@ export const PropertiesPanel = () => {
     setStrokePattern,
     fillColor,
     setFillColor,
+    edgeStyle,
+    setEdgeStyle,
     activeElementTypes,
   } = useDrawing();
 
   const isFillable = (type: string) =>
     type === "Rectangle" || type === "Diamond" || type === "Circle";
 
+  const isEdgeable = (type: string) =>
+    type === "Rectangle" || type === "Diamond";
+
   const showFill =
     isFillable(selectedTool) ||
     (selectedTool === "select" && activeElementTypes.some(isFillable));
+
+  const showEdges =
+    isEdgeable(selectedTool) ||
+    (selectedTool === "select" && activeElementTypes.some(isEdgeable));
 
   const showStroke =
     (selectedTool !== "select" &&
@@ -82,7 +133,7 @@ export const PropertiesPanel = () => {
         (t) => t !== "Eraser" && t !== "Image" && t !== "Hand",
       ));
 
-  if (!showStroke && !showFill) {
+  if (!showStroke && !showFill && !showEdges) {
     return null;
   }
 
@@ -206,6 +257,47 @@ export const PropertiesPanel = () => {
                 aria-label={`Select fill color ${color}`}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Edges Section */}
+      {showEdges && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Edges
+          </h3>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEdgeStyle("sharp")}
+              className={cn(
+                "flex-1 flex items-center justify-center h-11 rounded-xl border transition-colors shadow-sm",
+                edgeStyle === "sharp"
+                  ? "bg-[#dfd6f9] dark:bg-violet-950/65 border-[#cbc0ee] dark:border-violet-800/70 text-neutral-900 dark:text-violet-100"
+                  : "bg-muted/40 border-border/55 hover:bg-muted/55 dark:bg-muted/20 dark:border-border/60 text-muted-foreground hover:text-foreground",
+              )}
+              title="Sharp corners"
+              aria-label="Select sharp edges"
+              aria-pressed={edgeStyle === "sharp"}
+            >
+              <EdgeSharpGlyph />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEdgeStyle("curve")}
+              className={cn(
+                "flex-1 flex items-center justify-center h-11 rounded-xl border transition-colors shadow-sm",
+                edgeStyle === "curve"
+                  ? "bg-[#dfd6f9] dark:bg-violet-950/65 border-[#cbc0ee] dark:border-violet-800/70 text-neutral-900 dark:text-violet-100"
+                  : "bg-muted/40 border-border/55 hover:bg-muted/55 dark:bg-muted/20 dark:border-border/60 text-muted-foreground hover:text-foreground",
+              )}
+              title="Rounded corners"
+              aria-label="Select curved edges"
+              aria-pressed={edgeStyle === "curve"}
+            >
+              <EdgeCurveGlyph />
+            </button>
           </div>
         </div>
       )}
