@@ -24,11 +24,11 @@ export const CMenubtn = ({
         title={shortcut ? `${shortcut}` : ""}
       >
         {state ? <AfterComponent /> : <BeforeComponent />}
-        {shortcut && (
+        {/* {shortcut && (
           <span className="absolute bottom-0.5 right-0.5 flex items-center justify-center w-4 h-4 bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-bold rounded-full opacity-80 group-hover:opacity-100 transition-opacity">
             {shortcut.charAt(0)}
           </span>
-        )}
+        )} */}
       </MenubarTrigger>
     </MenubarMenu>
   );

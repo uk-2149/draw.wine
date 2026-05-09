@@ -1256,11 +1256,9 @@ export const CanvasBoard = () => {
     return () => window.removeEventListener("keydown", handleToolShortcuts);
   }, [isEditingText, setSelectedTool]);
 
-  // Handle undo/redo shortcuts
+  // Handle undo/redo + select-all + deselect shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMod = e.ctrlKey || e.metaKey;
-      if (!isMod) return;
       if (isEditingText) return;
 
       const target = e.target as HTMLElement | null;
@@ -1269,7 +1267,40 @@ export const CanvasBoard = () => {
         return;
       }
 
+      const isMod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
+
+      // Escape — deselect / cancel
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedElements([]);
+        setSelectedElement(null);
+        setSelectedTool("select");
+        return;
+      }
+
+      if (!isMod) return;
+
+      // Ctrl+A — select all
+      if (key === "a") {
+        e.preventDefault();
+        setSelectedTool("select");
+        setSelectedElements([...elements]);
+        if (elements.length === 1) {
+          setSelectedElement(elements[0]);
+        }
+        return;
+      }
+
+      // Ctrl+D — deselect all
+      if (key === "d") {
+        e.preventDefault();
+        setSelectedElements([]);
+        setSelectedElement(null);
+        return;
+      }
+
+      // Ctrl+Z / Ctrl+Shift+Z — undo / redo
       if (key === "z") {
         e.preventDefault();
         if (e.shiftKey) {
@@ -1279,6 +1310,7 @@ export const CanvasBoard = () => {
         }
       }
 
+      // Ctrl+Y — redo
       if (key === "y") {
         e.preventDefault();
         redo();
@@ -1287,7 +1319,7 @@ export const CanvasBoard = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isEditingText, redo, undo]);
+  }, [isEditingText, redo, undo, elements, setSelectedElements, setSelectedElement, setSelectedTool]);
 
   // Handle delete key press
   useEffect(() => {
