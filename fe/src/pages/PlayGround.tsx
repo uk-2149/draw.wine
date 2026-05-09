@@ -6,6 +6,7 @@ import { PropertiesPanel } from "@/components/custom/general/PropertiesPanel";
 import { Left3bar } from "@/components/custom/general/Left3bar";
 import { InstallButton } from "@/components/custom/general/InstallButton";
 import { JoinRequestsSidebar } from "@/components/custom/general/JoinRequestsSidebar";
+import { HelpButton } from "@/components/custom/general/HelpButton";
 
 export const PlayGround = () => {
   return (
@@ -26,6 +27,7 @@ export const PlayGround = () => {
           <PropertiesPanel />
         </div>
         <CanvasBoard />
+        <HelpButton />
       </div>
     </DrawingProvider>
   );

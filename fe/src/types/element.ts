@@ -14,6 +14,7 @@ export interface Element {
   strokeColor: string;
   fillColor?: string;
   strokeWidth: number;
+  strokePattern?: import("@/helpers/stroke.h").StrokePattern;
   roughness?: number;
   seed?: number;
   text?: string;

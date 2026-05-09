@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -27,6 +28,11 @@ import { cn } from "@/helpers/cn.h";
 import { useCanvasBoardState } from "@/hooks/useCanvasBoardState";
 import { ConnectionStatus } from "./ConnectionStatus";
 import { CollabCursor } from "./CollabCursor";
+import {
+  drawBubbledPolyline,
+  getStrokeDash,
+  type StrokePattern,
+} from "@/helpers/stroke.h";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -43,17 +49,24 @@ export const CanvasBoard = () => {
     selectedTool,
     strokeColor,
     strokeWidth,
+    strokePattern,
     fillColor,
     setSelectedTool,
     setStrokeColor,
     setStrokeWidth,
+    setStrokePattern,
     setFillColor,
     setActiveElementTypes,
   } = useDrawing();
 
   // Get collaboration state
-  const { state, sendOperation, updateCursor, updateDrawingStatus, isJoinSidebarOpen } =
-    useCollab();
+  const {
+    state,
+    sendOperation,
+    updateCursor,
+    updateDrawingStatus,
+    isJoinSidebarOpen,
+  } = useCollab();
   const { theme } = useTheme();
 
   const {
@@ -106,7 +119,8 @@ export const CanvasBoard = () => {
   // Determine if we're in collaboration mode
   const isCollaborating = state.isCollaborating;
   const isHost = state.userId === state.hostId;
-  const canDraw = !state.settings?.onlyHostCanDraw || isHost || !isCollaborating;
+  const canDraw =
+    !state.settings?.onlyHostCanDraw || isHost || !isCollaborating;
   const collaborators = state.collaborators;
   const isConnected = state.isConnected;
 
@@ -129,6 +143,8 @@ export const CanvasBoard = () => {
     snapshot: Element[];
     didMutate: boolean;
   } | null>(null);
+
+  const isTabPressedRef = useRef(false);
 
   const beginHistoryAction = useCallback(() => {
     if (isCollaborating) return;
@@ -518,20 +534,42 @@ export const CanvasBoard = () => {
   }, [isCollaborating]);
 
   // Sync selected element types to DrawingContext for PropertiesPanel
-  useEffect(() => {
-    setActiveElementTypes(selectedElements.map((el) => el.type as import("@/types/drawing").ToolType));
-  }, [selectedElements, setActiveElementTypes]);
+  useLayoutEffect(() => {
+    setActiveElementTypes(
+      selectedElements.map(
+        (el) => el.type as import("@/types/drawing").ToolType,
+      ),
+    );
+
+    if (selectedElements.length !== 1) {
+      return;
+    }
+
+    const selected = selectedElements[0];
+    setStrokeColor(selected.strokeColor);
+    setStrokeWidth(selected.strokeWidth);
+    setStrokePattern(selected.strokePattern || "solid");
+    setFillColor(selected.fillColor || null);
+  }, [
+    selectedElements,
+    setActiveElementTypes,
+    setFillColor,
+    setStrokeColor,
+    setStrokePattern,
+    setStrokeWidth,
+  ]);
 
   // Update selected elements when drawing properties change
   useEffect(() => {
     if (selectedElements.length > 0) {
+
       setElements((prev) => {
         let hasChanges = false;
         const next = prev.map((el) => {
           if (selectedElements.some((selected) => selected.id === el.id)) {
             const updatedEl = { ...el };
             let elChanged = false;
-            
+
             if (el.strokeColor !== strokeColor) {
               updatedEl.strokeColor = strokeColor;
               elChanged = true;
@@ -540,14 +578,20 @@ export const CanvasBoard = () => {
               updatedEl.strokeWidth = strokeWidth;
               elChanged = true;
             }
+            if (el.strokePattern !== strokePattern) {
+              updatedEl.strokePattern = strokePattern;
+              elChanged = true;
+            }
             if (
-              (el.type === "Rectangle" || el.type === "Diamond" || el.type === "Circle") &&
+              (el.type === "Rectangle" ||
+                el.type === "Diamond" ||
+                el.type === "Circle") &&
               el.fillColor !== fillColor
             ) {
               updatedEl.fillColor = fillColor || undefined;
               elChanged = true;
             }
-            
+
             if (elChanged) {
               hasChanges = true;
               return updatedEl;
@@ -570,16 +614,17 @@ export const CanvasBoard = () => {
                 });
               });
           }
-          // Schedule selected elements update so we don't do it inside the setElements callback directly if not needed,
-          // but React allows setState inside setState occasionally. We will use a timeout just to be safe.
+
           setTimeout(() => {
-            setSelectedElements(next.filter((el) => selectedElements.some((s) => s.id === el.id)));
+            setSelectedElements(
+              next.filter((el) => selectedElements.some((s) => s.id === el.id)),
+            );
           }, 0);
         }
         return hasChanges ? next : prev;
       });
     }
-  }, [strokeColor, strokeWidth, fillColor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [strokeColor, strokeWidth, strokePattern, fillColor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Redraw canvas
   const redrawCanvas = useCallback(() => {
@@ -614,13 +659,43 @@ export const CanvasBoard = () => {
       return color;
     };
 
+    const drawPatternedPolyline = (
+      points: Array<{ x: number; y: number }>,
+      color: string,
+      width: number,
+      pattern: StrokePattern,
+    ) => {
+      if (pattern === "bubbled") {
+        drawBubbledPolyline(ctx, points, width, color);
+        return;
+      }
+
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.setLineDash(getStrokeDash(pattern, width) || []);
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index < points.length; index++) {
+        ctx.lineTo(points[index].x, points[index].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
+
     // Draw elements
     elements.forEach((element) => {
+      const strokePatternValue: StrokePattern =
+        element.strokePattern || "solid";
+      const strokeDash = getStrokeDash(strokePatternValue, element.strokeWidth);
       const baseOptions = {
         stroke: getStrokeColor(element.strokeColor),
         strokeWidth: element.strokeWidth,
         roughness: element.roughness || 1,
         seed: element.seed || 1,
+        strokeLineDash: strokeDash,
       };
 
       const options =
@@ -710,13 +785,28 @@ export const CanvasBoard = () => {
 
         case "Line": {
           if (element.width !== undefined && element.height !== undefined) {
-            rc.line(
-              element.x,
-              element.y,
-              element.x + element.width,
-              element.y + element.height,
-              options,
-            );
+            if (strokePatternValue === "bubbled") {
+              drawPatternedPolyline(
+                [
+                  { x: element.x, y: element.y },
+                  {
+                    x: element.x + element.width,
+                    y: element.y + element.height,
+                  },
+                ],
+                getStrokeColor(element.strokeColor),
+                element.strokeWidth,
+                strokePatternValue,
+              );
+            } else {
+              rc.line(
+                element.x,
+                element.y,
+                element.x + element.width,
+                element.y + element.height,
+                options,
+              );
+            }
           }
           break;
         }
@@ -728,6 +818,18 @@ export const CanvasBoard = () => {
             ctx.lineJoin = "round";
             ctx.lineCap = "round";
             ctx.globalCompositeOperation = "source-over";
+            ctx.setLineDash(strokeDash || []);
+
+            if (strokePatternValue === "bubbled") {
+              drawPatternedPolyline(
+                element.points,
+                getStrokeColor(element.strokeColor),
+                element.strokeWidth,
+                strokePatternValue,
+              );
+              ctx.restore();
+              break;
+            }
 
             if (element.points.length === 1) {
               // Single point - draw a small circle
@@ -788,8 +890,20 @@ export const CanvasBoard = () => {
             const endX = element.x + element.width;
             const endY = element.y + element.height;
 
-            // Draw line
-            rc.line(element.x, element.y, endX, endY, options);
+            if (strokePatternValue === "bubbled") {
+              drawPatternedPolyline(
+                [
+                  { x: element.x, y: element.y },
+                  { x: endX, y: endY },
+                ],
+                getStrokeColor(element.strokeColor),
+                element.strokeWidth,
+                strokePatternValue,
+              );
+            } else {
+              // Draw line
+              rc.line(element.x, element.y, endX, endY, options);
+            }
 
             // Draw arrow head
             const angle = Math.atan2(element.height, element.width);
@@ -1098,6 +1212,10 @@ export const CanvasBoard = () => {
       if (isEditingText || e.ctrlKey || e.altKey || e.metaKey) return;
 
       switch (e.key.toLowerCase()) {
+        case " ":
+          e.preventDefault();
+          setSelectedTool("Hand");
+          break;
         case "s":
           setSelectedTool("select");
           break;
@@ -1128,6 +1246,9 @@ export const CanvasBoard = () => {
         case "e":
           setSelectedTool("Eraser");
           break;
+        case "i":
+          setSelectedTool("Image");
+          break;
       }
     };
 
@@ -1135,11 +1256,9 @@ export const CanvasBoard = () => {
     return () => window.removeEventListener("keydown", handleToolShortcuts);
   }, [isEditingText, setSelectedTool]);
 
-  // Handle undo/redo shortcuts
+  // Handle undo/redo + select-all + deselect shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMod = e.ctrlKey || e.metaKey;
-      if (!isMod) return;
       if (isEditingText) return;
 
       const target = e.target as HTMLElement | null;
@@ -1148,7 +1267,40 @@ export const CanvasBoard = () => {
         return;
       }
 
+      const isMod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
+
+      // Escape — deselect / cancel
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSelectedElements([]);
+        setSelectedElement(null);
+        setSelectedTool("select");
+        return;
+      }
+
+      if (!isMod) return;
+
+      // Ctrl+A — select all
+      if (key === "a") {
+        e.preventDefault();
+        setSelectedTool("select");
+        setSelectedElements([...elements]);
+        if (elements.length === 1) {
+          setSelectedElement(elements[0]);
+        }
+        return;
+      }
+
+      // Ctrl+D — deselect all
+      if (key === "d") {
+        e.preventDefault();
+        setSelectedElements([]);
+        setSelectedElement(null);
+        return;
+      }
+
+      // Ctrl+Z / Ctrl+Shift+Z — undo / redo
       if (key === "z") {
         e.preventDefault();
         if (e.shiftKey) {
@@ -1158,6 +1310,7 @@ export const CanvasBoard = () => {
         }
       }
 
+      // Ctrl+Y — redo
       if (key === "y") {
         e.preventDefault();
         redo();
@@ -1166,7 +1319,7 @@ export const CanvasBoard = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isEditingText, redo, undo]);
+  }, [isEditingText, redo, undo, elements, setSelectedElements, setSelectedElement, setSelectedTool]);
 
   // Handle delete key press
   useEffect(() => {
@@ -1207,6 +1360,63 @@ export const CanvasBoard = () => {
     recordHistorySnapshot,
     setElements,
   ]);
+
+  // Handle Tab key for pan mode - track Tab press/release
+  useEffect(() => {
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (isEditingText) return;
+
+      if (e.key === "Tab") {
+        e.preventDefault();
+        isTabPressedRef.current = true;
+      }
+    };
+
+    const handleTabKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        isTabPressedRef.current = false;
+      }
+    };
+
+    window.addEventListener("keydown", handleTabKey);
+    window.addEventListener("keyup", handleTabKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleTabKey);
+      window.removeEventListener("keyup", handleTabKeyUp);
+    };
+  }, [isEditingText]);
+
+  // Handle arrow keys for canvas navigation
+  useEffect(() => {
+    const handleArrowKeys = (e: KeyboardEvent) => {
+      if (isEditingText) return;
+
+      const ARROW_PAN_SPEED = 50; // pixels per arrow key press
+      const panAmount = ARROW_PAN_SPEED;
+
+      switch (e.key) {
+        case "ArrowUp":
+          e.preventDefault();
+          setPosition((prev) => ({ ...prev, y: prev.y + panAmount }));
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          setPosition((prev) => ({ ...prev, y: prev.y - panAmount }));
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          setPosition((prev) => ({ ...prev, x: prev.x + panAmount }));
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          setPosition((prev) => ({ ...prev, x: prev.x - panAmount }));
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleArrowKeys);
+    return () => window.removeEventListener("keydown", handleArrowKeys);
+  }, [isEditingText]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1528,7 +1738,11 @@ export const CanvasBoard = () => {
         return;
       }
 
-      if (e.button === 1 || (e.button === 0 && e.altKey) || selectedTool === "Hand") {
+      if (
+        e.button === 1 ||
+        (e.button === 0 && e.altKey) ||
+        selectedTool === "Hand"
+      ) {
         setIsPanning(true);
         setStartPan({ x: e.clientX - position.x, y: e.clientY - position.y });
         return;
@@ -1559,6 +1773,7 @@ export const CanvasBoard = () => {
               setSelectedElements([clickedElement]);
               setStrokeColor(clickedElement.strokeColor || strokeColor);
               setStrokeWidth(clickedElement.strokeWidth || strokeWidth);
+              setStrokePattern(clickedElement.strokePattern || "solid");
               setFillColor(clickedElement.fillColor || null);
             } else {
               setSelectedElements((prev) => [...prev, clickedElement]);
@@ -1614,6 +1829,7 @@ export const CanvasBoard = () => {
           y: point.y,
           strokeColor,
           strokeWidth,
+          strokePattern,
           roughness: 1,
           seed: Math.floor(Math.random() * 1000),
           text: "Type here...",
@@ -1696,6 +1912,7 @@ export const CanvasBoard = () => {
             ? fillColor
             : undefined,
         strokeWidth,
+        strokePattern,
         roughness: 1,
         seed: Math.floor(Math.random() * 1000),
         points: selectedTool === "Pencil" ? [point] : undefined,
@@ -1729,6 +1946,7 @@ export const CanvasBoard = () => {
       strokeColor,
       fillColor,
       strokeWidth,
+      strokePattern,
       elements,
       beginHistoryAction,
       markHistoryActionMutated,
@@ -1751,6 +1969,23 @@ export const CanvasBoard = () => {
       // Update cursor for collaborators
       if (isCollaborating && !isPanning && !drawing) {
         updateCursor(point);
+      }
+
+      // Handle Tab + mouse movement for panning
+      if (isTabPressedRef.current && e.buttons === 0) {
+        // If Tab is pressed and no mouse button is held, prepare for pan
+        // This just updates the cursor state
+      } else if (isTabPressedRef.current && e.buttons & 1) {
+        // Tab + left mouse button: pan the canvas
+        requestAnimationFrame(() => {
+          const deltaX = e.movementX;
+          const deltaY = e.movementY;
+          setPosition((prev) => ({
+            x: prev.x + deltaX,
+            y: prev.y + deltaY,
+          }));
+        });
+        return;
       }
 
       if (isPanning) {
@@ -1935,29 +2170,36 @@ export const CanvasBoard = () => {
 
       // Handle element dragging
       if (isDragging) {
-        const newX = point.x - dragOffset.x;
-        const newY = point.y - dragOffset.y;
+        // Compute the intended position of the "anchor" element (the one
+        // whose offset we captured on mousedown).
+        const anchorX = point.x - dragOffset.x;
+        const anchorY = point.y - dragOffset.y;
 
         markHistoryActionMutated();
 
         setElements((prev) => {
+          // Find the anchor element to compute the movement delta.
+          const anchorEl = prev.find((el) =>
+            selectedElements.some((s) => s.id === el.id),
+          );
+          if (!anchorEl) return prev;
+
+          const deltaX = anchorX - anchorEl.x;
+          const deltaY = anchorY - anchorEl.y;
+
+          if (deltaX === 0 && deltaY === 0) return prev;
+
           const updated = prev.map((el) => {
             if (selectedElements.some((selected) => selected.id === el.id)) {
               const newElement = { ...el };
+              newElement.x = el.x + deltaX;
+              newElement.y = el.y + deltaY;
+
               if (el.type === "Pencil" && el.points) {
-                // For pencil, move all points
-                const deltaX = newX - el.x;
-                const deltaY = newY - el.y;
-                newElement.x = newX;
-                newElement.y = newY;
                 newElement.points = el.points.map((p) => ({
                   x: p.x + deltaX,
                   y: p.y + deltaY,
                 }));
-              } else {
-                // For other elements, just move the position
-                newElement.x = newX;
-                newElement.y = newY;
               }
 
               // Send operation for collaborative mode
@@ -1990,7 +2232,13 @@ export const CanvasBoard = () => {
 
         // Update selected element reference
         setSelectedElement((prev) =>
-          prev ? { ...prev, x: newX, y: newY } : null,
+          prev
+            ? {
+                ...prev,
+                x: anchorX,
+                y: anchorY,
+              }
+            : null,
         );
         return;
       }

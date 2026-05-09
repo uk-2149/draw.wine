@@ -19,6 +19,10 @@ export interface DrawingContextType {
   setStrokeColor: (color: string) => void;
   strokeWidth: number;
   setStrokeWidth: (width: number) => void;
+  strokePattern: import("@/helpers/stroke.h").StrokePattern;
+  setStrokePattern: (
+    pattern: import("@/helpers/stroke.h").StrokePattern,
+  ) => void;
   fillColor: string | null;
   setFillColor: (color: string | null) => void;
   activeElementTypes: ToolType[];

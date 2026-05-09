@@ -10,6 +10,7 @@ export interface IMenubtn {
   compoBefore: FC;
   compoAfter: FC;
   onClick: () => void;
+  shortcut?: string;
 }
 export interface LaserPoint {
   point: Position;
