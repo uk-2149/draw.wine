@@ -2138,29 +2138,36 @@ export const CanvasBoard = () => {
 
       // Handle element dragging
       if (isDragging) {
-        const newX = point.x - dragOffset.x;
-        const newY = point.y - dragOffset.y;
+        // Compute the intended position of the "anchor" element (the one
+        // whose offset we captured on mousedown).
+        const anchorX = point.x - dragOffset.x;
+        const anchorY = point.y - dragOffset.y;
 
         markHistoryActionMutated();
 
         setElements((prev) => {
+          // Find the anchor element to compute the movement delta.
+          const anchorEl = prev.find((el) =>
+            selectedElements.some((s) => s.id === el.id),
+          );
+          if (!anchorEl) return prev;
+
+          const deltaX = anchorX - anchorEl.x;
+          const deltaY = anchorY - anchorEl.y;
+
+          if (deltaX === 0 && deltaY === 0) return prev;
+
           const updated = prev.map((el) => {
             if (selectedElements.some((selected) => selected.id === el.id)) {
               const newElement = { ...el };
+              newElement.x = el.x + deltaX;
+              newElement.y = el.y + deltaY;
+
               if (el.type === "Pencil" && el.points) {
-                // For pencil, move all points
-                const deltaX = newX - el.x;
-                const deltaY = newY - el.y;
-                newElement.x = newX;
-                newElement.y = newY;
                 newElement.points = el.points.map((p) => ({
                   x: p.x + deltaX,
                   y: p.y + deltaY,
                 }));
-              } else {
-                // For other elements, just move the position
-                newElement.x = newX;
-                newElement.y = newY;
               }
 
               // Send operation for collaborative mode
@@ -2193,7 +2200,13 @@ export const CanvasBoard = () => {
 
         // Update selected element reference
         setSelectedElement((prev) =>
-          prev ? { ...prev, x: newX, y: newY } : null,
+          prev
+            ? {
+                ...prev,
+                x: anchorX,
+                y: anchorY,
+              }
+            : null,
         );
         return;
       }
