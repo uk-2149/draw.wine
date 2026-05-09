@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { Logger } from "../helpers/ext.h";
+import { isProd, resend_api_key, resend_from_email } from "../constants/e";
 
 export interface EmailInviteData {
   emails: string[];
@@ -17,14 +18,14 @@ class EmailService {
   private fromEmail: string = "draw.wine <onboarding@resend.dev>";
 
   constructor() {
-    this.isDevelopment = (process.env.NODE_ENV as string) !== "prod";
+    this.isDevelopment = !isProd;
 
     const config = this.validateEmailConfig();
     if (!config.isValid && !this.isDevelopment) {
-      console.warn(
-        "⚠️  Email service: Invalid configuration. Running in simulation mode.",
+      Logger.warn(
+        "Email service configuration is incomplete. Email sending will be disabled.",
       );
-      console.warn(`Missing: ${config.missing.join(", ")}`);
+      Logger.warn(`Missing: ${config.missing.join(", ")}`);
       this.isConfigured = false;
     } else {
       this.initializeClient();
@@ -34,7 +35,7 @@ class EmailService {
   private validateEmailConfig(): { isValid: boolean; missing: string[] } {
     const missing: string[] = [];
 
-    if (!process.env.RESEND_API_KEY) {
+    if (!resend_api_key) {
       missing.push("RESEND_API_KEY");
     }
 
@@ -46,7 +47,7 @@ class EmailService {
 
   private initializeClient(): void {
     try {
-      const apiKey = process.env.RESEND_API_KEY;
+      const apiKey = resend_api_key;
       if (!apiKey) {
         this.isConfigured = false;
         return;
@@ -55,8 +56,8 @@ class EmailService {
       this.resend = new Resend(apiKey);
 
       // Use custom from address if provided, otherwise default
-      if (process.env.RESEND_FROM_EMAIL) {
-        this.fromEmail = process.env.RESEND_FROM_EMAIL;
+      if (resend_from_email) {
+        this.fromEmail = resend_from_email;
       }
 
       this.isConfigured = true;
@@ -134,11 +135,11 @@ class EmailService {
       }
 
       Logger.success(
-        `✅ Successfully sent ${emails.length} invitation emails via Resend`,
+        ` Successfully sent ${emails.length} invitation emails via Resend`,
         data,
       );
     } catch (error) {
-      Logger.error("❌ Error sending emails:", error);
+      Logger.error(" Error sending emails:", error);
       throw new Error(
         `Failed to send invitation emails: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -306,7 +307,7 @@ class EmailService {
     inviteLink: string,
   ): string {
     return `
-🎨 You're invited to collaborate on draw.wine!
+You're invited to collaborate on draw.wine!
 
 ${senderName} has invited you to collaborate in the room: "${roomName}".
 

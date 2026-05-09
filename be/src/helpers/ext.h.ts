@@ -1,3 +1,5 @@
+import { debug } from "console";
+
 const color = (text: string, colorCode: string) =>
   `\x1b[${colorCode}m${text}\x1b[0m`;
 
@@ -25,5 +27,8 @@ export const Logger = {
   },
   success: (...args: any[]) => {
     console.log(Colors.green("[SUCCESS]"), ...args);
+  },
+  debug: (...args: any[]) => {
+    debug(Colors.magenta("[DEBUG]"), ...args);
   },
 };
