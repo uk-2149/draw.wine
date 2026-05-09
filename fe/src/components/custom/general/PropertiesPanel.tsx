@@ -154,7 +154,7 @@ export const PropertiesPanel = () => {
                 className={cn(
                   "group relative flex aspect-square items-center justify-center rounded-xl border bg-muted/50 transition-all hover:-translate-y-0.5 hover:bg-muted/70",
                   strokePattern === pattern.value
-                    ? "border-transparent bg-[#4b4d7a] text-white ring-2 ring-primary ring-offset-2 ring-offset-background dark:bg-[#5a5c86]"
+                    ? "border-border bg-background text-foreground shadow-sm ring-2 ring-primary ring-offset-2 ring-offset-background"
                     : "border-border/50 text-foreground",
                 )}
                 title={pattern.label}
