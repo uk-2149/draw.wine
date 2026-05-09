@@ -8,6 +8,7 @@ import { CollabDrawingServer } from "./services/socket.service";
 import roomRouter from "./routes/rooms.routes";
 import dotenv from "dotenv";
 import { allowedOrigins, PORT } from "./env/e";
+import { Logger } from "./helpers/ext.h";
 dotenv.config();
 
 const app = express();
@@ -38,16 +39,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Health check route
-app.get("/health", (req: Request, res: Response) => {
-  const stats = collabServer.getConnectionStats();
-  res.json({
-    status: "healthy",
-    timestamp: Date.now(),
-    connections: stats,
-  });
-});
-
 app.use("/api/rooms", roomRouter);
 
-httpServer.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+httpServer.listen(PORT, () => Logger.info(`Server is running on port ${PORT}`));

@@ -14,6 +14,7 @@ export const DrawingProvider = ({
   const [strokeWidth, setStrokeWidth] = useState(1);
   const [strokePattern, setStrokePattern] = useState<StrokePattern>("solid");
   const [fillColor, setFillColor] = useState<string | null>(null);
+  const [edgeStyle, setEdgeStyle] = useState<"sharp" | "curve">("sharp");
   const [activeElementTypes, setActiveElementTypes] = useState<ToolType[]>([]);
 
   return (
@@ -29,6 +30,8 @@ export const DrawingProvider = ({
         setStrokePattern,
         fillColor,
         setFillColor,
+        edgeStyle,
+        setEdgeStyle,
         activeElementTypes,
         setActiveElementTypes,
       }}
