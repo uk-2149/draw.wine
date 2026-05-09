@@ -3,24 +3,24 @@
 @import "./css/components.css";
 /* width of scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
 }
 
 /* background track */
 ::-webkit-scrollbar-track {
-  background: #444040;
+  background: var(--muted);
   border-radius: 10px;
 }
 
 /* draggable part */
 ::-webkit-scrollbar-thumb {
-  background: #2b92a9;
+  background: var(--border);
   border-radius: 10px;
 }
 
 /* hover effect */
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--muted-foreground);
 }
 
 @font-face {
