@@ -11,7 +11,10 @@ export const Toolbar = memo(() => {
   const { state } = useCollab();
   const [selected, setSelected] = useState<number | null>(0);
 
-  const canDraw = !state.settings?.onlyHostCanDraw || state.userId === state.hostId || !state.isCollaborating;
+  const canDraw =
+    !state.settings?.onlyHostCanDraw ||
+    state.userId === state.hostId ||
+    !state.isCollaborating;
 
   const visibleItems = TOOLBAR_ITEMS.filter((item) => {
     if (canDraw) return true;
@@ -19,7 +22,7 @@ export const Toolbar = memo(() => {
   });
 
   const handleSelect = useCallback(
-    (item: typeof TOOLBAR_ITEMS[0]) => {
+    (item: (typeof TOOLBAR_ITEMS)[0]) => {
       setSelectedTool(item.tooltip as ToolType);
     },
     [setSelectedTool],
@@ -30,7 +33,7 @@ export const Toolbar = memo(() => {
       (item) => item.tooltip === selectedTool,
     );
     setSelected(index);
-    
+
     // Auto-switch to Hand tool if current tool is not allowed
     if (index === -1 && !canDraw) {
       setSelectedTool("Hand");
@@ -46,6 +49,7 @@ export const Toolbar = memo(() => {
           compoBefore={item.before}
           compoAfter={item.after}
           onClick={() => handleSelect(item)}
+          shortcut={item.shortcut}
         />
       ))}
     </Menubar>

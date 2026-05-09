@@ -1,5 +1,10 @@
 import type { Element } from "@/types";
 import rough from "roughjs";
+import {
+  drawBubbledPolyline,
+  getStrokeDash,
+  type StrokePattern,
+} from "@/helpers/stroke.h";
 
 type ElementBounds = {
   minX: number;
@@ -226,6 +231,14 @@ const drawElementForExport = (
     seed: element.seed || 1,
   };
 
+  const strokePattern: StrokePattern = element.strokePattern || "solid";
+  const strokeLineDash = getStrokeDash(strokePattern, element.strokeWidth);
+
+  const strokeOptions = {
+    ...baseOptions,
+    strokeLineDash,
+  };
+
   const options =
     element.fillColor &&
     (element.type === "Rectangle" ||
@@ -236,7 +249,7 @@ const drawElementForExport = (
           fill: element.fillColor + "80", // 50% transparency
           fillStyle: "solid" as const,
         }
-      : baseOptions;
+      : strokeOptions;
 
   switch (element.type) {
     case "Rectangle":
@@ -277,13 +290,25 @@ const drawElementForExport = (
 
     case "Line":
       if (element.width !== undefined && element.height !== undefined) {
-        rc.line(
-          element.x,
-          element.y,
-          element.x + element.width,
-          element.y + element.height,
-          options,
-        );
+        if (strokePattern === "bubbled") {
+          drawBubbledPolyline(
+            ctx,
+            [
+              { x: element.x, y: element.y },
+              { x: element.x + element.width, y: element.y + element.height },
+            ],
+            element.strokeWidth,
+            element.strokeColor,
+          );
+        } else {
+          rc.line(
+            element.x,
+            element.y,
+            element.x + element.width,
+            element.y + element.height,
+            options,
+          );
+        }
       }
       break;
 
@@ -292,7 +317,19 @@ const drawElementForExport = (
         const endX = element.x + element.width;
         const endY = element.y + element.height;
 
-        rc.line(element.x, element.y, endX, endY, options);
+        if (strokePattern === "bubbled") {
+          drawBubbledPolyline(
+            ctx,
+            [
+              { x: element.x, y: element.y },
+              { x: endX, y: endY },
+            ],
+            element.strokeWidth,
+            element.strokeColor,
+          );
+        } else {
+          rc.line(element.x, element.y, endX, endY, options);
+        }
 
         const angle = Math.atan2(element.height, element.width);
         const arrowLength = 20;

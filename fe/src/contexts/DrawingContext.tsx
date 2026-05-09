@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import type { ToolType, DrawingContextType } from "@/types/drawing";
+import type { StrokePattern } from "@/helpers/stroke.h";
 
 const DrawingContext = createContext<DrawingContextType | null>(null);
 
@@ -10,7 +11,8 @@ export const DrawingProvider = ({
 }) => {
   const [selectedTool, setSelectedTool] = useState<ToolType>("select");
   const [strokeColor, setStrokeColor] = useState("#000000");
-  const [strokeWidth, setStrokeWidth] = useState(2);
+  const [strokeWidth, setStrokeWidth] = useState(1);
+  const [strokePattern, setStrokePattern] = useState<StrokePattern>("solid");
   const [fillColor, setFillColor] = useState<string | null>(null);
   const [activeElementTypes, setActiveElementTypes] = useState<ToolType[]>([]);
 
@@ -23,6 +25,8 @@ export const DrawingProvider = ({
         setStrokeColor,
         strokeWidth,
         setStrokeWidth,
+        strokePattern,
+        setStrokePattern,
         fillColor,
         setFillColor,
         activeElementTypes,
