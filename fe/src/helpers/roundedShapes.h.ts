@@ -4,7 +4,7 @@ export function rectangleCurveRadius(absW: number, absH: number): number {
   const h = Math.abs(absH);
   const m = Math.min(w, h);
   if (m <= 0) return 0;
-  return Math.min(m * 0.42, m / 2 - 0.5);
+  return Math.min(m * 0.1, m / 2 - 0.25);
 }
 
 /** Corner radius for rounded diamond "curve" style. */
@@ -12,7 +12,7 @@ export function diamondCurveRadius(hw: number, hh: number): number {
   const edgeLen = Math.hypot(hw, hh);
   if (edgeLen <= 0) return 0;
   const cap = Math.min(hw, hh) * 0.46;
-  return Math.max(0, Math.min(edgeLen * 0.4, cap, edgeLen / 2 - 0.5));
+  return Math.max(0, Math.min(edgeLen * 0.1, cap, edgeLen / 2 - 0.5));
 }
 
 export function pointOnSegment(

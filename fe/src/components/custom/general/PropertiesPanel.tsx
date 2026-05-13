@@ -274,7 +274,7 @@ export const PropertiesPanel = () => {
               className={cn(
                 "flex-1 flex items-center justify-center h-11 rounded-xl border transition-colors shadow-sm",
                 edgeStyle === "sharp"
-                  ? "bg-[#dfd6f9] dark:bg-violet-950/65 border-[#cbc0ee] dark:border-violet-800/70 text-neutral-900 dark:text-violet-100"
+                  ? "bg-background border-border  text-neutral-900 dark:text-violet-100"
                   : "bg-muted/40 border-border/55 hover:bg-muted/55 dark:bg-muted/20 dark:border-border/60 text-muted-foreground hover:text-foreground",
               )}
               title="Sharp corners"
@@ -289,7 +289,7 @@ export const PropertiesPanel = () => {
               className={cn(
                 "flex-1 flex items-center justify-center h-11 rounded-xl border transition-colors shadow-sm",
                 edgeStyle === "curve"
-                  ? "bg-[#dfd6f9] dark:bg-violet-950/65 border-[#cbc0ee] dark:border-violet-800/70 text-neutral-900 dark:text-violet-100"
+                  ? "bg-background border-border  text-neutral-900 dark:text-violet-100"
                   : "bg-muted/40 border-border/55 hover:bg-muted/55 dark:bg-muted/20 dark:border-border/60 text-muted-foreground hover:text-foreground",
               )}
               title="Rounded corners"
