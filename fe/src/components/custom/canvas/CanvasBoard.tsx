@@ -1437,6 +1437,10 @@ export const CanvasBoard = () => {
         ctx.restore();
     });
 
+    const selectionStroke = "rgba(79, 143, 247, 0.92)";
+    const selectionPad = 10;
+    const selectionCornerSoft = 6;
+
     // ── Draw individual selection outlines for each selected element ──
     if (selectedElements.length > 0) {
       ctx.save();
@@ -1444,7 +1448,7 @@ export const CanvasBoard = () => {
 
       // Draw individual thin dotted outline for each selected element
       selectedElements.forEach((element) => {
-        ctx.strokeStyle = "#007acc";
+        ctx.strokeStyle = selectionStroke;
         ctx.lineWidth = 1 / scale; // stay thin regardless of zoom
         ctx.setLineDash([4 / scale, 3 / scale]);
 
