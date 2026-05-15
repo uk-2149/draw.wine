@@ -39,6 +39,10 @@ import {
   diamondCurveRadius,
   rectangleCurveRadius,
 } from "@/helpers/roundedShapes.h";
+import {
+  findSnapTarget,
+  getConnectionCoordsForElement,
+} from "@/helpers/connectionSnap.h";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -382,6 +386,15 @@ export const CanvasBoard = () => {
     bounds: { minX: number; minY: number; maxX: number; maxY: number };
   } | null>(null);
 
+  const [snapHighlight, setSnapHighlight] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const [draggingBendPoint, setDraggingBendPoint] = useState<string | null>(
+    null,
+  ); // elementId
+
   // ─── Bounding box helpers ───────────────────────────────────────────────────
 
   const getSelectionBounds = useCallback((elementsToMeasure: Element[]) => {
@@ -484,6 +497,8 @@ export const CanvasBoard = () => {
   } | null>(null);
 
   const isTabPressedRef = useRef(false);
+  const draggingBendPointRef = useRef<string | null>(null);
+  const bendGrabOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const beginHistoryAction = useCallback(() => {
     if (isCollaborating) return;
@@ -1289,27 +1304,36 @@ export const CanvasBoard = () => {
         }
         case "Line": {
           if (element.width !== undefined && element.height !== undefined) {
-            if (strokePatternValue === "bubbled") {
+            const endX = element.x + element.width;
+            const endY = element.y + element.height;
+            if (element.bendPoint) {
+              ctx.save();
+              ctx.strokeStyle = getStrokeColor(element.strokeColor);
+              ctx.lineWidth = element.strokeWidth;
+              ctx.lineCap = "round";
+              ctx.setLineDash(strokeDash || []);
+              ctx.beginPath();
+              ctx.moveTo(element.x, element.y);
+              ctx.quadraticCurveTo(
+                element.bendPoint.x,
+                element.bendPoint.y,
+                endX,
+                endY,
+              );
+              ctx.stroke();
+              ctx.restore();
+            } else if (strokePatternValue === "bubbled") {
               drawPatternedPolyline(
                 [
                   { x: element.x, y: element.y },
-                  {
-                    x: element.x + element.width,
-                    y: element.y + element.height,
-                  },
+                  { x: endX, y: endY },
                 ],
                 getStrokeColor(element.strokeColor),
                 element.strokeWidth,
                 strokePatternValue,
               );
             } else {
-              rc.line(
-                element.x,
-                element.y,
-                element.x + element.width,
-                element.y + element.height,
-                options,
-              );
+              rc.line(element.x, element.y, endX, endY, options);
             }
           }
           break;
@@ -1385,36 +1409,75 @@ export const CanvasBoard = () => {
           if (element.width !== undefined && element.height !== undefined) {
             const endX = element.x + element.width;
             const endY = element.y + element.height;
-            if (strokePatternValue === "bubbled") {
-              drawPatternedPolyline(
-                [
-                  { x: element.x, y: element.y },
-                  { x: endX, y: endY },
-                ],
-                getStrokeColor(element.strokeColor),
-                element.strokeWidth,
-                strokePatternValue,
+
+            if (element.bendPoint) {
+              ctx.save();
+              ctx.strokeStyle = getStrokeColor(element.strokeColor);
+              ctx.lineWidth = element.strokeWidth;
+              ctx.lineCap = "round";
+              ctx.setLineDash(strokeDash || []);
+              ctx.beginPath();
+              ctx.moveTo(element.x, element.y);
+              ctx.quadraticCurveTo(
+                element.bendPoint.x,
+                element.bendPoint.y,
+                endX,
+                endY,
               );
+              ctx.stroke();
+              // Arrow head tangent from bezier end
+              const tx = endX - element.bendPoint.x;
+              const ty = endY - element.bendPoint.y;
+              const angle = Math.atan2(ty, tx);
+              const arrowLength = 20;
+              const arrowAngle = Math.PI / 6;
+              rc.line(
+                endX,
+                endY,
+                endX - arrowLength * Math.cos(angle - arrowAngle),
+                endY - arrowLength * Math.sin(angle - arrowAngle),
+                options,
+              );
+              rc.line(
+                endX,
+                endY,
+                endX - arrowLength * Math.cos(angle + arrowAngle),
+                endY - arrowLength * Math.sin(angle + arrowAngle),
+                options,
+              );
+              ctx.restore();
             } else {
-              rc.line(element.x, element.y, endX, endY, options);
+              if (strokePatternValue === "bubbled") {
+                drawPatternedPolyline(
+                  [
+                    { x: element.x, y: element.y },
+                    { x: endX, y: endY },
+                  ],
+                  getStrokeColor(element.strokeColor),
+                  element.strokeWidth,
+                  strokePatternValue,
+                );
+              } else {
+                rc.line(element.x, element.y, endX, endY, options);
+              }
+              const angle = Math.atan2(element.height, element.width);
+              const arrowLength = 20;
+              const arrowAngle = Math.PI / 6;
+              rc.line(
+                endX,
+                endY,
+                endX - arrowLength * Math.cos(angle - arrowAngle),
+                endY - arrowLength * Math.sin(angle - arrowAngle),
+                options,
+              );
+              rc.line(
+                endX,
+                endY,
+                endX - arrowLength * Math.cos(angle + arrowAngle),
+                endY - arrowLength * Math.sin(angle + arrowAngle),
+                options,
+              );
             }
-            const angle = Math.atan2(element.height, element.width);
-            const arrowLength = 20;
-            const arrowAngle = Math.PI / 6;
-            rc.line(
-              endX,
-              endY,
-              endX - arrowLength * Math.cos(angle - arrowAngle),
-              endY - arrowLength * Math.sin(angle - arrowAngle),
-              options,
-            );
-            rc.line(
-              endX,
-              endY,
-              endX - arrowLength * Math.cos(angle + arrowAngle),
-              endY - arrowLength * Math.sin(angle + arrowAngle),
-              options,
-            );
           }
           break;
         }
@@ -2144,8 +2207,32 @@ export const CanvasBoard = () => {
           case "Arrow": {
             if (element.width !== undefined && element.height !== undefined) {
               const tolerance = 10;
-              const endX = element.x + element.width,
-                endY = element.y + element.height;
+              const endX = element.x + element.width;
+              const endY = element.y + element.height;
+
+              if (element.bendPoint) {
+                // Sample the quadratic bezier for hit detection
+                const steps = 30;
+                for (let s = 0; s <= steps; s++) {
+                  const t = s / steps;
+                  const bx =
+                    (1 - t) * (1 - t) * element.x +
+                    2 * (1 - t) * t * element.bendPoint.x +
+                    t * t * endX;
+                  const by =
+                    (1 - t) * (1 - t) * element.y +
+                    2 * (1 - t) * t * element.bendPoint.y +
+                    t * t * endY;
+                  if (
+                    Math.sqrt((point.x - bx) ** 2 + (point.y - by) ** 2) <=
+                    tolerance
+                  )
+                    return element;
+                }
+                break;
+              }
+
+              // Straight-line proximity check (no bend)
               const A = point.x - element.x,
                 B = point.y - element.y;
               const C = endX - element.x,
@@ -2212,6 +2299,7 @@ export const CanvasBoard = () => {
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (isEditingText) return;
+      if (draggingBendPointRef.current) return;
 
       if (
         e.button === 1 ||
@@ -2226,6 +2314,22 @@ export const CanvasBoard = () => {
       if (!canDraw) return;
 
       const point = getTransformedPoint(e);
+
+      // ── Bend point drag ──
+      if (selectedTool === "select" && selectedElements.length === 1) {
+        const el = selectedElements[0];
+        if ((el.type === "Line" || el.type === "Arrow") && el.bendPoint) {
+          const tol = 10 / scale;
+          if (
+            Math.hypot(point.x - el.bendPoint.x, point.y - el.bendPoint.y) <=
+            tol
+          ) {
+            beginHistoryAction();
+            setDraggingBendPoint(el.id);
+            return;
+          }
+        }
+      }
 
       if (selectedTool === "select") {
         // ── Check edge/corner hit on single element bounds ──
@@ -2351,11 +2455,16 @@ export const CanvasBoard = () => {
         const elementId = isCollaborating
           ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           : Date.now().toString();
+        const startSnap =
+          selectedTool === "Text" || selectedTool === "Arrow"
+            ? findSnapTarget(point, elements, "", scale)
+            : null;
         const newElement: Element = {
           id: elementId,
           type: selectedTool,
-          x: point.x,
-          y: point.y,
+          x: startSnap ? startSnap.x : point.x,
+          y: startSnap ? startSnap.y : point.y,
+          startConnection: startSnap ? startSnap.connection : undefined,
           strokeColor,
           strokeWidth,
           strokePattern,
@@ -2481,6 +2590,7 @@ export const CanvasBoard = () => {
       setSelectedElement,
       scale,
       canDraw,
+      draggingBendPoint,
     ],
   );
 
@@ -2491,6 +2601,39 @@ export const CanvasBoard = () => {
       const point = getTransformedPoint(e);
 
       if (isCollaborating && !isPanning && !drawing) updateCursor(point);
+
+      // ── Bend point drag ──
+      if (draggingBendPointRef.current) {
+        const activeBendId = draggingBendPointRef.current;
+        markHistoryActionMutated();
+        // point is where the cursor is; subtract offset to get desired on-curve midpoint
+        const onCurveX = point.x - bendGrabOffsetRef.current.x;
+        const onCurveY = point.y - bendGrabOffsetRef.current.y;
+        // Invert from on-curve midpoint (t=0.5) back to quadratic bezier control point:
+        // onCurve = 0.25*start + 0.5*control + 0.25*end
+        // => control = 2*onCurve - 0.5*start - 0.5*end
+        setElements((prev) =>
+          prev.map((el) => {
+            if (el.id !== activeBendId) return el;
+            const elEndX = el.x + (el.width ?? 0);
+            const elEndY = el.y + (el.height ?? 0);
+            const controlX = 2 * onCurveX - 0.5 * el.x - 0.5 * elEndX;
+            const controlY = 2 * onCurveY - 0.5 * el.y - 0.5 * elEndY;
+            return { ...el, bendPoint: { x: controlX, y: controlY } };
+          }),
+        );
+        setSelectedElements((prev) =>
+          prev.map((el) => {
+            if (el.id !== activeBendId) return el;
+            const elEndX = el.x + (el.width ?? 0);
+            const elEndY = el.y + (el.height ?? 0);
+            const controlX = 2 * onCurveX - 0.5 * el.x - 0.5 * elEndX;
+            const controlY = 2 * onCurveY - 0.5 * el.y - 0.5 * elEndY;
+            return { ...el, bendPoint: { x: controlX, y: controlY } };
+          }),
+        );
+        return;
+      }
 
       // ── Edge-hover cursor detection (select tool, nothing being dragged/resized) ──
       if (
@@ -2732,27 +2875,29 @@ export const CanvasBoard = () => {
           const anchorEl = prev.find((el) => selectedIds.includes(el.id));
           if (!anchorEl) return prev;
 
-          let deltaX: number, deltaY: number;
-          if (selectedIds.length > 1 && groupBounds) {
-            // dragOffset stored as (point - groupBounds.minX, point - groupBounds.minY)
-            deltaX =
-              point.x -
-              dragOffset.x -
-              anchorEl.x +
-              (groupBounds.minX - anchorEl.x); // simplify:
-            // Actually: we want new groupBounds.minX = point.x - dragOffset.x
-            // anchorEl.x + delta = anchorEl.x + (newMinX - oldMinX)
-            // delta = newMinX - oldMinX
-            // This is tricky because groupBounds is stale. Use a simpler mouse-move delta approach:
-            deltaX = e.movementX / scale;
-            deltaY = e.movementY / scale;
-          } else {
-            // Single element anchor
-            const newX = point.x - dragOffset.x;
-            const newY = point.y - dragOffset.y;
-            deltaX = newX - anchorEl.x;
-            deltaY = newY - anchorEl.y;
-          }
+          // let deltaX: number, deltaY: number;
+          // if (selectedIds.length > 1 && groupBounds) {
+          //   // dragOffset stored as (point - groupBounds.minX, point - groupBounds.minY)
+          //   deltaX =
+          //     point.x -
+          //     dragOffset.x -
+          //     anchorEl.x +
+          //     (groupBounds.minX - anchorEl.x); // simplify:
+          //   // Actually: we want new groupBounds.minX = point.x - dragOffset.x
+          //   // anchorEl.x + delta = anchorEl.x + (newMinX - oldMinX)
+          //   // delta = newMinX - oldMinX
+          //   // This is tricky because groupBounds is stale. Use a simpler mouse-move delta approach:
+          //   deltaX = e.movementX / scale;
+          //   deltaY = e.movementY / scale;
+          // } else {
+          //   // Single element anchor
+          //   const newX = point.x - dragOffset.x;
+          //   const newY = point.y - dragOffset.y;
+          //   deltaX = newX - anchorEl.x;
+          //   deltaY = newY - anchorEl.y;
+          // }
+          const deltaX = e.movementX / scale;
+          const deltaY = e.movementY / scale;
 
           if (deltaX === 0 && deltaY === 0) return prev;
 
@@ -2764,6 +2909,13 @@ export const CanvasBoard = () => {
                 x: p.x + deltaX,
                 y: p.y + deltaY,
               }));
+            }
+            // Translate bend point with the element
+            if (el.bendPoint) {
+              newEl.bendPoint = {
+                x: el.bendPoint.x + deltaX,
+                y: el.bendPoint.y + deltaY,
+              };
             }
             if (
               isCollaborating &&
@@ -2784,6 +2936,69 @@ export const CanvasBoard = () => {
               });
             }
             return newEl;
+          });
+
+          // After the setElements call that moves selected elements, also update connected lines:
+          setElements((prev) => {
+            const movedIds = new Set(selectedIds);
+            return prev.map((el) => {
+              if (el.type !== "Arrow" && el.type !== "Line") return el;
+              let updated = { ...el };
+              let changed = false;
+
+              if (
+                el.startConnection &&
+                movedIds.has(el.startConnection.elementId)
+              ) {
+                const shape = prev.find(
+                  (s) => s.id === el.startConnection!.elementId,
+                );
+                if (shape) {
+                  // const coords = getConnectionCoordsForElement(
+                  //   shape,
+                  //   el.startConnection.point,
+                  // );
+                  // Temporarily apply delta to shape to get new coords
+                  const newCoords = getConnectionCoordsForElement(
+                    { ...shape, x: shape.x + deltaX, y: shape.y + deltaY },
+                    el.startConnection.point,
+                  );
+                  const oldEndX = el.x + (el.width ?? 0);
+                  const oldEndY = el.y + (el.height ?? 0);
+                  updated = {
+                    ...updated,
+                    x: newCoords.x,
+                    y: newCoords.y,
+                    width: oldEndX - newCoords.x,
+                    height: oldEndY - newCoords.y,
+                  };
+                  changed = true;
+                }
+              }
+
+              if (
+                el.endConnection &&
+                movedIds.has(el.endConnection.elementId)
+              ) {
+                const shape = prev.find(
+                  (s) => s.id === el.endConnection!.elementId,
+                );
+                if (shape) {
+                  const newCoords = getConnectionCoordsForElement(
+                    { ...shape, x: shape.x + deltaX, y: shape.y + deltaY },
+                    el.endConnection.point,
+                  );
+                  updated = {
+                    ...updated,
+                    width: newCoords.x - updated.x,
+                    height: newCoords.y - updated.y,
+                  };
+                  changed = true;
+                }
+              }
+
+              return changed ? updated : el;
+            });
           });
 
           setSelectedElements(
@@ -2843,12 +3058,44 @@ export const CanvasBoard = () => {
           let updatedElement: Element | null = null;
           const updated = prev.map((el) => {
             if (el.id !== resizing.elementId) return el;
+
             const patch = applyHandleResize(
               el,
               resizing.corner as HandleCorner,
               point,
             );
+
+            // ── Snap logic: mutate patch FIRST, then build updatedElement ──
+            if (
+              (el.type === "Arrow" || el.type === "Line") &&
+              (resizing.corner === "start" || resizing.corner === "end")
+            ) {
+              const snap = findSnapTarget(point, elements, el.id, scale);
+              if (snap) {
+                if (resizing.corner === "end") {
+                  patch.width = snap.x - el.x;
+                  patch.height = snap.y - el.y;
+                  patch.endConnection = snap.connection;
+                } else {
+                  const oldEndX = el.x + (el.width ?? 0);
+                  const oldEndY = el.y + (el.height ?? 0);
+                  patch.x = snap.x;
+                  patch.y = snap.y;
+                  patch.width = oldEndX - snap.x;
+                  patch.height = oldEndY - snap.y;
+                  patch.startConnection = snap.connection;
+                }
+                setSnapHighlight({ x: snap.x, y: snap.y });
+              } else {
+                if (resizing.corner === "end") patch.endConnection = undefined;
+                else patch.startConnection = undefined;
+                setSnapHighlight(null);
+              }
+            }
+
+            // ← Build updatedElement AFTER snap has modified patch
             updatedElement = { ...el, ...patch };
+
             if (
               isCollaborating &&
               sendOperation &&
@@ -2865,13 +3112,14 @@ export const CanvasBoard = () => {
             }
             return updatedElement;
           });
+
           if (updatedElement) {
-            // Keep both in sync so the selection outline redraws correctly
             setSelectedElement(updatedElement);
             setSelectedElements([updatedElement]);
           }
           return updated;
         });
+
         return;
       }
 
@@ -2886,14 +3134,36 @@ export const CanvasBoard = () => {
           case "Rectangle":
           case "Diamond":
           case "Circle":
-          case "Arrow":
-          case "Line": {
-            const updatedElement = {
+            updated[index] = {
               ...currentElement,
               width: point.x - currentElement.x,
               height: point.y - currentElement.y,
             };
-            updated[index] = updatedElement;
+            break;
+
+          case "Arrow":
+          case "Line": {
+            const snap =
+              currentElement.type === "Arrow" || currentElement.type === "Line"
+                ? findSnapTarget(point, elements, currentElement.id, scale)
+                : null;
+
+            const endX = snap ? snap.x : point.x;
+            const endY = snap ? snap.y : point.y;
+
+            if (snap) {
+              setSnapHighlight({ x: snap.x, y: snap.y });
+            } else {
+              setSnapHighlight(null);
+            }
+
+            updated[index] = {
+              ...currentElement,
+              width: endX - currentElement.x,
+              height: endY - currentElement.y,
+              endConnection: snap ? snap.connection : undefined,
+            };
+
             if (
               isCollaborating &&
               sendOperation &&
@@ -2906,8 +3176,8 @@ export const CanvasBoard = () => {
                 elementId: currentElement.id,
                 authorId: state.userId!,
                 data: {
-                  width: updatedElement.width,
-                  height: updatedElement.height,
+                  width: endX - currentElement.x,
+                  height: endY - currentElement.y,
                 },
               });
             }
@@ -2974,12 +3244,22 @@ export const CanvasBoard = () => {
       setSelectedElement,
       scale,
       setHoverCursor,
+      draggingBendPoint, // ← ADD THIS
     ],
   );
 
   // ─── Mouse up ─────────────────────────────────────────────────────────────────
 
   const handleMouseUp = useCallback(() => {
+    setSnapHighlight(null);
+    draggingBendPointRef.current = null; // ← clear ref
+    setDraggingBendPoint(null);
+    //     if (draggingBendPoint) {
+    //       draggingBendPointRef.current = null;   // ← clear ref
+    // setDraggingBendPoint(null);
+    //       commitHistoryAction();
+    //       return;
+    //     }
     if (
       drawing &&
       currentElement &&
@@ -3028,6 +3308,8 @@ export const CanvasBoard = () => {
     if (!isEditingText) commitHistoryAction();
   }, [
     drawing,
+    draggingBendPoint,
+    commitHistoryAction,
     currentElement,
     isCollaborating,
     sendOperation,
@@ -3329,6 +3611,51 @@ export const CanvasBoard = () => {
           })();
 
           if (!bounds) return null;
+
+          // ── Line / Arrow: show only start + end endpoint dots ──
+          if (
+            selectedElements.length === 1 &&
+            (selectedElements[0].type === "Line" ||
+              selectedElements[0].type === "Arrow")
+          ) {
+            const el = selectedElements[0];
+            if (el.width === undefined || el.height === undefined) return null;
+            const endX = el.x + el.width;
+            const endY = el.y + el.height;
+            const endpoints = [
+              {
+                x: el.x,
+                y: el.y,
+                corner: "start" as const,
+                cursor: "crosshair",
+              },
+              { x: endX, y: endY, corner: "end" as const, cursor: "crosshair" },
+            ];
+            return endpoints.map((c) => (
+              <div
+                key={c.corner}
+                className="absolute z-40 pointer-events-auto"
+                style={{
+                  left: `${c.x * scale + position.x - 5}px`,
+                  top: `${c.y * scale + position.y - 5}px`,
+                  width: "12px",
+                  height: "12px",
+                  cursor: c.cursor,
+                  borderRadius: "50px",
+                  border: "2px solid #007acc",
+                  background: "white",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  beginHistoryAction();
+                  const canvasPoint = getTransformedPoint(e);
+                  setResizing({ corner: c.corner, elementId: el.id });
+                  setResizeStart(canvasPoint);
+                }}
+              />
+            ));
+          }
           const PAD = 6; // matches canvas drawing padding
           const corners = [
             {
@@ -3395,6 +3722,80 @@ export const CanvasBoard = () => {
           ));
         })()}
 
+      {/* Bend point handle */}
+      {selectedTool === "select" &&
+        selectedElements.length === 1 &&
+        (selectedElements[0].type === "Line" ||
+          selectedElements[0].type === "Arrow") &&
+        (() => {
+          const el = selectedElements[0];
+          const endX = el.x + (el.width ?? 0);
+          const endY = el.y + (el.height ?? 0);
+          // Show handle at the actual curve midpoint (t=0.5 on quadratic bezier),
+          // not at the off-curve control point
+          const midX = el.bendPoint
+            ? 0.25 * el.x + 0.5 * el.bendPoint.x + 0.25 * endX
+            : el.x + (el.width ?? 0) / 2;
+          const midY = el.bendPoint
+            ? 0.25 * el.y + 0.5 * el.bendPoint.y + 0.25 * endY
+            : el.y + (el.height ?? 0) / 2;
+          return (
+            <div
+              className="absolute z-40 pointer-events-auto"
+              style={{
+                left: `${midX * scale + position.x - 6}px`,
+                top: `${midY * scale + position.y - 6}px`,
+                width: "12px",
+                height: "12px",
+                cursor: "grab",
+                borderRadius: "50%",
+                border: "2px solid #007acc",
+                background: el.bendPoint ? "#007acc" : "white",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                beginHistoryAction();
+                const canvasPoint = getTransformedPoint(e);
+                const elEndX = el.x + (el.width ?? 0);
+                const elEndY = el.y + (el.height ?? 0);
+                // The handle is shown at the on-curve midpoint (t=0.5).
+                // Compute where the control point WOULD be if dragged to canvasPoint:
+                //   controlPoint = 2*onCurvePoint - 0.5*start - 0.5*end
+                // We store offset as: canvasPoint (on-curve) - onCurvePoint,
+                // then in mousemove: controlPoint = 2*(point - offset) - 0.5*start - 0.5*end
+                const onCurveX = el.bendPoint
+                  ? 0.25 * el.x + 0.5 * el.bendPoint.x + 0.25 * elEndX
+                  : el.x + (el.width ?? 0) / 2;
+                const onCurveY = el.bendPoint
+                  ? 0.25 * el.y + 0.5 * el.bendPoint.y + 0.25 * elEndY
+                  : el.y + (el.height ?? 0) / 2;
+                bendGrabOffsetRef.current = {
+                  x: canvasPoint.x - onCurveX,
+                  y: canvasPoint.y - onCurveY,
+                };
+                draggingBendPointRef.current = el.id;
+                setDraggingBendPoint(el.id);
+              }}
+            />
+          );
+        })()}
+
+      {/* Snap highlight ring */}
+      {snapHighlight && (
+        <div
+          className="absolute z-50 pointer-events-none"
+          style={{
+            left: `${snapHighlight.x * scale + position.x - 10}px`,
+            top: `${snapHighlight.y * scale + position.y - 10}px`,
+            width: "20px",
+            height: "20px",
+            borderRadius: "50%",
+            border: "2px solid #22c55e",
+            background: "rgba(34,197,94,0.15)",
+          }}
+        />
+      )}
       {/* Bottom Controls */}
       <div
         className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg flex items-center gap-1 p-1"
