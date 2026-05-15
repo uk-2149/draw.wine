@@ -1,0 +1,45 @@
+name: Build and Lint
+
+on:
+  push:
+    branches:
+      - main
+      - preview
+  pull_request:
+
+jobs:
+  build-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            be/package-lock.json
+            fe/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: be
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: fe
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: fe
+        run: npm run lint
+
+      - name: Build backend
+        working-directory: be
+        run: npm run build
+
+      - name: Build frontend
+        working-directory: fe
+        run: npm run build
