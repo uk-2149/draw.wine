@@ -1,5 +1,6 @@
 export type AiStatus = "idle" | "loading" | "success" | "error";
 export type AiMode = "vector" | "raster";
+export type AiModel = "gemini-2.5-flash" | "gemini-2.5-pro";
 
 export interface GeneratedElement {
   type: string;
@@ -24,13 +25,13 @@ export interface AiDrawingResponse {
 export type AiResult = AiDrawingResponse;
 
 export interface AiContextType {
-  model: string | null;
+  model: AiModel | null;
   mode: AiMode;
   prompt: string;
   result: AiResult | null;
   error: string | null;
   state: AiStatus;
-  setModel: (model: string | null) => void;
+  setModel: (model: AiModel | null) => void;
   setMode: (mode: AiMode) => void;
   setPrompt: (prompt: string) => void;
   setResult: (result: AiResult | null) => void;

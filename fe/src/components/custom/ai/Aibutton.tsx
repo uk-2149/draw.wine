@@ -28,7 +28,7 @@ export const Aibutton = ({ onClick }: AibuttonProps) => {
         align="center"
         className="bg-popover text-popover-foreground border border-border"
       >
-        <p className="font-medium text-xs">Generate Layout (AI)</p>
+        <p className="font-medium text-xs">Open AI Chat</p>
       </TooltipContent>
     </Tooltip>
   );

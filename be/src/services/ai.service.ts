@@ -5,6 +5,12 @@ import { Logger } from "../helpers/ext.h";
 // Initialize the Gemini client
 const ai = new GoogleGenerativeAI(gemini_api_key);
 
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const SUPPORTED_GEMINI_MODELS = new Set([
+  DEFAULT_GEMINI_MODEL,
+  "gemini-2.5-pro",
+]);
+
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -19,6 +25,39 @@ const getGeminiFetchStatus = (error: unknown): number | undefined => {
     return typeof status === "number" ? status : undefined;
   }
   return undefined;
+};
+
+const resolveGeminiModel = (model?: string | null): string => {
+  if (model && SUPPORTED_GEMINI_MODELS.has(model)) {
+    return model;
+  }
+  if (model) {
+    Logger.warn(`Unsupported model requested: ${model}. Falling back.`);
+  }
+  return DEFAULT_GEMINI_MODEL;
+};
+
+const parseRetryDelaySeconds = (value: string): number | undefined => {
+  const match = value.match(/(\d+(?:\.\d+)?)s/i);
+  if (!match) return undefined;
+  const seconds = Number(match[1]);
+  return Number.isFinite(seconds) ? Math.ceil(seconds) : undefined;
+};
+
+const getGeminiRetryDelaySeconds = (error: unknown): number | undefined => {
+  if (!error || typeof error !== "object" || !("errorDetails" in error)) {
+    return undefined;
+  }
+  const details = (error as { errorDetails?: unknown }).errorDetails;
+  if (!Array.isArray(details)) return undefined;
+
+  const retryInfo = details.find(
+    (detail) => detail && typeof detail === "object" && "retryDelay" in detail,
+  ) as { retryDelay?: unknown } | undefined;
+  if (!retryInfo || typeof retryInfo.retryDelay !== "string") {
+    return undefined;
+  }
+  return parseRetryDelaySeconds(retryInfo.retryDelay);
 };
 
 async function generateContentWithRetry<T>(
@@ -285,8 +324,7 @@ const parseGeminiJson = <T>(raw: string): T => {
     for (const attempt of attempts) {
       try {
         const parsed = JSON.parse(attempt) as T;
-        const usedRecovery =
-          candidate !== trimmed || attempt !== candidate;
+        const usedRecovery = candidate !== trimmed || attempt !== candidate;
         if (usedRecovery) {
           Logger.warn("Recovered partial JSON payload from Gemini response", {
             rawLength: trimmed.length,
@@ -312,6 +350,7 @@ const parseGeminiJson = <T>(raw: string): T => {
 export interface AiDrawingRequest {
   prompt: string;
   mode?: "vector" | "raster";
+  model?: string;
 }
 
 export interface GeneratedElement {
@@ -334,13 +373,23 @@ export interface AiDrawingResponse {
   isRaster?: boolean;
 }
 
+export interface AiChatRequest {
+  prompt: string;
+  model?: string;
+}
+
+export interface AiChatResponse {
+  message: string;
+}
+
 class AiService {
   private isConfigured(): boolean {
     return !!gemini_api_key && gemini_api_key.length > 0;
   }
 
   async generateDrawing(request: AiDrawingRequest): Promise<AiDrawingResponse> {
-    const { prompt, mode = "vector" } = request;
+    const { prompt, mode = "vector", model } = request;
+    const resolvedModel = resolveGeminiModel(model);
 
     if (!this.isConfigured()) {
       Logger.warn("GEMINI_API_KEY is not set. Returning simulation data.");
@@ -349,9 +398,9 @@ class AiService {
 
     try {
       if (mode === "raster") {
-        return await this.generateRasterDrawing(prompt);
+        return await this.generateRasterDrawing(prompt, resolvedModel);
       } else {
-        return await this.generateVectorDrawing(prompt);
+        return await this.generateVectorDrawing(prompt, resolvedModel);
       }
     } catch (error) {
       Logger.error("Error generating drawing from Gemini:", error);
@@ -359,8 +408,35 @@ class AiService {
     }
   }
 
+  async generateChat(request: AiChatRequest): Promise<AiChatResponse> {
+    const { prompt, model } = request;
+    const resolvedModel = resolveGeminiModel(model);
+
+    if (!this.isConfigured()) {
+      Logger.warn("GEMINI_API_KEY is not set. Returning simulated chat.");
+      return this.getChatSimulation(prompt);
+    }
+
+    try {
+      return await this.generateChatReply(prompt, resolvedModel);
+    } catch (error) {
+      const status = getGeminiFetchStatus(error);
+      if (status === 429) {
+        const retryDelaySeconds = getGeminiRetryDelaySeconds(error);
+        const retryMessage = retryDelaySeconds
+          ? `Rate limit reached. Please retry in about ${retryDelaySeconds}s.`
+          : "Rate limit reached. Please try again in a moment.";
+        Logger.warn(retryMessage);
+        return { message: retryMessage };
+      }
+      Logger.error("Error generating chat response from Gemini:", error);
+      throw new Error("Failed to generate chat response. Please try again.");
+    }
+  }
+
   private async generateVectorDrawing(
     prompt: string,
+    modelName: string,
   ): Promise<AiDrawingResponse> {
     // Define the schema using the new SDK Type enum
     const elementSchema: Schema = {
@@ -373,13 +449,11 @@ class AiService {
         },
         x: {
           type: SchemaType.INTEGER,
-          description:
-            "X coordinate relative to center (0,0).",
+          description: "X coordinate relative to center (0,0).",
         },
         y: {
           type: SchemaType.INTEGER,
-          description:
-            "Y coordinate relative to center (0,0).",
+          description: "Y coordinate relative to center (0,0).",
         },
         width: {
           type: SchemaType.INTEGER,
@@ -447,7 +521,7 @@ Output strictly as JSON adhering to the supplied schema.`;
 
     // Using gemini-2.5-flash as default high-speed structured model
     const model = ai.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: modelName,
       systemInstruction,
       generationConfig: {
         responseMimeType: "application/json",
@@ -473,8 +547,38 @@ Output strictly as JSON adhering to the supplied schema.`;
     };
   }
 
+  private async generateChatReply(
+    prompt: string,
+    modelName: string,
+  ): Promise<AiChatResponse> {
+    const systemInstruction = `You are a friendly assistant inside the draw.wine canvas app.
+Keep replies concise (1-3 short sentences). If the user wants a diagram or drawing,
+ask them to describe the layout they want on the canvas.`;
+
+    const model = ai.getGenerativeModel({
+      model: modelName,
+      systemInstruction,
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 256,
+      },
+    });
+
+    const responseResult = await generateContentWithRetry(
+      () => model.generateContent(prompt),
+      "chat",
+    );
+    const text = responseResult.response.text();
+    if (!text) {
+      throw new Error("Empty response received from model");
+    }
+
+    return { message: text.trim() };
+  }
+
   private async generateRasterDrawing(
     prompt: string,
+    modelName: string,
   ): Promise<AiDrawingResponse> {
     const systemInstruction = `You are a world-class graphic designer and SVG generator.
 The user wants a raster/photographic or highly detailed illustration. Since you output text, create a complete, beautifully designed standalone SVG code block representing the visual prompt.
@@ -494,7 +598,7 @@ Return ONLY valid raw JSON with a single string field 'svgContent' containing th
     };
 
     const model = ai.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: modelName,
       systemInstruction,
       generationConfig: {
         responseMimeType: "application/json",
@@ -621,6 +725,21 @@ Return ONLY valid raw JSON with a single string field 'svgContent' containing th
         },
       ],
       isRaster: false,
+    };
+  }
+
+  private getChatSimulation(prompt: string): AiChatResponse {
+    const normalized = prompt.trim();
+    if (!normalized) {
+      return {
+        message:
+          "Tell me what you want to draw and I will add it to the canvas.",
+      };
+    }
+
+    return {
+      message:
+        "I can help with canvas layouts. Describe the diagram or layout you want to draw.",
     };
   }
 }

@@ -9,11 +9,11 @@ import { InstallButton } from "@/components/custom/general/InstallButton";
 import { JoinRequestsSidebar } from "@/components/custom/general/JoinRequestsSidebar";
 import { HelpButton } from "@/components/custom/general/HelpButton";
 import { Aibutton } from "@/components/custom/ai/Aibutton";
-import { AiPromptModal } from "@/components/custom/modals/AiPromptModal";
+import { AiChatSidebar } from "@/components/custom/ai/AiChatSidebar";
 import { useGeneral } from "@/contexts/general/useGeneral";
 
 export const PlayGround = () => {
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const { currentStage } = useGeneral();
 
   return (
@@ -27,7 +27,7 @@ export const PlayGround = () => {
         </div>
         <div className="absolute top-4 right-4 z-10 flex items-center gap-3">
           {currentStage === "lobby" && (
-            <Aibutton onClick={() => setIsAiModalOpen(true)} />
+            <Aibutton onClick={() => setIsAiSidebarOpen(true)} />
           )}
           <ThemeToggle />
           <JoinRequestsSidebar />
@@ -38,9 +38,9 @@ export const PlayGround = () => {
         </div>
         <CanvasBoard />
         <HelpButton />
-        <AiPromptModal
-          isOpen={isAiModalOpen}
-          onClose={() => setIsAiModalOpen(false)}
+        <AiChatSidebar
+          isOpen={isAiSidebarOpen}
+          onClose={() => setIsAiSidebarOpen(false)}
         />
       </div>
     </DrawingProvider>

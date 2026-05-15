@@ -50,6 +50,13 @@ const cloneElementsSnapshot = (els: Element[]): Element[] =>
     points: el.points ? el.points.map((p) => ({ ...p })) : undefined,
   }));
 
+const isEditableTarget = (target: EventTarget | null) => {
+  const element = target as HTMLElement | null;
+  if (!element) return false;
+  const tag = element.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || element.isContentEditable;
+};
+
 export const CanvasBoard = () => {
   const {
     selectedTool,
@@ -1545,7 +1552,15 @@ export const CanvasBoard = () => {
   useEffect(() => {
     const handleToolShortcuts = (e: KeyboardEvent) => {
       // Don't trigger shortcuts while editing text or if modifiers are pressed
-      if (isEditingText || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (
+        isEditingText ||
+        isEditableTarget(e.target) ||
+        e.ctrlKey ||
+        e.altKey ||
+        e.metaKey
+      ) {
+        return;
+      }
 
       switch (e.key.toLowerCase()) {
         case " ":
@@ -1708,7 +1723,7 @@ export const CanvasBoard = () => {
   // Handle Tab key for pan mode - track Tab press/release
   useEffect(() => {
     const handleTabKey = (e: KeyboardEvent) => {
-      if (isEditingText) return;
+      if (isEditingText || isEditableTarget(e.target)) return;
 
       if (e.key === "Tab") {
         e.preventDefault();
@@ -1733,7 +1748,7 @@ export const CanvasBoard = () => {
   // Handle arrow keys for canvas navigation
   useEffect(() => {
     const handleArrowKeys = (e: KeyboardEvent) => {
-      if (isEditingText) return;
+      if (isEditingText || isEditableTarget(e.target)) return;
 
       const ARROW_PAN_SPEED = 50; // pixels per arrow key press
       const panAmount = ARROW_PAN_SPEED;
