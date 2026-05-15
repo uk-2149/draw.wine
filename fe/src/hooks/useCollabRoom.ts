@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 import { generateRoomId } from "@/helpers/collab.h";
 
 export const useCollabRoom = () => {
@@ -29,7 +29,15 @@ export const useCollabRoom = () => {
     joinRequestRef.current = joinKey;
     console.log("Joining room:", roomId, "with name:", userName);
     joinRoom(roomId, userName, { onlyHostCanDraw, requireApproval });
-  }, [roomId, userName, isModalOpen, state.isCollaborating, joinRoom, onlyHostCanDraw, requireApproval]);
+  }, [
+    roomId,
+    userName,
+    isModalOpen,
+    state.isCollaborating,
+    joinRoom,
+    onlyHostCanDraw,
+    requireApproval,
+  ]);
 
   const handleJoin = () => {
     if (userName.trim()) {

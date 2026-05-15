@@ -1,8 +1,9 @@
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 import { LuUsers, LuCheck, LuX } from "react-icons/lu";
 
 export const JoinRequestsSidebar = () => {
-  const { state, resolveJoinRequest, isJoinSidebarOpen, setIsJoinSidebarOpen } = useCollab();
+  const { state, resolveJoinRequest, isJoinSidebarOpen, setIsJoinSidebarOpen } =
+    useCollab();
 
   const isHost = state.userId === state.hostId;
   const hasRequests = state.pendingJoinRequests.length > 0;

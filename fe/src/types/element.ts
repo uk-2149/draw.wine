@@ -24,4 +24,5 @@ export interface Element {
   isTemporary?: boolean;
   imageUrl?: string; // URL or base64 string for the image
   aspectRatio?: number; // To maintain image proportions while resizing
+  edgeStyle?: "sharp" | "curve"; // Edge style for Rectangle/Diamond
 }

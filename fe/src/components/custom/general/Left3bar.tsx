@@ -34,7 +34,7 @@ import {
   getCanvasViewport,
   setCanvasElements,
 } from "@/helpers/canvasState.h";
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
 
 export const Left3bar = () => {

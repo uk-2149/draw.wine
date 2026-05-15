@@ -1,13 +1,10 @@
-import { createContext, useContext, useState } from "react";
-
-export type GCType = {
-  currentStage: "lobby" | "cg";
-  setCurrentStage: (stage: string) => void;
-};
+import React, { createContext, useState } from "react";
+import type { GCType } from "./types";
+import { defaultContextValue } from "./constants";
 
 // cg => collaborative ground
 
-const GeneralContext = createContext<GCType | null>(null);
+export const GeneralContext = createContext<GCType | null>(defaultContextValue);
 
 export const GeneralProvider = ({
   children,
@@ -33,12 +30,4 @@ export const GeneralProvider = ({
       {children}
     </GeneralContext.Provider>
   );
-};
-
-export const useGeneral = () => {
-  const context = useContext(GeneralContext);
-  if (!context) {
-    throw new Error("useGeneral must be used within a GeneralProvider");
-  }
-  return context;
 };

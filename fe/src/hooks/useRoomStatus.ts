@@ -1,5 +1,5 @@
 import { useState, useCallback, useContext } from "react";
-import { CollabContext } from "@/contexts/CollabContext";
+import { CollabContext } from "@/contexts/collab/CollabContext";
 import { IsInARoom, hasRoomParams } from "@/helpers/collab.h";
 import type { RoomStatusResponse } from "@/helpers/collab.h";
 
@@ -19,7 +19,7 @@ export const useRoomStatus = (options: UseRoomStatusOptions = {}) => {
   const checkRoomStatus = useCallback(
     async (
       roomId: string,
-      userId: string
+      userId: string,
     ): Promise<RoomStatusResponse | null> => {
       if (!hasRoomParams(roomId, userId)) {
         const paramError = new Error("Invalid room parameters");
@@ -58,7 +58,7 @@ export const useRoomStatus = (options: UseRoomStatusOptions = {}) => {
         setIsChecking(false);
       }
     },
-    [socket, options]
+    [socket, options],
   );
 
   const isUserInRoom = useCallback(
@@ -71,7 +71,7 @@ export const useRoomStatus = (options: UseRoomStatusOptions = {}) => {
         collabContext.state.isConnected
       );
     },
-    [collabContext]
+    [collabContext],
   );
 
   const getCurrentRoomStatus = useCallback(() => {

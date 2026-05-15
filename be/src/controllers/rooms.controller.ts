@@ -1,30 +1,38 @@
 import { Request, Response } from "express";
 import emailService, { EmailInviteData } from "../services/email.service";
 
-export const sendInvitations = async (req: Request, res: Response) => {
+export const sendInvitations = async (
+  req: Request,
+  res: Response,
+): Promise<any> => {
   try {
     const inviteData: EmailInviteData = req.body;
 
+    const {
+      emails, // array of email addresses
+      senderName, // name of the sender
+      inviteLink,
+    }: EmailInviteData = inviteData;
+
     // Validate required fields
-    if (
-      !inviteData.emails ||
-      !Array.isArray(inviteData.emails) ||
-      inviteData.emails.length === 0
-    ) {
+    const emailValidationError =
+      !emails || !Array.isArray(emails) || emails.length === 0;
+
+    if (emailValidationError) {
       return res.status(400).json({
         error: "Email addresses are required",
         message: "Please provide at least one email address",
       });
     }
 
-    if (!inviteData.senderName || !inviteData.senderName.trim()) {
+    if (!senderName || !senderName.trim()) {
       return res.status(400).json({
         error: "Sender name is required",
         message: "Please provide the sender name",
       });
     }
 
-    if (!inviteData.inviteLink) {
+    if (!inviteLink) {
       return res.status(400).json({
         error: "Invite link is required",
         message: "Invite link is missing",
@@ -33,9 +41,7 @@ export const sendInvitations = async (req: Request, res: Response) => {
 
     // Validate email formats
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const invalidEmails = inviteData.emails.filter(
-      (email) => !emailRegex.test(email)
-    );
+    const invalidEmails = emails.filter((email) => !emailRegex.test(email));
 
     if (invalidEmails.length > 0) {
       return res.status(400).json({
@@ -50,8 +56,8 @@ export const sendInvitations = async (req: Request, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: `Invitations sent successfully to ${inviteData.emails.length} recipients`,
-      emailCount: inviteData.emails.length,
+      message: `Invitations sent successfully to ${emails.length} recipients`,
+      emailCount: emails.length,
     });
   } catch (error) {
     console.error("Failed to send invitations:", error);

@@ -25,6 +25,8 @@ export interface DrawingContextType {
   ) => void;
   fillColor: string | null;
   setFillColor: (color: string | null) => void;
+  edgeStyle: "sharp" | "curve";
+  setEdgeStyle: (style: "sharp" | "curve") => void;
   activeElementTypes: ToolType[];
   setActiveElementTypes: (types: ToolType[]) => void;
 }

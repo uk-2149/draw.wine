@@ -1,4 +1,6 @@
 import { Resend } from "resend";
+import { Logger } from "../helpers/ext.h";
+import { isProd, resend_api_key, resend_from_email } from "../constants/e";
 
 export interface EmailInviteData {
   emails: string[];
@@ -16,14 +18,14 @@ class EmailService {
   private fromEmail: string = "draw.wine <onboarding@resend.dev>";
 
   constructor() {
-    this.isDevelopment = (process.env.NODE_ENV as string) !== "prod";
+    this.isDevelopment = !isProd;
 
     const config = this.validateEmailConfig();
     if (!config.isValid && !this.isDevelopment) {
-      console.warn(
-        "⚠️  Email service: Invalid configuration. Running in simulation mode.",
+      Logger.warn(
+        "Email service configuration is incomplete. Email sending will be disabled.",
       );
-      console.warn(`Missing: ${config.missing.join(", ")}`);
+      Logger.warn(`Missing: ${config.missing.join(", ")}`);
       this.isConfigured = false;
     } else {
       this.initializeClient();
@@ -33,7 +35,7 @@ class EmailService {
   private validateEmailConfig(): { isValid: boolean; missing: string[] } {
     const missing: string[] = [];
 
-    if (!process.env.RESEND_API_KEY) {
+    if (!resend_api_key) {
       missing.push("RESEND_API_KEY");
     }
 
@@ -45,7 +47,7 @@ class EmailService {
 
   private initializeClient(): void {
     try {
-      const apiKey = process.env.RESEND_API_KEY;
+      const apiKey = resend_api_key;
       if (!apiKey) {
         this.isConfigured = false;
         return;
@@ -54,14 +56,14 @@ class EmailService {
       this.resend = new Resend(apiKey);
 
       // Use custom from address if provided, otherwise default
-      if (process.env.RESEND_FROM_EMAIL) {
-        this.fromEmail = process.env.RESEND_FROM_EMAIL;
+      if (resend_from_email) {
+        this.fromEmail = resend_from_email;
       }
 
       this.isConfigured = true;
-      console.log("✅ Email service initialized with Resend");
+      Logger.success(" Email service initialized with Resend");
     } catch (error) {
-      console.error("❌ Failed to initialize Resend client:", error);
+      Logger.error(" Failed to initialize Resend client:", error);
       this.isConfigured = false;
     }
   }
@@ -71,19 +73,19 @@ class EmailService {
 
     // If email service is not configured or in development mode, simulate sending
     if (!this.isConfigured || this.isDevelopment) {
-      console.log("📧 Email service: Running in simulation mode");
-      console.log("\n=== EMAIL INVITATION SIMULATION ===");
-      console.log(`From: ${senderName}`);
-      console.log(`Room: ${roomName}`);
-      console.log(`Recipients: ${emails.join(", ")}`);
-      console.log(`Link: ${inviteLink}`);
+      Logger.info(" Email service: Running in simulation mode");
+      Logger.info("\n=== EMAIL INVITATION SIMULATION ===");
+      Logger.info(`From: ${senderName}`);
+      Logger.info(`Room: ${roomName}`);
+      Logger.info(`Recipients: ${emails.join(", ")}`);
+      Logger.info(`Link: ${inviteLink}`);
       if (message) {
-        console.log(`Message: ${message}`);
+        Logger.info(`Message: ${message}`);
       }
-      console.log("======================================\n");
+      Logger.info("======================================\n");
 
       for (const email of emails) {
-        console.log(
+        Logger.info(
           `✅ Simulated email sent to ${email}: message-id-${Date.now()}-${Math.random()
             .toString(36)
             .substr(2, 9)}`,
@@ -91,7 +93,7 @@ class EmailService {
       }
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log(
+      Logger.success(
         `✅ Successfully simulated sending ${emails.length} invitation emails`,
       );
       return;
@@ -132,12 +134,12 @@ class EmailService {
         throw new Error(`Resend API error: ${error.message}`);
       }
 
-      console.log(
-        `✅ Successfully sent ${emails.length} invitation emails via Resend`,
+      Logger.success(
+        ` Successfully sent ${emails.length} invitation emails via Resend`,
         data,
       );
     } catch (error) {
-      console.error("❌ Error sending emails:", error);
+      Logger.error(" Error sending emails:", error);
       throw new Error(
         `Failed to send invitation emails: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -305,7 +307,7 @@ class EmailService {
     inviteLink: string,
   ): string {
     return `
-🎨 You're invited to collaborate on draw.wine!
+You're invited to collaborate on draw.wine!
 
 ${senderName} has invited you to collaborate in the room: "${roomName}".
 
@@ -325,12 +327,12 @@ If you didn't expect this invitation, you can safely ignore this email.
   async testConnection(): Promise<boolean> {
     try {
       if (this.isDevelopment) {
-        console.log("📧 Email service test: OK (development mode)");
+        Logger.info("📧 Email service test: OK (development mode)");
         return true;
       }
 
       if (!this.resend || !this.isConfigured) {
-        console.error(
+        Logger.error(
           "📧 Email service test: FAILED - Resend client not configured",
         );
         return false;
@@ -339,14 +341,14 @@ If you didn't expect this invitation, you can safely ignore this email.
       // Verify by listing domains (lightweight API call)
       const { error } = await this.resend.domains.list();
       if (error) {
-        console.error("📧 Email service test: FAILED -", error.message);
+        Logger.error("📧 Email service test: FAILED -", error.message);
         return false;
       }
 
-      console.log("📧 Email service test: OK (Resend API verified)");
+      Logger.success("📧 Email service test: OK (Resend API verified)");
       return true;
     } catch (error) {
-      console.error("📧 Email service connection failed:", error);
+      Logger.error("📧 Email service connection failed:", error);
       return false;
     }
   }

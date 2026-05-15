@@ -6,24 +6,25 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useDrawing } from "@/contexts/DrawingContext";
+import { useDrawing } from "@/contexts/drawing/useDrawing";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Redo2, Undo2 } from "lucide-react";
 
 import rough from "roughjs";
 import type { Position, Element } from "@/types/element";
+import type { GeneratedElement } from "@/contexts/ai/types";
 import type { CollaborativeOperationPayload } from "@/types/collaboration";
 import { useLaserTrail } from "../general/LaserTrail";
 import { eraseElements } from "@/helpers/canvas.h";
 import { ImageLoader } from "@/helpers/imageLoader.h";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTheme } from "@/contexts/theme/useTheme";
 import { isElementInViewport } from "@/helpers/viewport.h";
 import {
   loadFromLocalStorage,
   saveToLocalStorage,
 } from "@/helpers/storeProgress.h";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 import { cn } from "@/helpers/cn.h";
 import { useCanvasBoardState } from "@/hooks/useCanvasBoardState";
 import { ConnectionStatus } from "./ConnectionStatus";
@@ -33,6 +34,11 @@ import {
   getStrokeDash,
   type StrokePattern,
 } from "@/helpers/stroke.h";
+import {
+  addRoundedDiamondPath,
+  diamondCurveRadius,
+  rectangleCurveRadius,
+} from "@/helpers/roundedShapes.h";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -306,11 +312,13 @@ export const CanvasBoard = () => {
     strokeWidth,
     strokePattern,
     fillColor,
+    edgeStyle,
     setSelectedTool,
     setStrokeColor,
     setStrokeWidth,
     setStrokePattern,
     setFillColor,
+    setEdgeStyle,
     setActiveElementTypes,
   } = useDrawing();
 
@@ -773,6 +781,190 @@ export const CanvasBoard = () => {
     }
   }, [localElements, isCollaborating]);
 
+  // Save viewport to local storage for external scripts (like AI insertion)
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "drawine_canvas_viewport",
+        JSON.stringify({ position, scale }),
+      );
+    } catch (error) {
+      console.error("Error saving viewport to localStorage:", error);
+    }
+  }, [position, scale]);
+
+  // Listen for AI generation
+  useEffect(() => {
+    const handleAiElements = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        generatedElements: GeneratedElement[];
+      }>;
+      const generatedElements = customEvent.detail?.generatedElements;
+
+      if (!generatedElements || generatedElements.length === 0) return;
+
+      const canvas = canvasRef.current;
+      const cw = canvas
+        ? canvas.width / window.devicePixelRatio
+        : window.innerWidth;
+      const ch = canvas
+        ? canvas.height / window.devicePixelRatio
+        : window.innerHeight;
+
+      // Calculate the center of the current viewport precisely
+      const centerX = (-position.x + cw / 2) / scale;
+      const centerY = (-position.y + ch / 2) / scale;
+
+      const getElementBounds = (elem: GeneratedElement) => {
+        const type = elem.type || "Rectangle";
+        const x = elem.x ?? 0;
+        const y = elem.y ?? 0;
+        const fontSize = elem.fontSize ?? 20;
+
+        if (type === "Text") {
+          const text = elem.text || "AI Generated";
+          const textWidth = text.length * fontSize * 0.6;
+          return {
+            minX: x,
+            maxX: x + textWidth,
+            minY: y,
+            maxY: y + fontSize,
+          };
+        }
+
+        const width =
+          elem.width ?? (type === "Line" || type === "Arrow" ? 120 : 120);
+        const height =
+          elem.height ?? (type === "Line" || type === "Arrow" ? 0 : 80);
+
+        if (type === "Line" || type === "Arrow") {
+          const x2 = x + width;
+          const y2 = y + height;
+          return {
+            minX: Math.min(x, x2),
+            maxX: Math.max(x, x2),
+            minY: Math.min(y, y2),
+            maxY: Math.max(y, y2),
+          };
+        }
+
+        const x2 = x + width;
+        const y2 = y + height;
+        return {
+          minX: Math.min(x, x2),
+          maxX: Math.max(x, x2),
+          minY: Math.min(y, y2),
+          maxY: Math.max(y, y2),
+        };
+      };
+
+      const bounds = generatedElements.reduce(
+        (acc, elem) => {
+          const next = getElementBounds(elem);
+          return {
+            minX: Math.min(acc.minX, next.minX),
+            minY: Math.min(acc.minY, next.minY),
+            maxX: Math.max(acc.maxX, next.maxX),
+            maxY: Math.max(acc.maxY, next.maxY),
+          };
+        },
+        {
+          minX: Number.POSITIVE_INFINITY,
+          minY: Number.POSITIVE_INFINITY,
+          maxX: Number.NEGATIVE_INFINITY,
+          maxY: Number.NEGATIVE_INFINITY,
+        },
+      );
+
+      const boundsCenterX = (bounds.minX + bounds.maxX) / 2;
+      const boundsCenterY = (bounds.minY + bounds.maxY) / 2;
+      const offsetX = centerX - boundsCenterX;
+      const offsetY = centerY - boundsCenterY;
+
+      const newElements: Element[] = generatedElements.map((elem, index) => {
+        const isImage = elem.type === "Image";
+        const isText = elem.type === "Text";
+
+        const baseElement: Element = {
+          id: `ai-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`,
+          type: elem.type || "Rectangle",
+          x: (elem.x ?? 0) + offsetX,
+          y: (elem.y ?? 0) + offsetY,
+          width: elem.width ?? (isText ? undefined : 120),
+          height: elem.height ?? (isText ? undefined : 80),
+          strokeColor: elem.strokeColor || strokeColor,
+          fillColor: elem.fillColor,
+          strokeWidth: elem.strokeWidth ?? strokeWidth,
+          strokePattern: "solid",
+          roughness: 1,
+          seed: Math.floor(Math.random() * 2 ** 31),
+          edgeStyle: elem.edgeStyle || edgeStyle,
+        };
+
+        if (isText) {
+          baseElement.text = elem.text || "AI Generated";
+          baseElement.fontSize = elem.fontSize || 20;
+          baseElement.fontFamily = "Virgil";
+        }
+
+        if (isImage) {
+          baseElement.imageUrl = elem.text || elem.imageUrl || "";
+          baseElement.aspectRatio = (elem.width || 1) / (elem.height || 1);
+          delete baseElement.text;
+        }
+
+        if (elem.type === "Line" || elem.type === "Arrow") {
+          baseElement.points = [
+            { x: 0, y: 0 },
+            { x: elem.width || 100, y: elem.height || 0 },
+          ];
+        }
+
+        return baseElement;
+      });
+
+      console.log("CanvasBoard mapped new AI elements:", newElements);
+
+      if (isCollaborating) {
+        setCollaborativeElements((prev) => [...prev, ...newElements]);
+        if (sendOperation && state.roomId) {
+          newElements.forEach((el) => {
+            sendOperation({
+              type: "element_complete",
+              elementId: el.id,
+              data: { element: el },
+              roomId: state.roomId!,
+              authorId: state.userId!,
+            });
+          });
+        }
+      } else {
+        setLocalElements((prev) => [...prev, ...newElements]);
+        setTimeout(() => {
+          saveToLocalStorage([...localElements, ...newElements]);
+        }, 0);
+      }
+    };
+
+    window.addEventListener("ai-elements-generated", handleAiElements);
+    return () =>
+      window.removeEventListener("ai-elements-generated", handleAiElements);
+  }, [
+    isCollaborating,
+    localElements,
+    position,
+    scale,
+    sendOperation,
+    state.roomId,
+    state.userId,
+    setCollaborativeElements,
+    setLocalElements,
+    strokeColor,
+    strokeWidth,
+    edgeStyle,
+  ]);
+
+  // Listen for external canvas element updates (from import)
   useEffect(() => {
     const handleCanvasElementsUpdate = () => {
       if (!isCollaborating) {
@@ -805,9 +997,11 @@ export const CanvasBoard = () => {
     setStrokeWidth(selected.strokeWidth);
     setStrokePattern(selected.strokePattern || "solid");
     setFillColor(selected.fillColor || null);
+    setEdgeStyle(selected.edgeStyle || "sharp");
   }, [
     selectedElements,
     setActiveElementTypes,
+    setEdgeStyle,
     setFillColor,
     setStrokeColor,
     setStrokePattern,
@@ -843,6 +1037,14 @@ export const CanvasBoard = () => {
               updatedEl.fillColor = fillColor || undefined;
               elChanged = true;
             }
+            if (
+              (el.type === "Rectangle" || el.type === "Diamond") &&
+              el.edgeStyle !== edgeStyle
+            ) {
+              updatedEl.edgeStyle = edgeStyle;
+              elChanged = true;
+            }
+
             if (elChanged) {
               hasChanges = true;
               return updatedEl;
@@ -874,7 +1076,7 @@ export const CanvasBoard = () => {
         return hasChanges ? next : prev;
       });
     }
-  }, [strokeColor, strokeWidth, strokePattern, fillColor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [strokeColor, strokeWidth, strokePattern, fillColor, edgeStyle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Redraw ──────────────────────────────────────────────────────────────────
 
@@ -993,25 +1195,95 @@ export const CanvasBoard = () => {
           break;
         }
         case "Rectangle": {
-          if (element.width && element.height)
-            rc.rectangle(
-              element.x,
-              element.y,
-              element.width,
-              element.height,
-              options,
-            );
+          if (element.width && element.height) {
+            if (element.edgeStyle === "curve") {
+              // Draw rounded rectangle directly on canvas for curve style
+              ctx.save();
+              ctx.strokeStyle = getStrokeColor(element.strokeColor);
+              ctx.lineWidth = element.strokeWidth;
+              ctx.lineJoin = "round";
+              ctx.lineCap = "round";
+              ctx.setLineDash(strokeDash || []);
+
+              if (element.fillColor) {
+                ctx.fillStyle = getStrokeColor(element.fillColor) + "80"; // 50% transparency
+              }
+
+              const rw = Math.abs(element.width);
+              const rh = Math.abs(element.height);
+              const rx =
+                element.width < 0 ? element.x + element.width : element.x;
+              const ry =
+                element.height < 0 ? element.y + element.height : element.y;
+              const borderRadius = rectangleCurveRadius(rw, rh);
+              if (ctx.roundRect) {
+                ctx.beginPath();
+                ctx.roundRect(rx, ry, rw, rh, borderRadius);
+                if (element.fillColor) {
+                  ctx.fill();
+                }
+                ctx.stroke();
+              } else {
+                ctx.strokeRect(rx, ry, rw, rh);
+                if (element.fillColor) {
+                  ctx.fillRect(rx, ry, rw, rh);
+                }
+              }
+              ctx.restore();
+            } else {
+              // Draw rough rectangle for sharp style
+              rc.rectangle(
+                element.x,
+                element.y,
+                element.width,
+                element.height,
+                options,
+              );
+            }
+          }
           break;
         }
         case "Diamond": {
           if (element.width && element.height) {
-            const points: [number, number][] = [
-              [element.x + element.width / 2, element.y],
-              [element.x + element.width, element.y + element.height / 2],
-              [element.x + element.width / 2, element.y + element.height],
-              [element.x, element.y + element.height / 2],
-            ];
-            rc.polygon(points, options);
+            const width = Math.abs(element.width);
+            const height = Math.abs(element.height);
+            const x = element.width < 0 ? element.x + element.width : element.x;
+            const y =
+              element.height < 0 ? element.y + element.height : element.y;
+            const cx = x + width / 2;
+            const cy = y + height / 2;
+            const hw = width / 2;
+            const hh = height / 2;
+
+            if (element.edgeStyle === "curve") {
+              ctx.save();
+              ctx.strokeStyle = getStrokeColor(element.strokeColor);
+              ctx.lineWidth = element.strokeWidth;
+              ctx.lineJoin = "round";
+              ctx.lineCap = "round";
+              ctx.setLineDash(strokeDash || []);
+
+              if (element.fillColor) {
+                ctx.fillStyle = getStrokeColor(element.fillColor) + "80";
+              }
+
+              const radius = diamondCurveRadius(hw, hh);
+              ctx.beginPath();
+              addRoundedDiamondPath(ctx, cx, cy, hw, hh, radius);
+              if (element.fillColor) {
+                ctx.fill();
+              }
+              ctx.stroke();
+              ctx.restore();
+            } else {
+              const points: [number, number][] = [
+                [cx, y],
+                [x + width, cy],
+                [cx, y + height],
+                [x, cy],
+              ];
+              rc.polygon(points, options);
+            }
           }
           break;
         }
@@ -1165,6 +1437,10 @@ export const CanvasBoard = () => {
         ctx.restore();
     });
 
+    const selectionStroke = "rgba(79, 143, 247, 0.92)";
+    const selectionPad = 10;
+    const selectionCornerSoft = 6;
+
     // ── Draw individual selection outlines for each selected element ──
     if (selectedElements.length > 0) {
       ctx.save();
@@ -1172,26 +1448,91 @@ export const CanvasBoard = () => {
 
       // Draw individual thin dotted outline for each selected element
       selectedElements.forEach((element) => {
-        ctx.strokeStyle = "#007acc";
+        ctx.strokeStyle = selectionStroke;
         ctx.lineWidth = 1 / scale; // stay thin regardless of zoom
         ctx.setLineDash([4 / scale, 3 / scale]);
 
         switch (element.type) {
-          case "Rectangle":
-          case "Diamond":
-          case "Circle":
+          case "Rectangle": {
+            if (element.width && element.height) {
+              const minX = Math.min(element.x, element.x + element.width);
+              const maxX = Math.max(element.x, element.x + element.width);
+              const minY = Math.min(element.y, element.y + element.height);
+              const maxY = Math.max(element.y, element.y + element.height);
+              const bx = minX - selectionPad;
+              const by = minY - selectionPad;
+              const bw = maxX - minX + selectionPad * 2;
+              const bh = maxY - minY + selectionPad * 2;
+              const rr =
+                element.edgeStyle === "curve"
+                  ? rectangleCurveRadius(bw, bh)
+                  : Math.min(selectionCornerSoft, Math.min(bw, bh) * 0.08);
+
+              ctx.beginPath();
+              if (ctx.roundRect) {
+                ctx.roundRect(bx, by, bw, bh, rr);
+              } else {
+                ctx.rect(bx, by, bw, bh);
+              }
+              ctx.stroke();
+            }
+            break;
+          }
+          case "Diamond": {
+            if (element.width && element.height) {
+              const minX = Math.min(element.x, element.x + element.width);
+              const maxX = Math.max(element.x, element.x + element.width);
+              const minY = Math.min(element.y, element.y + element.height);
+              const maxY = Math.max(element.y, element.y + element.height);
+              const cx = (minX + maxX) / 2;
+              const cy = (minY + maxY) / 2;
+              const hw = (maxX - minX) / 2 + selectionPad;
+              const hh = (maxY - minY) / 2 + selectionPad;
+              const cornerR =
+                element.edgeStyle === "curve" ? diamondCurveRadius(hw, hh) : 0;
+
+              ctx.beginPath();
+              addRoundedDiamondPath(ctx, cx, cy, hw, hh, cornerR);
+              ctx.stroke();
+            }
+            break;
+          }
+          case "Circle": {
+            if (element.width && element.height) {
+              const minX = Math.min(element.x, element.x + element.width);
+              const maxX = Math.max(element.x, element.x + element.width);
+              const minY = Math.min(element.y, element.y + element.height);
+              const maxY = Math.max(element.y, element.y + element.height);
+              const cx = (minX + maxX) / 2;
+              const cy = (minY + maxY) / 2;
+              const rx = (maxX - minX) / 2 + selectionPad;
+              const ry = (maxY - minY) / 2 + selectionPad;
+
+              ctx.beginPath();
+              ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+              ctx.stroke();
+            }
+            break;
+          }
           case "Image": {
             if (element.width !== undefined && element.height !== undefined) {
               const minX = Math.min(element.x, element.x + element.width);
               const maxX = Math.max(element.x, element.x + element.width);
               const minY = Math.min(element.y, element.y + element.height);
               const maxY = Math.max(element.y, element.y + element.height);
-              ctx.strokeRect(
-                minX - padding,
-                minY - padding,
-                maxX - minX + padding * 2,
-                maxY - minY + padding * 2,
-              );
+              const bx = minX - selectionPad;
+              const by = minY - selectionPad;
+              const bw = maxX - minX + selectionPad * 2;
+              const bh = maxY - minY + selectionPad * 2;
+              const rr = rectangleCurveRadius(bw, bh) * 0.5;
+
+              ctx.beginPath();
+              if (ctx.roundRect) {
+                ctx.roundRect(bx, by, bw, bh, rr);
+              } else {
+                ctx.rect(bx, by, bw, bh);
+              }
+              ctx.stroke();
             }
             break;
           }
@@ -1200,16 +1541,14 @@ export const CanvasBoard = () => {
             if (element.width !== undefined && element.height !== undefined) {
               const endX = element.x + element.width;
               const endY = element.y + element.height;
-              const minX = Math.min(element.x, endX);
-              const maxX = Math.max(element.x, endX);
-              const minY = Math.min(element.y, endY);
-              const maxY = Math.max(element.y, endY);
-              ctx.strokeRect(
-                minX - padding,
-                minY - padding,
-                maxX - minX + padding * 2,
-                maxY - minY + padding * 2,
-              );
+              const dotR = Math.max(6.5, selectionPad * 0.65);
+
+              ctx.beginPath();
+              ctx.arc(element.x, element.y, dotR, 0, 2 * Math.PI);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.arc(endX, endY, dotR, 0, 2 * Math.PI);
+              ctx.stroke();
             }
             break;
           }
@@ -1218,12 +1557,14 @@ export const CanvasBoard = () => {
               const textWidth =
                 element.text.length * (element.fontSize || 20) * 0.6;
               const textHeight = element.fontSize || 20;
-              ctx.strokeRect(
-                element.x - padding,
-                element.y - padding,
-                textWidth + padding * 2,
-                textHeight + padding * 2,
+              ctx.beginPath();
+              ctx.rect(
+                element.x - selectionPad,
+                element.y - selectionPad,
+                textWidth + selectionPad * 2,
+                textHeight + selectionPad * 2,
               );
+              ctx.stroke();
             }
             break;
           }
@@ -1241,6 +1582,7 @@ export const CanvasBoard = () => {
                 maxX - minX + padding * 2,
                 maxY - minY + padding * 2,
               );
+              ctx.stroke();
             }
             break;
           }
@@ -1983,6 +2325,7 @@ export const CanvasBoard = () => {
               setStrokeWidth(clickedElement.strokeWidth || strokeWidth);
               setStrokePattern(clickedElement.strokePattern || "solid");
               setFillColor(clickedElement.fillColor || null);
+              setEdgeStyle(clickedElement.edgeStyle || "sharp");
             } else {
               setSelectedElements((prev) => [...prev, clickedElement]);
             }
@@ -2091,6 +2434,10 @@ export const CanvasBoard = () => {
         roughness: 1,
         seed: Math.floor(Math.random() * 1000),
         points: selectedTool === "Pencil" ? [point] : undefined,
+        edgeStyle:
+          selectedTool === "Rectangle" || selectedTool === "Diamond"
+            ? edgeStyle
+            : undefined,
         authorId: isCollaborating ? state.userId || "local" : "local",
         isTemporary: true,
       };
@@ -2117,6 +2464,7 @@ export const CanvasBoard = () => {
       getElementAtPoint,
       strokeColor,
       fillColor,
+      edgeStyle,
       strokeWidth,
       strokePattern,
       elements,

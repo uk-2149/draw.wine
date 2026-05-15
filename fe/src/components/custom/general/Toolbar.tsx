@@ -2,9 +2,9 @@ import { TOOLBAR_ITEMS } from "@/constants/toolbar";
 import { Menubar } from "../../ui/menubar";
 import { CMenubtn } from "./menubtn";
 import { memo, useCallback, useEffect, useState } from "react";
-import { useDrawing } from "@/contexts/DrawingContext";
+import { useDrawing } from "@/contexts/drawing/useDrawing";
 import type { ToolType } from "@/types/drawing";
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 
 export const Toolbar = memo(() => {
   const { selectedTool, setSelectedTool } = useDrawing();

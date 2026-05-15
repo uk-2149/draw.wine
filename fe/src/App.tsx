@@ -2,8 +2,8 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Suspense, lazy, useEffect, useState } from "react";
 import { LoadingFallback } from "./components/custom/fallbacks/LoadingFallback";
 import WebFont from "webfontloader";
-import { CollabProvider } from "./contexts/CollabContext";
-import { GeneralProvider } from "./contexts/GeneralContext";
+import { CollabProvider } from "./contexts/collab/CollabContext";
+import { GeneralProvider } from "./contexts/general/GeneralContext";
 import CollabRoom from "./pages/CollabRoom";
 import { Toaster } from "./components/ui/sonner";
 import { MobileScreenFallback } from "./components/custom/fallbacks/MobileScreenFallback";
@@ -14,7 +14,8 @@ const Landing = lazy(() =>
   })),
 );
 
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider } from "./contexts/theme/ThemeContext";
+import { AiProvider } from "./contexts/ai/AiContext";
 
 const PlayGround = lazy(() =>
   import("./pages/PlayGround").then((module) => ({
@@ -60,16 +61,18 @@ export const App = () => {
     <ThemeProvider defaultTheme="light" storageKey="draw-wine-theme">
       <GeneralProvider>
         <CollabProvider>
-          <BrowserRouter>
-            <Suspense fallback={<LoadingFallback />}>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/board/:id" element={<PlayGround />} />
-                <Route path="/collab" element={<CollabRoom />} />
-              </Routes>
-            </Suspense>
-            <Toaster />
-          </BrowserRouter>
+          <AiProvider>
+            <BrowserRouter>
+              <Suspense fallback={<LoadingFallback />}>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/board/:id" element={<PlayGround />} />
+                  <Route path="/collab" element={<CollabRoom />} />
+                </Routes>
+              </Suspense>
+              <Toaster />
+            </BrowserRouter>
+          </AiProvider>
         </CollabProvider>
       </GeneralProvider>
     </ThemeProvider>
