@@ -2140,6 +2140,7 @@ export const CanvasBoard = () => {
       }
       setIsEditingText(false);
       setEditingTextId(null);
+      setSelectedTool("select");
       commitHistoryAction();
     },
     [
@@ -3326,29 +3327,72 @@ export const CanvasBoard = () => {
   // ─── Double click ─────────────────────────────────────────────────────────────
 
   const handleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (!canDraw) return;
-      if (selectedTool !== "select") return;
-      const point = getTransformedPoint(e);
-      const clickedElement = getElementAtPoint(point);
-      if (clickedElement) {
-        if (clickedElement.type === "Text") {
-          if (!clickedElement.isTemporary) beginHistoryAction();
-          startTextEditing(clickedElement);
-        }
-      } else {
-        setSelectedTool("Text");
+  (e: React.MouseEvent) => {
+    if (!canDraw) return;
+    if (selectedTool !== "select") return;
+    const point = getTransformedPoint(e);
+    const clickedElement = getElementAtPoint(point);
+    if (clickedElement) {
+      if (clickedElement.type === "Text") {
+        if (!clickedElement.isTemporary) beginHistoryAction();
+        startTextEditing(clickedElement);
       }
-    },
-    [
-      selectedTool,
-      getTransformedPoint,
-      getElementAtPoint,
-      beginHistoryAction,
-      startTextEditing,
-      setSelectedTool,
-    ],
-  );
+    } else {
+      // Create a text element immediately at the click position and open it
+      beginHistoryAction();
+      const elementId = isCollaborating
+        ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        : Date.now().toString();
+      const newElement: Element = {
+        id: elementId,
+        type: "Text",
+        x: point.x,
+        y: point.y,
+        strokeColor,
+        strokeWidth,
+        strokePattern,
+        roughness: 1,
+        seed: Math.floor(Math.random() * 1000),
+        text: "Type here...",
+        fontSize: 20,
+        fontFamily: "Virgil",
+        authorId: isCollaborating ? state.userId || "local" : "local",
+        isTemporary: true,
+      };
+      setElements((prev) => [...prev, newElement]);
+      markHistoryActionMutated();
+      setSelectedTool("Text");
+      startTextEditing(newElement);
+      if (isCollaborating && sendOperation && state.roomId) {
+        sendOperation({
+          type: "element_start",
+          roomId: state.roomId,
+          elementId: newElement.id,
+          authorId: state.userId!,
+          data: { element: newElement, tool: "Text" },
+        });
+      }
+    }
+  },
+  [
+    selectedTool,
+    getTransformedPoint,
+    getElementAtPoint,
+    beginHistoryAction,
+    startTextEditing,
+    setSelectedTool,
+    isCollaborating,
+    state.userId,
+    state.roomId,
+    strokeColor,
+    strokeWidth,
+    strokePattern,
+    setElements,
+    markHistoryActionMutated,
+    sendOperation,
+    canDraw,
+  ],
+);
 
   // ─── Image upload ─────────────────────────────────────────────────────────────
 
