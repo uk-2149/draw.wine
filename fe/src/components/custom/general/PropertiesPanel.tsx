@@ -1,4 +1,4 @@
-import { useDrawing } from "@/contexts/DrawingContext";
+import { useDrawing } from "@/contexts/drawing/useDrawing";
 import type { CSSProperties } from "react";
 import { cn } from "@/helpers/cn.h";
 import { STROKE_COLORS, STROKE_WIDTHS } from "@/constants/ext";

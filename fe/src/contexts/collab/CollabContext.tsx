@@ -1,182 +1,17 @@
 import { be_url } from "@/env/e";
 import { IsInARoom } from "@/helpers/collab.h";
-import React, {
-  useReducer,
-  useEffect,
-  useContext,
-  useRef,
-  useState,
-} from "react";
+import React, { useReducer, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import type { Element } from "@/types";
-import { useGeneral } from "./GeneralContext";
 
-export interface PendingJoinRequest {
-  id: string;
-  name: string;
-  color: string;
-  roomId: string;
-}
-
-type CollaborativeOperation =
-  | {
-      type: "element_start";
-      roomId?: string;
-      elementId: string;
-      authorId?: string;
-      userId?: string;
-      timestamp?: number;
-      element?: Element;
-      data?: {
-        element?: Element;
-        tool?: string;
-      };
-    }
-  | {
-      type: "element_create";
-      roomId?: string;
-      elementId?: string;
-      authorId?: string;
-      userId?: string;
-      timestamp?: number;
-      element?: Element;
-      data?: {
-        element?: Element;
-      };
-    }
-  | {
-      type: "element_update";
-      roomId?: string;
-      elementId: string;
-      authorId?: string;
-      userId?: string;
-      timestamp?: number;
-      data: Partial<Element>;
-    }
-  | {
-      type: "element_complete";
-      roomId?: string;
-      elementId: string;
-      authorId?: string;
-      userId?: string;
-      timestamp?: number;
-      data: {
-        element: Element;
-      };
-    }
-  | {
-      type: "element_delete";
-      roomId?: string;
-      elementId: string;
-      authorId?: string;
-      userId?: string;
-      timestamp?: number;
-      data?: Record<string, never>;
-    };
-
-interface CollabState {
-  isConnected: boolean;
-  isConnecting: boolean;
-  isCollaborating: boolean;
-  roomId: string | null;
-  userId: string | null;
-  pendingOperation: CollaborativeOperation | null;
-  collaborators: Array<{
-    id: string;
-    name: string;
-    color: string;
-    cursor: { x: number; y: number };
-  }>;
-  socket: Socket | null;
-  error: string | null;
-  hostId: string | null;
-  settings: { onlyHostCanDraw: boolean; requireApproval: boolean } | null;
-  isWaitingForApproval: boolean;
-  joinRejected: boolean;
-  pendingJoinRequests: PendingJoinRequest[];
-}
-
-type CollabAction =
-  | { type: "SOCKET_CONNECTING" }
-  | { type: "SOCKET_CONNECTED"; payload: Socket }
-  | { type: "SOCKET_DISCONNECTED" }
-  | { type: "SOCKET_ERROR"; payload: string }
-  | { type: "JOINING_ROOM"; payload: { roomId: string; userId: string } }
-  | {
-      type: "ROOM_JOINED";
-      payload: {
-        collaborators: Array<{
-          id: string;
-          name: string;
-          color: string;
-          cursor: { x: number; y: number };
-        }>;
-        elements?: Element[];
-        hostId?: string;
-        settings?: { onlyHostCanDraw: boolean; requireApproval: boolean };
-      };
-    }
-  | { type: "WAITING_FOR_APPROVAL" }
-  | { type: "JOIN_REJECTED" }
-  | { type: "ADD_JOIN_REQUEST"; payload: PendingJoinRequest }
-  | { type: "REMOVE_JOIN_REQUEST"; payload: string }
-  | {
-      type: "COLLABORATORS_UPDATED";
-      payload: Array<{
-        id: string;
-        name: string;
-        color: string;
-        cursor: { x: number; y: number };
-      }>;
-    }
-  | { type: "LOCAL_OPERATION_SENT"; payload: CollaborativeOperation }
-  | {
-      type: "CURSOR_UPDATED";
-      payload: { userId: string; cursor: { x: number; y: number } };
-    }
-  | { type: "LEAVE_ROOM" }
-  | { type: "CLEAR_ERROR" };
-
-interface CollabContextType {
-  state: CollabState;
-  joinRoom: (
-    roomId: string,
-    userName: string,
-    settings?: { onlyHostCanDraw: boolean; requireApproval: boolean },
-  ) => void;
-  resolveJoinRequest: (guestId: string, action: "accept" | "reject") => void;
-  leaveRoom: () => void;
-  sendOperation: (operation: CollaborativeOperation) => void;
-  updateCursor: (cursor: { x: number; y: number }) => void;
-  updateDrawingStatus: (isDrawing: boolean, elementId?: string) => void;
-  clearError: () => void;
-  isUserInCurrentRoom: (userId?: string) => boolean;
-  checkRoomStatus: (roomId: string, userId: string) => Promise<boolean>;
-  getCurrentRoomInfo: () => {
-    roomId: string | null;
-    userId: string | null;
-    collaboratorsCount: number;
-  };
-  isJoinSidebarOpen: boolean;
-  setIsJoinSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-const initialState: CollabState = {
-  isConnected: false,
-  isConnecting: false,
-  isCollaborating: false,
-  roomId: null,
-  userId: null,
-  pendingOperation: null,
-  collaborators: [],
-  socket: null,
-  error: null,
-  hostId: null,
-  settings: null,
-  isWaitingForApproval: false,
-  joinRejected: false,
-  pendingJoinRequests: [],
-};
+import type {
+  CollabAction,
+  CollabContextType,
+  CollabSettings,
+  CollabState,
+  CollaborativeOperation,
+} from "./types";
+import { defaultContextValue, getRandomColor, initialState } from "./constants";
+import { useGeneral } from "../general/useGeneral";
 
 const collabReducer = (
   state: CollabState,
@@ -322,7 +157,7 @@ const collabReducer = (
 };
 
 export const CollabContext = React.createContext<CollabContextType | null>(
-  null,
+  defaultContextValue,
 );
 
 export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
@@ -507,7 +342,7 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
   const joinRoom = (
     roomId: string,
     userName: string,
-    settings?: { onlyHostCanDraw: boolean },
+    settings?: CollabSettings,
   ) => {
     const socket = socketRef.current;
     if (!socket) {
@@ -713,42 +548,4 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
       {children}
     </CollabContext.Provider>
   );
-};
-
-// Custom hook with error handling
-export const useCollab = () => {
-  const context = useContext(CollabContext);
-  if (!context) {
-    throw new Error("useCollab must be used within a CollabProvider");
-  }
-  return context;
-};
-
-const getRandomColor = () => {
-  const colors = [
-    "#ff6b6b", // red
-    "#4ecdc4", // teal
-    "#45b7d1", // blue
-    "#96ceb4", // green
-    "#feca57", // yellow-orange
-    "#ff9ff3", // pink
-    "#54a0ff", // light blue
-    "#5f27cd", // purple
-    "#01a3a4", // dark teal
-    "#2ecc71", // emerald green
-    "#e74c3c", // bright red
-    "#f39c12", // orange
-    "#8e44ad", // violet
-    "#d35400", // pumpkin
-    "#1abc9c", // turquoise
-    "#3498db", // sky blue
-    "#9b59b6", // lavender purple
-    "#34495e", // dark slate
-    "#16a085", // sea green
-    "#27ae60", // jade green
-    "#2980b9", // ocean blue
-    "#c0392b", // crimson
-    "#f1c40f", // sunflower yellow
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
 };

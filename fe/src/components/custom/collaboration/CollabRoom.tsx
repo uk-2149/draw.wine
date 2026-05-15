@@ -1,4 +1,4 @@
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 import { PlayGround } from "@/pages/PlayGround";
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";

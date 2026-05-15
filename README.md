@@ -11,6 +11,7 @@ It supports multiplayer drawing sessions, live cursors, room invitations, and a 
 - Rough.js powered sketch-style rendering
 - Invite collaborators by email via backend API
 - PWA-enabled frontend build
+- **Gemini AI Text-to-Drawing**: Turn natural language prompts into fully editable vector layouts or detailed raster SVG illustrations with secure local insertion.
 
 ## Monorepo Layout
 
@@ -49,6 +50,9 @@ FE_URL_PROD=https://your-frontend-domain.com
 # Optional: enable real email sending in production mode
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=draw.wine <onboarding@resend.dev>
+
+# Enable Gemini AI layout generation feature
+GEMINI_API_KEY=your_google_gemini_api_key_here
 ```
 
 3. (Optional) Create frontend environment file at `fe/.env` for production API routing.
@@ -107,6 +111,7 @@ npm run lint
 
 - `GET /health`: service status + socket connection stats
 - `POST /api/rooms/send-invitations`: send room invitation emails
+- `POST /api/ai/generate`: secure proxy to Google Gemini API for intelligent text-to-drawing layout generation
 
 ### Socket Events (high level)
 

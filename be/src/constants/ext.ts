@@ -12,3 +12,9 @@ export const limiter = rateLimit({
   max: 100,
   message: { error: "Too many requests from this IP" },
 });
+
+export const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  message: { error: "Too many AI drawing requests from this IP, please try again later." },
+});

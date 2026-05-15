@@ -6,24 +6,25 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useDrawing } from "@/contexts/DrawingContext";
+import { useDrawing } from "@/contexts/drawing/useDrawing";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Redo2, Undo2 } from "lucide-react";
 
 import rough from "roughjs";
 import type { Position, Element } from "@/types/element";
+import type { GeneratedElement } from "@/contexts/ai/types";
 import type { CollaborativeOperationPayload } from "@/types/collaboration";
 import { useLaserTrail } from "../general/LaserTrail";
 import { eraseElements, getResizeHandles } from "@/helpers/canvas.h";
 import { ImageLoader } from "@/helpers/imageLoader.h";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTheme } from "@/contexts/theme/useTheme";
 import { isElementInViewport } from "@/helpers/viewport.h";
 import {
   loadFromLocalStorage,
   saveToLocalStorage,
 } from "@/helpers/storeProgress.h";
 import { AUTO_SAVE_INTERVAL, ERASER_RADIUS } from "@/constants/canvas";
-import { useCollab } from "@/contexts/CollabContext";
+import { useCollab } from "@/contexts/collab/useCollab";
 import { cn } from "@/helpers/cn.h";
 import { useCanvasBoardState } from "@/hooks/useCanvasBoardState";
 import { ConnectionStatus } from "./ConnectionStatus";
@@ -519,6 +520,189 @@ export const CanvasBoard = () => {
     }
   }, [localElements, isCollaborating]);
 
+  // Save viewport to local storage for external scripts (like AI insertion)
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "drawine_canvas_viewport",
+        JSON.stringify({ position, scale }),
+      );
+    } catch (error) {
+      console.error("Error saving viewport to localStorage:", error);
+    }
+  }, [position, scale]);
+
+  // Listen for AI generation
+  useEffect(() => {
+    const handleAiElements = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        generatedElements: GeneratedElement[];
+      }>;
+      const generatedElements = customEvent.detail?.generatedElements;
+
+      if (!generatedElements || generatedElements.length === 0) return;
+
+      const canvas = canvasRef.current;
+      const cw = canvas
+        ? canvas.width / window.devicePixelRatio
+        : window.innerWidth;
+      const ch = canvas
+        ? canvas.height / window.devicePixelRatio
+        : window.innerHeight;
+
+      // Calculate the center of the current viewport precisely
+      const centerX = (-position.x + cw / 2) / scale;
+      const centerY = (-position.y + ch / 2) / scale;
+
+      const getElementBounds = (elem: GeneratedElement) => {
+        const type = elem.type || "Rectangle";
+        const x = elem.x ?? 0;
+        const y = elem.y ?? 0;
+        const fontSize = elem.fontSize ?? 20;
+
+        if (type === "Text") {
+          const text = elem.text || "AI Generated";
+          const textWidth = text.length * fontSize * 0.6;
+          return {
+            minX: x,
+            maxX: x + textWidth,
+            minY: y,
+            maxY: y + fontSize,
+          };
+        }
+
+        const width =
+          elem.width ?? (type === "Line" || type === "Arrow" ? 120 : 120);
+        const height =
+          elem.height ?? (type === "Line" || type === "Arrow" ? 0 : 80);
+
+        if (type === "Line" || type === "Arrow") {
+          const x2 = x + width;
+          const y2 = y + height;
+          return {
+            minX: Math.min(x, x2),
+            maxX: Math.max(x, x2),
+            minY: Math.min(y, y2),
+            maxY: Math.max(y, y2),
+          };
+        }
+
+        const x2 = x + width;
+        const y2 = y + height;
+        return {
+          minX: Math.min(x, x2),
+          maxX: Math.max(x, x2),
+          minY: Math.min(y, y2),
+          maxY: Math.max(y, y2),
+        };
+      };
+
+      const bounds = generatedElements.reduce(
+        (acc, elem) => {
+          const next = getElementBounds(elem);
+          return {
+            minX: Math.min(acc.minX, next.minX),
+            minY: Math.min(acc.minY, next.minY),
+            maxX: Math.max(acc.maxX, next.maxX),
+            maxY: Math.max(acc.maxY, next.maxY),
+          };
+        },
+        {
+          minX: Number.POSITIVE_INFINITY,
+          minY: Number.POSITIVE_INFINITY,
+          maxX: Number.NEGATIVE_INFINITY,
+          maxY: Number.NEGATIVE_INFINITY,
+        },
+      );
+
+      const boundsCenterX = (bounds.minX + bounds.maxX) / 2;
+      const boundsCenterY = (bounds.minY + bounds.maxY) / 2;
+      const offsetX = centerX - boundsCenterX;
+      const offsetY = centerY - boundsCenterY;
+
+      const newElements: Element[] = generatedElements.map((elem, index) => {
+        const isImage = elem.type === "Image";
+        const isText = elem.type === "Text";
+
+        const baseElement: Element = {
+          id: `ai-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`,
+          type: elem.type || "Rectangle",
+          x: (elem.x ?? 0) + offsetX,
+          y: (elem.y ?? 0) + offsetY,
+          width: elem.width ?? (isText ? undefined : 120),
+          height: elem.height ?? (isText ? undefined : 80),
+          strokeColor: elem.strokeColor || strokeColor,
+          fillColor: elem.fillColor,
+          strokeWidth: elem.strokeWidth ?? strokeWidth,
+          strokePattern: "solid",
+          roughness: 1,
+          seed: Math.floor(Math.random() * 2 ** 31),
+          edgeStyle: elem.edgeStyle || edgeStyle,
+        };
+
+        if (isText) {
+          baseElement.text = elem.text || "AI Generated";
+          baseElement.fontSize = elem.fontSize || 20;
+          baseElement.fontFamily = "Virgil";
+        }
+
+        if (isImage) {
+          baseElement.imageUrl = elem.text || elem.imageUrl || "";
+          baseElement.aspectRatio = (elem.width || 1) / (elem.height || 1);
+          delete baseElement.text;
+        }
+
+        if (elem.type === "Line" || elem.type === "Arrow") {
+          baseElement.points = [
+            { x: 0, y: 0 },
+            { x: elem.width || 100, y: elem.height || 0 },
+          ];
+        }
+
+        return baseElement;
+      });
+
+      console.log("CanvasBoard mapped new AI elements:", newElements);
+
+      if (isCollaborating) {
+        setCollaborativeElements((prev) => [...prev, ...newElements]);
+        if (sendOperation && state.roomId) {
+          newElements.forEach((el) => {
+            sendOperation({
+              type: "element_complete",
+              elementId: el.id,
+              data: { element: el },
+              roomId: state.roomId!,
+              authorId: state.userId!,
+            });
+          });
+        }
+      } else {
+        setLocalElements((prev) => [...prev, ...newElements]);
+        setTimeout(() => {
+          saveToLocalStorage([...localElements, ...newElements]);
+        }, 0);
+      }
+    };
+
+    window.addEventListener("ai-elements-generated", handleAiElements);
+    return () =>
+      window.removeEventListener("ai-elements-generated", handleAiElements);
+  }, [
+    isCollaborating,
+    localElements,
+    position,
+    scale,
+    sendOperation,
+    state.roomId,
+    state.userId,
+    setCollaborativeElements,
+    setLocalElements,
+    strokeColor,
+    strokeWidth,
+    edgeStyle,
+  ]);
+
   // Listen for external canvas element updates (from import)
   useEffect(() => {
     const handleCanvasElementsUpdate = () => {
@@ -826,8 +1010,7 @@ export const CanvasBoard = () => {
           if (element.width && element.height) {
             const width = Math.abs(element.width);
             const height = Math.abs(element.height);
-            const x =
-              element.width < 0 ? element.x + element.width : element.x;
+            const x = element.width < 0 ? element.x + element.width : element.x;
             const y =
               element.height < 0 ? element.y + element.height : element.y;
             const cx = x + width / 2;
@@ -1095,9 +1278,7 @@ export const CanvasBoard = () => {
               const hw = (maxX - minX) / 2 + selectionPad;
               const hh = (maxY - minY) / 2 + selectionPad;
               const cornerR =
-                element.edgeStyle === "curve"
-                  ? diamondCurveRadius(hw, hh)
-                  : 0;
+                element.edgeStyle === "curve" ? diamondCurveRadius(hw, hh) : 0;
 
               ctx.beginPath();
               addRoundedDiamondPath(ctx, cx, cy, hw, hh, cornerR);

@@ -1,8 +1,11 @@
-import { createContext, useContext, useState } from "react";
-import type { ToolType, DrawingContextType } from "@/types/drawing";
+import React, { createContext, useState } from "react";
+import type { ToolType, DrawingContextType } from "./types";
 import type { StrokePattern } from "@/helpers/stroke.h";
+import { defaultContextValue } from "./constants";
 
-const DrawingContext = createContext<DrawingContextType | null>(null);
+export const DrawingContext = createContext<DrawingContextType | null>(
+  defaultContextValue,
+);
 
 export const DrawingProvider = ({
   children,
@@ -39,12 +42,4 @@ export const DrawingProvider = ({
       {children}
     </DrawingContext.Provider>
   );
-};
-
-export const useDrawing = () => {
-  const context = useContext(DrawingContext);
-  if (!context) {
-    throw new Error("useDrawing must be used within a DrawingProvider");
-  }
-  return context;
 };
