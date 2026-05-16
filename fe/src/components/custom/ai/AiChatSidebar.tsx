@@ -214,9 +214,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              AI Canvas Chat
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">Chat</h3>
             <p className="text-xs text-muted-foreground">
               Describe a layout to add it to the board.
             </p>
@@ -392,9 +390,6 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
             )}
           </Button>
         </div>
-        <span className="mt-2 block text-[11px] text-muted-foreground">
-          Enter to send, Shift+Enter for new line
-        </span>
       </div>
     </aside>
   );
