@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { chatWithAi, generateDrawing } from "../controllers/ai.controller";
-import { aiLimiter } from "../constants/ext";
+
+import { aiLimiter } from "../constants";
+import { chatWithAi, generateDrawing } from "../controllers";
 
 export const aiRouter = Router();
 

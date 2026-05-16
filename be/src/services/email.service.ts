@@ -1,6 +1,6 @@
 import { Resend } from "resend";
-import { Logger } from "../helpers/ext.h";
-import { isProd, resend_api_key, resend_from_email } from "../constants/e";
+import { Logger } from "../helpers";
+import { isProd, resend_api_key, resend_from_email } from "../constants";
 import { EmailInviteData } from "../types";
 
 class EmailService {

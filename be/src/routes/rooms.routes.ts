@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { sendInvitations } from "../controllers/rooms.controller";
-
+import { sendInvitations } from "../controllers";
 export const roomRouter = Router();
 
 // POST /api/rooms/send-invitations

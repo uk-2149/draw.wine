@@ -3,12 +3,10 @@ import helmet from "helmet";
 import cors, { CorsOptions } from "cors";
 import compression from "compression";
 import { createServer } from "http";
-import { CollabDrawingServer } from "./services/socket.service";
-import { roomRouter } from "./routes/rooms.routes";
-import { aiRouter } from "./routes/ai.routes";
-import { PORT } from "./constants/e";
-import { Logger } from "./helpers/ext.h";
-import { corsOptions, limiter } from "./constants/ext";
+import { corsOptions, limiter, PORT } from "./constants";
+import { CollabDrawingServer } from "./services";
+import { aiRouter, roomRouter } from "./routes";
+import { Logger } from "./helpers";
 
 export const initServer = async () => {
   const app = express();

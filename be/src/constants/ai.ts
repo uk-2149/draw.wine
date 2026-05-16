@@ -44,3 +44,29 @@ export const systemInstruction_generateRasterDrawing = `You are a world-class gr
 The user wants a raster/photographic or highly detailed illustration. Since you output text, create a complete, beautifully designed standalone SVG code block representing the visual prompt.
 Ensure the SVG is responsive, self-contained with a viewBox, uses rich aesthetic gradients, smooth curves, and gorgeous vibrant visual tokens.
 Return ONLY valid raw JSON with a single string field 'svgContent' containing the complete XML/SVG code string. No markdown formatting outside the JSON.`;
+
+// Build an augmented prompt with a COMPLETE working example
+// so the model can pattern-match the expected output format
+export const augmentedPrompt = `Create a comprehensive diagram for: "${prompt}"
+
+Generate AT LEAST 15-20 elements total. MUST include shapes with labels, fill colors, AND Arrow elements connecting them.
+
+Example pattern (shape→arrow→shape→arrow→diamond with Yes/No→arrow→shape):
+{"elements":[
+{"type":"Circle","x":300,"y":0,"width":150,"height":150,"label":"Start","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Arrow","x":375,"y":150,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":250,"y":250,"width":250,"height":100,"label":"Step 1","strokeColor":"#0066CC","fillColor":"#E8F4F8","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Arrow","x":375,"y":350,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Diamond","x":275,"y":450,"width":200,"height":200,"label":"Decision?","strokeColor":"#E67700","fillColor":"#FFF4E6","strokeWidth":2,"edgeStyle":"sharp"},
+{"type":"Text","x":500,"y":530,"width":50,"height":20,"text":"No","fontSize":16,"strokeColor":"#DC2626"},
+{"type":"Arrow","x":475,"y":550,"width":200,"height":0,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":650,"y":500,"width":200,"height":100,"label":"Error Path","strokeColor":"#DC2626","fillColor":"#FEF2F2","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Text","x":340,"y":660,"width":50,"height":20,"text":"Yes","fontSize":16,"strokeColor":"#2E7D32"},
+{"type":"Arrow","x":375,"y":650,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":250,"y":750,"width":250,"height":100,"label":"Step 2","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"}
+]}
+
+For flowcharts: Circle for start/end, Rectangle for steps, Diamond for decisions with Yes/No Text labels.
+For architectures: rows at y=0,250,500,750. Columns at x=0,300,600,900. Vertical arrows between layers.
+
+Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and fills. Do NOT stop early.`;
