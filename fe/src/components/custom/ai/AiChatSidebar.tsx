@@ -169,12 +169,13 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           "Tell me what you want to draw and I will add it to the canvas.",
         status: "success",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const msg =
-        error?.message ||
-        (isDrawingPrompt
-          ? "Failed to generate layout via Gemini AI."
-          : "Failed to generate response via Gemini AI.");
+        error instanceof Error
+          ? error.message
+          : isDrawingPrompt
+            ? "Failed to generate layout via Gemini AI."
+            : "Failed to generate response via Gemini AI.";
       failRequest(msg);
       updateMessage(assistantId, { content: msg, status: "error" });
     }
