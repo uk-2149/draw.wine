@@ -1,20 +1,11 @@
 import { SchemaType, Schema } from "@google/generative-ai";
-import { gemini_api_key } from "../constants/e";
-import { Logger } from "../helpers/ext.h";
 import {
+  augmentedPrompt,
+  gemini_api_key,
   systemInstruction_generateChatReply,
   systemInstruction_generateRasterDrawing,
   systemInstruction_generateVectorDrawing,
-} from "../constants/ai";
-import { ai } from "../utils/ai";
-import {
-  generateContentWithRetry,
-  getGeminiFetchStatus,
-  getGeminiRetryDelaySeconds,
-  parseGeminiJson,
-  resolveGeminiModel,
-  sleep,
-} from "../helpers/ai.h";
+} from "../constants";
 import {
   AiChatRequest,
   AiChatResponse,
@@ -22,7 +13,22 @@ import {
   AiDrawingResponse,
   GeneratedElement,
 } from "../types";
-import sessionManager from "./sessionManager";
+import {
+  generateContentWithRetry,
+  getGeminiFetchStatus,
+  getGeminiRetryDelaySeconds,
+  Logger,
+  parseGeminiJson,
+  resolveGeminiModel,
+} from "../helpers";
+import { ai } from "../utils/ai";
+import sessionManager from "./session.service";
+
+type GeminiTextResponse = {
+  response: {
+    text: () => string;
+  };
+};
 
 class AiService {
   private isConfigured(): boolean {
@@ -131,7 +137,8 @@ class AiService {
         },
         fillColor: {
           type: SchemaType.STRING,
-          description: "Hex color for fill (e.g. #E8F4F8). Required for shapes.",
+          description:
+            "Hex color for fill (e.g. #E8F4F8). Required for shapes.",
         },
         strokeWidth: {
           type: SchemaType.INTEGER,
@@ -172,34 +179,8 @@ class AiService {
       } as any,
     });
 
-    // Build an augmented prompt with a COMPLETE working example
-    // so the model can pattern-match the expected output format
-    const augmentedPrompt = `Create a comprehensive diagram for: "${prompt}"
-
-Generate AT LEAST 15-20 elements total. MUST include shapes with labels, fill colors, AND Arrow elements connecting them.
-
-Example pattern (shape→arrow→shape→arrow→diamond with Yes/No→arrow→shape):
-{"elements":[
-{"type":"Circle","x":300,"y":0,"width":150,"height":150,"label":"Start","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"},
-{"type":"Arrow","x":375,"y":150,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Rectangle","x":250,"y":250,"width":250,"height":100,"label":"Step 1","strokeColor":"#0066CC","fillColor":"#E8F4F8","strokeWidth":2,"edgeStyle":"curve"},
-{"type":"Arrow","x":375,"y":350,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Diamond","x":275,"y":450,"width":200,"height":200,"label":"Decision?","strokeColor":"#E67700","fillColor":"#FFF4E6","strokeWidth":2,"edgeStyle":"sharp"},
-{"type":"Text","x":500,"y":530,"width":50,"height":20,"text":"No","fontSize":16,"strokeColor":"#DC2626"},
-{"type":"Arrow","x":475,"y":550,"width":200,"height":0,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Rectangle","x":650,"y":500,"width":200,"height":100,"label":"Error Path","strokeColor":"#DC2626","fillColor":"#FEF2F2","strokeWidth":2,"edgeStyle":"curve"},
-{"type":"Text","x":340,"y":660,"width":50,"height":20,"text":"Yes","fontSize":16,"strokeColor":"#2E7D32"},
-{"type":"Arrow","x":375,"y":650,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Rectangle","x":250,"y":750,"width":250,"height":100,"label":"Step 2","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"}
-]}
-
-For flowcharts: Circle for start/end, Rectangle for steps, Diamond for decisions with Yes/No Text labels.
-For architectures: rows at y=0,250,500,750. Columns at x=0,300,600,900. Vertical arrows between layers.
-
-Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and fills. Do NOT stop early.`;
-
-    const responseResult = await generateContentWithRetry(
-      () => model.generateContent(augmentedPrompt),
+    const responseResult = await generateContentWithRetry<GeminiTextResponse>(
+      () => model.generateContent(augmentedPrompt(prompt)),
       "vector",
     );
     const text = responseResult.response.text();
@@ -207,7 +188,9 @@ Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and f
       throw new Error("Empty response received from model");
     }
 
-    Logger.info(`Gemini raw response (first 500 chars): ${text.substring(0, 500)}`);
+    Logger.info(
+      `Gemini raw response (first 500 chars): ${text.substring(0, 500)}`,
+    );
 
     const parsed = parseGeminiJson<{ elements?: GeneratedElement[] }>(text);
 
@@ -240,13 +223,12 @@ Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and f
       },
     });
 
-    // Get or create a chat session for conversation history
     const chatSession = sessionManager.getOrCreateSession(
       effectiveSessionId,
       () => model.startChat(),
     );
 
-    const responseResult = await generateContentWithRetry(
+    const responseResult = await generateContentWithRetry<GeminiTextResponse>(
       () => chatSession.sendMessage(prompt),
       "chat",
     );
@@ -294,7 +276,7 @@ Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and f
       },
     });
 
-    const responseResult = await generateContentWithRetry(
+    const responseResult = await generateContentWithRetry<GeminiTextResponse>(
       () =>
         model.generateContent(
           `Generate a detailed high-quality SVG illustration for the following description: ${prompt}`,

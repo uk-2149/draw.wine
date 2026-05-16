@@ -1,5 +1,5 @@
 import type { ChatSession } from "@google/generative-ai";
-import { Logger } from "../helpers/ext.h";
+import { Logger } from "../helpers";
 
 interface SessionData {
   chat: ChatSession;

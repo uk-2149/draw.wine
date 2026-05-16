@@ -1,7 +1,7 @@
 import { Server as SocketServer } from "socket.io";
 import { Server as HTTPServer } from "http";
-import { ExecSocketEvents } from "../events/socket.event";
-import { allowedOrigins } from "../constants/e";
+import { ExecSocketEvents } from "../events";
+import { allowedOrigins } from "../constants";
 
 export class CollabDrawingServer {
   private static instance: CollabDrawingServer;

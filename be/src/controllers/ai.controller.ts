@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import aiService from "../services/ai.service";
-import { Logger } from "../helpers/ext.h";
+import { Logger } from "../helpers";
 import { AiChatRequest, AiDrawingRequest } from "../types";
+import aiService from "../services/ai.service";
 
 export const generateDrawing = async (
   req: Request,

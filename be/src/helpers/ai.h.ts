@@ -1,4 +1,4 @@
-import { DEFAULT_GEMINI_MODEL, SUPPORTED_GEMINI_MODELS } from "../utils/ai";
+import { DEFAULT_GEMINI_MODEL, SUPPORTED_GEMINI_MODELS } from "../utils";
 import { Logger } from "./ext.h";
 
 export const sleep = (ms: number): Promise<void> =>
@@ -34,7 +34,9 @@ export const parseRetryDelaySeconds = (value: string): number | undefined => {
   return Number.isFinite(seconds) ? Math.ceil(seconds) : undefined;
 };
 
-export const getGeminiRetryDelaySeconds = (error: unknown): number | undefined => {
+export const getGeminiRetryDelaySeconds = (
+  error: unknown,
+): number | undefined => {
   if (!error || typeof error !== "object" || !("errorDetails" in error)) {
     return undefined;
   }
@@ -76,7 +78,7 @@ export const generateContentWithRetry = async <T>(
     }
   }
   throw new Error("Gemini retry loop exhausted without success");
-}
+};
 
 export const extractJsonCandidate = (text: string): string | null => {
   const fencedMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -206,7 +208,8 @@ export const forceBalanceJson = (text: string): string | null => {
 };
 
 /** Maximal prefix that is a valid JSON number (RFC 8259). */
-export const JSON_NUMBER_PREFIX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
+export const JSON_NUMBER_PREFIX =
+  /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 
 export const isLikelyJsonNumberStart = (s: string, i: number): boolean => {
   const c = s[i];
