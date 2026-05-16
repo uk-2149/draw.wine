@@ -71,7 +71,15 @@ GEMINI_API_KEY=your_gemini_api_key_here
 - Ask for clarification before implementing behavior that may expose sensitive data.
 - If uncertain whether data is sensitive, treat it as sensitive.
 
-## 10) Pre-Finalization Checklist (Must Pass)
+## 10) UI Consistency and Theme Support
+
+- When changing frontend UI, preserve the app's existing visual language, spacing, typography, and component patterns.
+- Keep new UI consistent with the surrounding interface instead of introducing a separate design style.
+- Ensure new or modified UI works in both light and dark themes.
+- Respect the active app theme when choosing colors, surfaces, borders, shadows, and icon treatments.
+- Avoid hardcoded colors that break theme switching or contrast in either theme.
+
+## 11) Pre-Finalization Checklist (Must Pass)
 
 Before finalizing AI-generated changes, all must be true:
 

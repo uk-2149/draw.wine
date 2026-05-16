@@ -163,3 +163,16 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo ""
+# LLM
+install-aider: ## Install Aider globally (for map generation)
+	@printf "$(CYAN)  Installing Aider...$(RESET)\n"
+	@npx install -g @aider/aider
+	@printf "$(GREEN)  ✔ Aider installed$(RESET)\n"
+setup-aider: ## Install Aider globally (for map generation)
+	@printf "$(CYAN)  Setting up Aider...$(RESET)\n"
+	@echo 'export OPENAI_API_KEY=dummy' >> ~/.bashrc
+	@printf "$(GREEN)  ✔ Aider setup complete$(RESET)\n"
+create-map:
+	@printf "$(CYAN)  Creating map...$(RESET)\n"
+	@aider --show-repo-map . > repo-context.txt
+	@printf "$(GREEN)  ✔ Map created$(RESET)\n"
