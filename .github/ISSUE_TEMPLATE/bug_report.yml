@@ -1,0 +1,87 @@
+name: Bug Report
+description: Report a reproducible problem in draw.wine
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill out the details below so we can reproduce and fix it quickly.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: A clear and concise description of the bug.
+      placeholder: The canvas freezes when I switch tools quickly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps To Reproduce
+      description: Provide exact steps we can follow.
+      placeholder: |
+        1. Go to /board/:id
+        2. Draw with pencil
+        3. Switch to eraser repeatedly
+        4. Observe lag/freeze
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Affected Area
+      description: Which part is affected?
+      placeholder: frontend, backend, realtime sync, AI generation, invitations, build, etc.
+    validations:
+      required: true
+
+  - type: input
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      description: How often does this happen?
+      placeholder: Always / Sometimes / Rarely
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include browser, OS, and relevant versions.
+      placeholder: Ubuntu 24.04, Chrome 125, Node 20
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Paste console/server logs or attach screenshots/videos.
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Anything else that can help us debug.

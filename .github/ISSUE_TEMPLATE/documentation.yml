@@ -1,0 +1,47 @@
+name: Documentation Update
+description: Report missing, unclear, or incorrect documentation
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve documentation quality and discoverability.
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the issue?
+      placeholder: README.md, docs/architecture.md, inline comments, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What Is Wrong or Missing?
+      description: Describe the current issue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Suggested Improvement
+      description: What should the docs say instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: audience
+    attributes:
+      label: Target Audience
+      description: Who is impacted most by this doc issue?
+      placeholder: new contributors, maintainers, frontend devs, backend devs
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add examples, references, or screenshots.
