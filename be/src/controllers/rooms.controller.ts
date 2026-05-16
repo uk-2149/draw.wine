@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import emailService, { EmailInviteData } from "../services/email.service";
+import emailService from "../services/email.service";
+import type { EmailInviteData } from "../types";
 
 export const sendInvitations = async (
   req: Request,

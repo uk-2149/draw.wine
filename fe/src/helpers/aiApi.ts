@@ -3,6 +3,7 @@ import type { AiDrawingResponse, AiMode, AiModel } from "@/contexts/ai/types";
 
 type AiChatResponse = {
   message: string;
+  sessionId?: string; // for conversation history
 };
 
 export const generateAiDrawing = async (
@@ -30,13 +31,18 @@ export const generateAiDrawing = async (
 export const generateAiChat = async (
   prompt: string,
   model?: AiModel | null,
+  sessionId?: string | null,
 ): Promise<AiChatResponse> => {
   const response = await fetch(`${be_url}/api/ai/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt, model: model ?? undefined }),
+    body: JSON.stringify({
+      prompt,
+      model: model ?? undefined,
+      sessionId: sessionId ?? undefined,
+    }),
   });
 
   const data = await response.json();

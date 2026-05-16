@@ -17,6 +17,7 @@ export interface GeneratedElement {
   strokeWidth?: number;
   edgeStyle?: "sharp" | "curve";
   imageUrl?: string;
+  label?: string;
 }
 
 export interface AiDrawingResponse {
@@ -27,8 +28,10 @@ export interface AiDrawingResponse {
 export interface AiChatRequest {
   prompt: string;
   model?: string;
+  sessionId?: string; // optional session ID for conversation history
 }
 
 export interface AiChatResponse {
   message: string;
+  sessionId?: string; // returned so frontend can track the session
 }

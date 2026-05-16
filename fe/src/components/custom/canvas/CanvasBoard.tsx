@@ -814,6 +814,8 @@ export const CanvasBoard = () => {
       const customEvent = event as CustomEvent<{
         generatedElements: GeneratedElement[];
       }>;
+      // Elements arrive already normalized (grid-snapped, labels→text, etc.)
+      // via normalizeAiLayout in aiInsertion.h.ts
       const generatedElements = customEvent.detail?.generatedElements;
 
       if (!generatedElements || generatedElements.length === 0) return;
@@ -826,43 +828,25 @@ export const CanvasBoard = () => {
         ? canvas.height / window.devicePixelRatio
         : window.innerHeight;
 
-      // Calculate the center of the current viewport precisely
+      // Calculate the center of the current viewport
       const centerX = (-position.x + cw / 2) / scale;
       const centerY = (-position.y + ch / 2) / scale;
 
+      // ═══ Compute bounding box of all elements and center on viewport ═══
       const getElementBounds = (elem: GeneratedElement) => {
         const type = elem.type || "Rectangle";
         const x = elem.x ?? 0;
         const y = elem.y ?? 0;
-        const fontSize = elem.fontSize ?? 20;
 
         if (type === "Text") {
-          const text = elem.text || "AI Generated";
+          const text = elem.text || "AI";
+          const fontSize = elem.fontSize ?? 16;
           const textWidth = text.length * fontSize * 0.6;
-          return {
-            minX: x,
-            maxX: x + textWidth,
-            minY: y,
-            maxY: y + fontSize,
-          };
+          return { minX: x, maxX: x + textWidth, minY: y, maxY: y + fontSize };
         }
 
-        const width =
-          elem.width ?? (type === "Line" || type === "Arrow" ? 120 : 120);
-        const height =
-          elem.height ?? (type === "Line" || type === "Arrow" ? 0 : 80);
-
-        if (type === "Line" || type === "Arrow") {
-          const x2 = x + width;
-          const y2 = y + height;
-          return {
-            minX: Math.min(x, x2),
-            maxX: Math.max(x, x2),
-            minY: Math.min(y, y2),
-            maxY: Math.max(y, y2),
-          };
-        }
-
+        const width = elem.width ?? 200;
+        const height = elem.height ?? 100;
         const x2 = x + width;
         const y2 = y + height;
         return {
@@ -896,6 +880,7 @@ export const CanvasBoard = () => {
       const offsetX = centerX - boundsCenterX;
       const offsetY = centerY - boundsCenterY;
 
+      // ═══ Convert GeneratedElement[] → canvas Element[] ═══
       const newElements: Element[] = generatedElements.map((elem, index) => {
         const isImage = elem.type === "Image";
         const isText = elem.type === "Text";
@@ -905,20 +890,20 @@ export const CanvasBoard = () => {
           type: elem.type || "Rectangle",
           x: (elem.x ?? 0) + offsetX,
           y: (elem.y ?? 0) + offsetY,
-          width: elem.width ?? (isText ? undefined : 120),
-          height: elem.height ?? (isText ? undefined : 80),
+          width: elem.width ?? (isText ? undefined : 200),
+          height: elem.height ?? (isText ? undefined : 100),
           strokeColor: elem.strokeColor || strokeColor,
           fillColor: elem.fillColor,
           strokeWidth: elem.strokeWidth ?? strokeWidth,
           strokePattern: "solid",
           roughness: 1,
           seed: Math.floor(Math.random() * 2 ** 31),
-          edgeStyle: elem.edgeStyle || edgeStyle,
+          edgeStyle: elem.edgeStyle || "curve",
         };
 
         if (isText) {
           baseElement.text = elem.text || "AI Generated";
-          baseElement.fontSize = elem.fontSize || 20;
+          baseElement.fontSize = elem.fontSize || 16;
           baseElement.fontFamily = "Virgil";
         }
 
@@ -1483,10 +1468,23 @@ export const CanvasBoard = () => {
         }
         case "Text": {
           if (element.text && element.id !== editingTextId) {
-            ctx.font = `${element.fontSize || 20}px ${element.fontFamily || "Virgil"}`;
+            const fontSize = element.fontSize || 20;
+            ctx.font = `${fontSize}px ${element.fontFamily || "Virgil"}`;
             ctx.fillStyle = getStrokeColor(element.strokeColor || "#000");
-            ctx.textBaseline = "top";
-            ctx.fillText(element.text, element.x, element.y);
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Center text within its bounds if width/height are defined
+            const centerX = element.x + (element.width ? element.width / 2 : 0);
+            const centerY =
+              element.y + (element.height ? element.height / 2 : 0);
+
+            ctx.fillText(
+              element.text,
+              element.width ? centerX : element.x,
+              element.height ? centerY : element.y,
+            );
+            ctx.textAlign = "left"; // Reset for other operations
           }
           break;
         }
@@ -3327,72 +3325,72 @@ export const CanvasBoard = () => {
   // ─── Double click ─────────────────────────────────────────────────────────────
 
   const handleDoubleClick = useCallback(
-  (e: React.MouseEvent) => {
-    if (!canDraw) return;
-    if (selectedTool !== "select") return;
-    const point = getTransformedPoint(e);
-    const clickedElement = getElementAtPoint(point);
-    if (clickedElement) {
-      if (clickedElement.type === "Text") {
-        if (!clickedElement.isTemporary) beginHistoryAction();
-        startTextEditing(clickedElement);
+    (e: React.MouseEvent) => {
+      if (!canDraw) return;
+      if (selectedTool !== "select") return;
+      const point = getTransformedPoint(e);
+      const clickedElement = getElementAtPoint(point);
+      if (clickedElement) {
+        if (clickedElement.type === "Text") {
+          if (!clickedElement.isTemporary) beginHistoryAction();
+          startTextEditing(clickedElement);
+        }
+      } else {
+        // Create a text element immediately at the click position and open it
+        beginHistoryAction();
+        const elementId = isCollaborating
+          ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          : Date.now().toString();
+        const newElement: Element = {
+          id: elementId,
+          type: "Text",
+          x: point.x,
+          y: point.y,
+          strokeColor,
+          strokeWidth,
+          strokePattern,
+          roughness: 1,
+          seed: Math.floor(Math.random() * 1000),
+          text: "Type here...",
+          fontSize: 20,
+          fontFamily: "Virgil",
+          authorId: isCollaborating ? state.userId || "local" : "local",
+          isTemporary: true,
+        };
+        setElements((prev) => [...prev, newElement]);
+        markHistoryActionMutated();
+        setSelectedTool("Text");
+        startTextEditing(newElement);
+        if (isCollaborating && sendOperation && state.roomId) {
+          sendOperation({
+            type: "element_start",
+            roomId: state.roomId,
+            elementId: newElement.id,
+            authorId: state.userId!,
+            data: { element: newElement, tool: "Text" },
+          });
+        }
       }
-    } else {
-      // Create a text element immediately at the click position and open it
-      beginHistoryAction();
-      const elementId = isCollaborating
-        ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        : Date.now().toString();
-      const newElement: Element = {
-        id: elementId,
-        type: "Text",
-        x: point.x,
-        y: point.y,
-        strokeColor,
-        strokeWidth,
-        strokePattern,
-        roughness: 1,
-        seed: Math.floor(Math.random() * 1000),
-        text: "Type here...",
-        fontSize: 20,
-        fontFamily: "Virgil",
-        authorId: isCollaborating ? state.userId || "local" : "local",
-        isTemporary: true,
-      };
-      setElements((prev) => [...prev, newElement]);
-      markHistoryActionMutated();
-      setSelectedTool("Text");
-      startTextEditing(newElement);
-      if (isCollaborating && sendOperation && state.roomId) {
-        sendOperation({
-          type: "element_start",
-          roomId: state.roomId,
-          elementId: newElement.id,
-          authorId: state.userId!,
-          data: { element: newElement, tool: "Text" },
-        });
-      }
-    }
-  },
-  [
-    selectedTool,
-    getTransformedPoint,
-    getElementAtPoint,
-    beginHistoryAction,
-    startTextEditing,
-    setSelectedTool,
-    isCollaborating,
-    state.userId,
-    state.roomId,
-    strokeColor,
-    strokeWidth,
-    strokePattern,
-    setElements,
-    markHistoryActionMutated,
-    sendOperation,
-    canDraw,
-  ],
-);
+    },
+    [
+      selectedTool,
+      getTransformedPoint,
+      getElementAtPoint,
+      beginHistoryAction,
+      startTextEditing,
+      setSelectedTool,
+      isCollaborating,
+      state.userId,
+      state.roomId,
+      strokeColor,
+      strokeWidth,
+      strokePattern,
+      setElements,
+      markHistoryActionMutated,
+      sendOperation,
+      canDraw,
+    ],
+  );
 
   // ─── Image upload ─────────────────────────────────────────────────────────────
 

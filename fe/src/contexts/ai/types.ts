@@ -15,6 +15,7 @@ export interface GeneratedElement {
   strokeWidth?: number;
   edgeStyle?: "sharp" | "curve";
   imageUrl?: string;
+  label?: string;
 }
 
 export interface AiDrawingResponse {
@@ -31,12 +32,14 @@ export interface AiContextType {
   result: AiResult | null;
   error: string | null;
   state: AiStatus;
+  sessionId: string | null; // for conversation history
   setModel: (model: AiModel | null) => void;
   setMode: (mode: AiMode) => void;
   setPrompt: (prompt: string) => void;
   setResult: (result: AiResult | null) => void;
   setError: (error: string | null) => void;
   setState: (state: AiStatus) => void;
+  setSessionId: (sessionId: string | null) => void; // manage session ID
   reset: () => void;
   startRequest: (prompt?: string, mode?: AiMode) => void;
   finishRequest: (result: AiResult | null) => void;

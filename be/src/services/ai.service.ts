@@ -22,6 +22,7 @@ import {
   AiDrawingResponse,
   GeneratedElement,
 } from "../types";
+import sessionManager from "./sessionManager";
 
 class AiService {
   private isConfigured(): boolean {
@@ -50,7 +51,7 @@ class AiService {
   }
 
   async generateChat(request: AiChatRequest): Promise<AiChatResponse> {
-    const { prompt, model } = request;
+    const { prompt, model, sessionId } = request;
     const resolvedModel = resolveGeminiModel(model);
 
     if (!this.isConfigured()) {
@@ -59,7 +60,12 @@ class AiService {
     }
 
     try {
-      return await this.generateChatReply(prompt, resolvedModel);
+      const response = await this.generateChatReply(
+        prompt,
+        resolvedModel,
+        sessionId,
+      );
+      return response;
     } catch (error) {
       const status = getGeminiFetchStatus(error);
       if (status === 429) {
@@ -86,54 +92,57 @@ class AiService {
         type: {
           type: SchemaType.STRING,
           description:
-            "Must be one of: Rectangle, Diamond, Circle, Arrow, Line, Text",
+            "Shape type. Must be one of: Rectangle, Diamond, Circle, Arrow, Line, Text",
         },
         x: {
           type: SchemaType.INTEGER,
-          description: "X coordinate relative to center (0,0).",
+          description: "X coordinate (multiple of 50).",
         },
         y: {
           type: SchemaType.INTEGER,
-          description: "Y coordinate relative to center (0,0).",
+          description: "Y coordinate (multiple of 50).",
         },
         width: {
           type: SchemaType.INTEGER,
           description:
-            "Width of the element (required for Rectangle, Diamond, Circle). Typical range 50 to 400.",
+            "Width. For shapes: size (min 150). For Arrow/Line: horizontal delta to endpoint.",
         },
         height: {
           type: SchemaType.INTEGER,
           description:
-            "Height of the element (required for Rectangle, Diamond, Circle). Typical range 50 to 400.",
+            "Height. For shapes: size (min 50). For Arrow/Line: vertical delta to endpoint (0 for horizontal arrows).",
+        },
+        label: {
+          type: SchemaType.STRING,
+          description:
+            "Text label centered inside the shape. REQUIRED for Rectangle, Diamond, Circle.",
         },
         text: {
           type: SchemaType.STRING,
-          description: "Text content if type is Text.",
+          description: "Text content for type=Text elements only.",
         },
         fontSize: {
           type: SchemaType.INTEGER,
-          description: "Font size if type is Text. Default is 20.",
+          description: "Font size for Text elements.",
         },
         strokeColor: {
           type: SchemaType.STRING,
-          description:
-            "Hex color code for stroke/border. Use professional rich aesthetic colors.",
+          description: "Hex color for stroke (e.g. #0066CC).",
         },
         fillColor: {
           type: SchemaType.STRING,
-          description:
-            "Hex color code for background fill if applicable. Optional.",
+          description: "Hex color for fill (e.g. #E8F4F8). Required for shapes.",
         },
         strokeWidth: {
           type: SchemaType.INTEGER,
-          description: "Stroke thickness, default 2.",
+          description: "Stroke thickness. Default 2.",
         },
         edgeStyle: {
           type: SchemaType.STRING,
-          description: "Either 'sharp' or 'curve' for Rectangle or Diamond.",
+          description: "Edge style: 'curve' or 'sharp'.",
         },
       },
-      required: ["type", "x", "y"],
+      required: ["type", "x", "y", "width", "height", "strokeColor"],
     };
 
     const responseSchema: Schema = {
@@ -142,27 +151,55 @@ class AiService {
         elements: {
           type: SchemaType.ARRAY,
           items: elementSchema,
-          description:
-            "A comprehensive array of drawing elements creating the visual diagram/scene requested by the user.",
+          description: "Array of diagram elements (15-30 elements).",
         },
       },
       required: ["elements"],
     };
 
-    // Using gemini-2.5-flash as default high-speed structured model
+    // Disable thinking for structured output — thinking consumes output tokens
+    // and leaves too few for the actual JSON response
     const model = ai.getGenerativeModel({
       model: modelName,
       systemInstruction: systemInstruction_generateVectorDrawing,
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        temperature: 0.2,
-        maxOutputTokens: 4096,
-      },
+        temperature: 0.4,
+        maxOutputTokens: 16384,
+        // @ts-ignore — thinkingConfig is supported by the API but not typed in SDK v0.24
+        thinkingConfig: { thinkingBudget: 0 },
+      } as any,
     });
 
+    // Build an augmented prompt with a COMPLETE working example
+    // so the model can pattern-match the expected output format
+    const augmentedPrompt = `Create a comprehensive diagram for: "${prompt}"
+
+Generate AT LEAST 15-20 elements total. MUST include shapes with labels, fill colors, AND Arrow elements connecting them.
+
+Example pattern (shape→arrow→shape→arrow→diamond with Yes/No→arrow→shape):
+{"elements":[
+{"type":"Circle","x":300,"y":0,"width":150,"height":150,"label":"Start","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Arrow","x":375,"y":150,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":250,"y":250,"width":250,"height":100,"label":"Step 1","strokeColor":"#0066CC","fillColor":"#E8F4F8","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Arrow","x":375,"y":350,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Diamond","x":275,"y":450,"width":200,"height":200,"label":"Decision?","strokeColor":"#E67700","fillColor":"#FFF4E6","strokeWidth":2,"edgeStyle":"sharp"},
+{"type":"Text","x":500,"y":530,"width":50,"height":20,"text":"No","fontSize":16,"strokeColor":"#DC2626"},
+{"type":"Arrow","x":475,"y":550,"width":200,"height":0,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":650,"y":500,"width":200,"height":100,"label":"Error Path","strokeColor":"#DC2626","fillColor":"#FEF2F2","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Text","x":340,"y":660,"width":50,"height":20,"text":"Yes","fontSize":16,"strokeColor":"#2E7D32"},
+{"type":"Arrow","x":375,"y":650,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":250,"y":750,"width":250,"height":100,"label":"Step 2","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"}
+]}
+
+For flowcharts: Circle for start/end, Rectangle for steps, Diamond for decisions with Yes/No Text labels.
+For architectures: rows at y=0,250,500,750. Columns at x=0,300,600,900. Vertical arrows between layers.
+
+Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and fills. Do NOT stop early.`;
+
     const responseResult = await generateContentWithRetry(
-      () => model.generateContent(prompt),
+      () => model.generateContent(augmentedPrompt),
       "vector",
     );
     const text = responseResult.response.text();
@@ -170,7 +207,14 @@ class AiService {
       throw new Error("Empty response received from model");
     }
 
+    Logger.info(`Gemini raw response (first 500 chars): ${text.substring(0, 500)}`);
+
     const parsed = parseGeminiJson<{ elements?: GeneratedElement[] }>(text);
+
+    Logger.info(
+      `Parsed ${parsed.elements?.length ?? 0} elements. Types: ${(parsed.elements || []).map((e) => e.type).join(", ")}`,
+    );
+
     return {
       elements: parsed.elements || [],
       isRaster: false,
@@ -180,7 +224,13 @@ class AiService {
   private async generateChatReply(
     prompt: string,
     modelName: string,
+    sessionId?: string,
   ): Promise<AiChatResponse> {
+    // Generate a session ID if not provided
+    const effectiveSessionId =
+      sessionId ||
+      `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     const model = ai.getGenerativeModel({
       model: modelName,
       systemInstruction: systemInstruction_generateChatReply,
@@ -190,16 +240,32 @@ class AiService {
       },
     });
 
+    // Get or create a chat session for conversation history
+    const chatSession = sessionManager.getOrCreateSession(
+      effectiveSessionId,
+      () => model.startChat(),
+    );
+
     const responseResult = await generateContentWithRetry(
-      () => model.generateContent(prompt),
+      () => chatSession.sendMessage(prompt),
       "chat",
     );
+
     const text = responseResult.response.text();
     if (!text) {
       throw new Error("Empty response received from model");
     }
 
-    return { message: text.trim() };
+    // Note: getHistory() returns the message history from this chat session
+    // which means the model has access to prior messages without resending them
+    Logger.info(
+      `[Chat] Used session: ${effectiveSessionId} | Conversation maintained with prior context`,
+    );
+
+    return {
+      message: text.trim(),
+      sessionId: effectiveSessionId,
+    };
   }
 
   private async generateRasterDrawing(
@@ -300,49 +366,57 @@ class AiService {
       elements: [
         {
           type: "Rectangle",
-          x: -200,
-          y: -50,
-          width: 140,
-          height: 80,
-          strokeColor: "#2563eb",
-          fillColor: "#eff6ff",
+          x: 0,
+          y: 0,
+          width: 200,
+          height: 100,
+          strokeColor: "#0066CC",
+          fillColor: "#E8F4F8",
           strokeWidth: 2,
           edgeStyle: "curve",
-        },
-        {
-          type: "Text",
-          x: -180,
-          y: -15,
-          text: "Client Request",
-          fontSize: 16,
-          strokeColor: "#1e3a8a",
+          label: "Client Request",
         },
         {
           type: "Arrow",
-          x: -50,
-          y: -10,
-          width: 80,
+          x: 200,
+          y: 50,
+          width: 100,
           height: 0,
-          strokeColor: "#94a3b8",
+          strokeColor: "#64748B",
           strokeWidth: 2,
         },
         {
           type: "Diamond",
-          x: 40,
-          y: -60,
-          width: 120,
-          height: 100,
-          strokeColor: "#059669",
-          fillColor: "#ecfdf5",
+          x: 300,
+          y: 0,
+          width: 150,
+          height: 150,
+          strokeColor: "#2E7D32",
+          fillColor: "#E8F5E9",
+          strokeWidth: 2,
+          edgeStyle: "curve",
+          label: "Gemini AI",
+        },
+        {
+          type: "Arrow",
+          x: 450,
+          y: 75,
+          width: 100,
+          height: 0,
+          strokeColor: "#64748B",
           strokeWidth: 2,
         },
         {
-          type: "Text",
-          x: 65,
-          y: -15,
-          text: "Gemini AI",
-          fontSize: 16,
-          strokeColor: "#065f46",
+          type: "Rectangle",
+          x: 550,
+          y: 0,
+          width: 200,
+          height: 100,
+          strokeColor: "#7B1FA2",
+          fillColor: "#F3E5F5",
+          strokeWidth: 2,
+          edgeStyle: "curve",
+          label: "Canvas Output",
         },
       ],
       isRaster: false,
