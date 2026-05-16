@@ -3,13 +3,13 @@ Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 201 files
+Git repo: .git with 206 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
 If you need to edit any of these files, ask me to *add them to the chat* first.
 
-be/src/services/sessionManager.ts:
+be/src/services/session.service.ts:
 ⋮
 │class SessionManager {
 │  private sessions: Map<string, SessionData> = new Map();
@@ -262,32 +262,6 @@ fe/src/components/ui/alert-dialog.tsx:
 │      {...props}
 ⋮
 
-fe/src/components/ui/alert.tsx:
-⋮
-│function Alert({
-│  className,
-│  variant,
-│  ...props
-⋮
-│function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="alert-title"
-│      className={cn(
-│        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-⋮
-│    <div
-│      data-slot="alert-description"
-│      className={cn(
-│        "text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-rel
-│        className
-⋮
-
 fe/src/components/ui/aspect-ratio.tsx:
 ⋮
 │function AspectRatio({
@@ -359,6 +333,33 @@ fe/src/components/ui/calendar.tsx:
 │  components,
 │  ...props
 ⋮
+│          if (orientation === "left") {
+│            return (
+│              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
+│            )
+⋮
+│              <ChevronRightIcon
+│                className={cn("size-4", className)}
+⋮
+│            <ChevronDownIcon className={cn("size-4", className)} {...props} />
+⋮
+│    <Button
+│      ref={ref}
+│      variant="ghost"
+│      size="icon"
+⋮
+│      data-range-start={modifiers.range_start}
+│      data-range-end={modifiers.range_end}
+│      data-range-middle={modifiers.range_middle}
+│      className={cn(
+│        "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground
+│        defaultClassNames.day,
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
 
 fe/src/components/ui/card.tsx:
 ⋮
@@ -372,20 +373,8 @@ fe/src/components/ui/card.tsx:
 │      )}
 │      {...props}
 │    />
-│  )
-│}
-│
+⋮
 │function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="card-header"
-│      className={cn(
-│        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 h
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
 ⋮
 │function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
 │  return (
@@ -406,7 +395,6 @@ fe/src/components/ui/card.tsx:
 │      )}
 │      {...props}
 │    />
-│  )
 ⋮
 │function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 │  return (
@@ -458,18 +446,6 @@ fe/src/components/ui/command.tsx:
 │  className,
 │  ...props
 │}: React.ComponentProps<typeof CommandPrimitive>) {
-│  return (
-│    <CommandPrimitive
-│      data-slot="command"
-│      className={cn(
-│        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md"
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-│}
-│
 ⋮
 │function CommandGroup({
 │  className,
@@ -478,12 +454,6 @@ fe/src/components/ui/command.tsx:
 │function CommandItem({
 │  className,
 │  ...props
-│}: React.ComponentProps<typeof CommandPrimitive.Item>) {
-│  return (
-⋮
-│      className={cn(
-│        "text-muted-foreground ml-auto text-xs tracking-widest",
-│        className
 ⋮
 
 fe/src/components/ui/dialog.tsx:
@@ -500,6 +470,12 @@ fe/src/components/ui/dialog.tsx:
 │function DialogOverlay({
 │  className,
 │  ...props
+│}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+│  return (
+⋮
+│        className={cn(
+│          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=c
+│          className
 ⋮
 
 fe/src/components/ui/drawer.tsx:
@@ -545,26 +521,6 @@ fe/src/components/ui/form.tsx:
 ⋮
 │type FormItemContextValue = {
 │  id: string
-⋮
-│        {...props}
-│      />
-│    </FormItemContext.Provider>
-│  )
-│}
-│
-│function FormLabel({
-│  className,
-│  ...props
-│}: React.ComponentProps<typeof LabelPrimitive.Root>) {
-⋮
-│  return (
-│    <Label
-│      data-slot="form-label"
-│      data-error={!!error}
-│      className={cn("data-[error=true]:text-destructive", className)}
-│      htmlFor={formItemId}
-│      {...props}
-│    />
 ⋮
 │function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
 │  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
@@ -623,6 +579,71 @@ fe/src/components/ui/input-otp.tsx:
 │  )
 ⋮
 
+fe/src/components/ui/menubar.tsx:
+⋮
+│function MenubarMenu({
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Menu>) {
+⋮
+│function MenubarGroup({
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Group>) {
+⋮
+│function MenubarPortal({
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
+⋮
+│function MenubarTrigger({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Trigger>) {
+│  return (
+│    <MenubarPrimitive.Trigger
+│      data-slot="menubar-trigger"
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]
+│        className
+│      )}
+│      {...props}
+│    />
+│  );
+⋮
+│        className={cn(
+│          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:fade
+│          className
+⋮
+│}) {
+│  return (
+│    <MenubarPrimitive.Item
+│      data-slot="menubar-item"
+│      data-inset={inset}
+│      data-variant={variant}
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive d
+│        className
+│      )}
+│      {...props}
+⋮
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap
+│        className
+⋮
+│function MenubarShortcut({
+│  className,
+│  ...props
+│}: React.ComponentProps<"span">) {
+│  return (
+│    <span
+│      data-slot="menubar-shortcut"
+│      className={cn(
+│        "text-muted-foreground ml-auto text-xs tracking-widest",
+│        className
+│      )}
+│      {...props}
+│    />
+│  );
+⋮
+
 fe/src/components/ui/navigation-menu.tsx:
 ⋮
 │function NavigationMenu({
@@ -651,6 +672,27 @@ fe/src/components/ui/pagination.tsx:
 ⋮
 │type PaginationLinkProps = {
 │  isActive?: boolean
+⋮
+│function PaginationLink({
+│  className,
+│  isActive,
+│  size = "icon",
+│  ...props
+│}: PaginationLinkProps) {
+│  return (
+│    <a
+│      aria-current={isActive ? "page" : undefined}
+│      data-slot="pagination-link"
+│      data-active={isActive}
+│      className={cn(
+│        buttonVariants({
+│          variant: isActive ? "outline" : "ghost",
+│          size,
+│        }),
+│        className
+│      )}
+│      {...props}
+│    />
 ⋮
 
 fe/src/components/ui/popover.tsx:
@@ -696,6 +738,10 @@ fe/src/components/ui/scroll-area.tsx:
 fe/src/components/ui/select.tsx:
 ⋮
 │function SelectScrollUpButton({
+│  className,
+│  ...props
+⋮
+│function SelectScrollDownButton({
 │  className,
 │  ...props
 ⋮
@@ -890,16 +936,6 @@ fe/src/components/ui/tabs.tsx:
 │  ...props
 ⋮
 
-fe/src/components/ui/textarea.tsx:
-⋮
-│function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
-⋮
-│      data-slot="textarea"
-│      className={cn(
-│        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:rin
-│        className
-⋮
-
 fe/src/components/ui/toggle-group.tsx:
 ⋮
 │function ToggleGroup({
@@ -915,14 +951,6 @@ fe/src/components/ui/toggle-group.tsx:
 │  variant,
 │  size,
 │  ...props
-⋮
-│      className={cn(
-│        toggleVariants({
-│          variant: context.variant || variant,
-│          size: context.size || size,
-│        }),
-│        "min-w-0 flex-1 shrink-0 rounded-none shadow-none first:rounded-l-md last:rounded-r-md focu
-│        className
 ⋮
 
 fe/src/components/ui/tooltip.tsx:
@@ -1008,6 +1036,12 @@ fe/src/contexts/theme/types.ts:
 │export type ThemeProviderState = {
 │  theme: Theme;
 │  setTheme: (theme: Theme) => void;
+⋮
+
+fe/src/helpers/cn.h.ts:
+⋮
+│export function cn(...inputs: ClassValue[]) {
+│  return twMerge(clsx(inputs));
 ⋮
 
 fe/src/helpers/collab.h.ts:

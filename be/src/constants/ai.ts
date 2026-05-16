@@ -47,7 +47,9 @@ Return ONLY valid raw JSON with a single string field 'svgContent' containing th
 
 // Build an augmented prompt with a COMPLETE working example
 // so the model can pattern-match the expected output format
-export const augmentedPrompt = `Create a comprehensive diagram for: "${prompt}"
+export const augmentedPrompt = (
+  prompt: string,
+) => `Create a comprehensive diagram for: "${prompt}"
 
 Generate AT LEAST 15-20 elements total. MUST include shapes with labels, fill colors, AND Arrow elements connecting them.
 

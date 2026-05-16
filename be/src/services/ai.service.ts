@@ -180,7 +180,7 @@ class AiService {
     });
 
     const responseResult = await generateContentWithRetry<GeminiTextResponse>(
-      () => model.generateContent(augmentedPrompt),
+      () => model.generateContent(augmentedPrompt(prompt)),
       "vector",
     );
     const text = responseResult.response.text();
