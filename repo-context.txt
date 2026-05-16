@@ -1,9 +1,9 @@
-──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────────────────────────────────────────────────
 Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 198 files
+Git repo: .git with 201 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
@@ -127,13 +127,6 @@ fe/src/components/custom/ai/AiChatSidebar.tsx:
 │  content: string;
 │  status?: "loading" | "success" | "error" | "info";
 ⋮
-│    <aside
-│      className={cn(
-│        "fixed top-0 right-0 z-50 flex h-full w-[360px] flex-col border-l bg-background/95 backdrop
-│        isOpen ? "translate-x-0" : "translate-x-full pointer-events-none",
-│      )}
-│      aria-hidden={!isOpen}
-⋮
 
 fe/src/components/custom/ai/Aibutton.tsx:
 ⋮
@@ -229,9 +222,70 @@ fe/src/components/ui/alert-dialog.tsx:
 │function AlertDialog({
 │  ...props
 ⋮
+│  return (
+│    <AlertDialogPrimitive.Overlay
+│      data-slot="alert-dialog-overlay"
+│      className={cn(
+│        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│        data-slot="alert-dialog-content"
+│        className={cn(
+│          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=c
+│          className
+⋮
+│  return (
+│    <div
+│      data-slot="alert-dialog-footer"
+│      className={cn(
+│        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
 │function AlertDialogDescription({
 │  className,
 │  ...props
+⋮
+│    <AlertDialogPrimitive.Action
+│      className={cn(buttonVariants(), className)}
+│      {...props}
+⋮
+│    <AlertDialogPrimitive.Cancel
+│      className={cn(buttonVariants({ variant: "outline" }), className)}
+│      {...props}
+⋮
+
+fe/src/components/ui/alert.tsx:
+⋮
+│function Alert({
+│  className,
+│  variant,
+│  ...props
+⋮
+│function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="alert-title"
+│      className={cn(
+│        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│    <div
+│      data-slot="alert-description"
+│      className={cn(
+│        "text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-rel
+│        className
 ⋮
 
 fe/src/components/ui/aspect-ratio.tsx:
@@ -318,8 +372,20 @@ fe/src/components/ui/card.tsx:
 │      )}
 │      {...props}
 │    />
-⋮
+│  )
+│}
+│
 │function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="card-header"
+│      className={cn(
+│        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 h
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
 ⋮
 │function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
 │  return (
@@ -340,6 +406,7 @@ fe/src/components/ui/card.tsx:
 │      )}
 │      {...props}
 │    />
+│  )
 ⋮
 │function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 │  return (
@@ -391,6 +458,18 @@ fe/src/components/ui/command.tsx:
 │  className,
 │  ...props
 │}: React.ComponentProps<typeof CommandPrimitive>) {
+│  return (
+│    <CommandPrimitive
+│      data-slot="command"
+│      className={cn(
+│        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md"
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+│}
+│
 ⋮
 │function CommandGroup({
 │  className,
@@ -399,6 +478,12 @@ fe/src/components/ui/command.tsx:
 │function CommandItem({
 │  className,
 │  ...props
+│}: React.ComponentProps<typeof CommandPrimitive.Item>) {
+│  return (
+⋮
+│      className={cn(
+│        "text-muted-foreground ml-auto text-xs tracking-widest",
+│        className
 ⋮
 
 fe/src/components/ui/dialog.tsx:
@@ -567,27 +652,6 @@ fe/src/components/ui/pagination.tsx:
 │type PaginationLinkProps = {
 │  isActive?: boolean
 ⋮
-│function PaginationLink({
-│  className,
-│  isActive,
-│  size = "icon",
-│  ...props
-│}: PaginationLinkProps) {
-│  return (
-│    <a
-│      aria-current={isActive ? "page" : undefined}
-│      data-slot="pagination-link"
-│      data-active={isActive}
-│      className={cn(
-│        buttonVariants({
-│          variant: isActive ? "outline" : "ghost",
-│          size,
-│        }),
-│        className
-│      )}
-│      {...props}
-│    />
-⋮
 
 fe/src/components/ui/popover.tsx:
 ⋮
@@ -626,6 +690,13 @@ fe/src/components/ui/scroll-area.tsx:
 │function ScrollBar({
 │  className,
 │  orientation = "vertical",
+│  ...props
+⋮
+
+fe/src/components/ui/select.tsx:
+⋮
+│function SelectScrollUpButton({
+│  className,
 │  ...props
 ⋮
 
@@ -708,19 +779,6 @@ fe/src/components/ui/sidebar.tsx:
 │  children,
 │  ...props
 ⋮
-│}) {
-⋮
-│  return (
-│    <SidebarContext.Provider value={contextValue}>
-│      <TooltipProvider delayDuration={0}>
-│        <div
-│          data-slot="sidebar-wrapper"
-│          style={style}
-│          className={cn(
-│            "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
-│            className,
-│          )}
-⋮
 │function Sidebar({
 │  side = "left",
 │  variant = "sidebar",
@@ -729,72 +787,10 @@ fe/src/components/ui/sidebar.tsx:
 │  children,
 │  ...props
 ⋮
-│}) {
-⋮
-│  if (collapsible === "none") {
-│    return (
-│      <div
-│        data-slot="sidebar"
-│        className={cn(
-│          "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
-│          className,
-│        )}
-│        {...props}
-│      >
-│        {children}
-⋮
-│  return (
-│    <div
-│      className="group peer text-sidebar-foreground hidden md:block"
-│      data-state={state}
-│      data-collapsible={state === "collapsed" ? collapsible : ""}
-│      data-variant={variant}
-│      data-side={side}
-│      data-slot="sidebar"
-│    >
-│      {/* This is what handles the sidebar gap on desktop */}
-│      <div
-│        data-slot="sidebar-gap"
-│        className={cn(
-│          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear"
-│          "group-data-[collapsible=offcanvas]:w-0",
-│          "group-data-[side=right]:rotate-180",
-│          variant === "floating" || variant === "inset"
-│            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-│            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
-⋮
 │function SidebarTrigger({
 │  className,
 │  onClick,
 │  ...props
-⋮
-│  return (
-│    <button
-│      data-sidebar="rail"
-│      data-slot="sidebar-rail"
-│      aria-label="Toggle Sidebar"
-│      tabIndex={-1}
-│      onClick={toggleSidebar}
-│      title="Toggle Sidebar"
-│      className={cn(
-│        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transiti
-│        "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
-│        "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=c
-│        "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:tra
-│        "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
-│        "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
-│        className,
-⋮
-│  return (
-│    <main
-│      data-slot="sidebar-inset"
-│      className={cn(
-│        "bg-background relative flex w-full flex-1 flex-col",
-│        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=i
-│        className,
-│      )}
-│      {...props}
-│    />
 ⋮
 │function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
 │  return (
@@ -819,46 +815,6 @@ fe/src/components/ui/sidebar.tsx:
 │function SidebarSeparator({
 │  className,
 │  ...props
-⋮
-│  return (
-│    <div
-│      data-slot="sidebar-content"
-│      data-sidebar="content"
-│      className={cn(
-│        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hi
-│        className,
-│      )}
-│      {...props}
-│    />
-│  );
-│}
-│
-⋮
-│  return (
-│    <Comp
-│      data-slot="sidebar-group-label"
-│      data-sidebar="group-label"
-│      className={cn(
-│        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center rounded-md px-
-│        "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
-│        className,
-│      )}
-│      {...props}
-│    />
-│  );
-⋮
-│  return (
-│    <Comp
-│      data-slot="sidebar-group-action"
-│      data-sidebar="group-action"
-│      className={cn(
-│        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accen
-│        // Increases the hit area of the button on mobile.
-│        "after:absolute after:-inset-2 md:after:hidden",
-│        "group-data-[collapsible=icon]:hidden",
-│        className,
-│      )}
-│      {...props}
 ⋮
 │function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
 │  return (
@@ -889,62 +845,6 @@ fe/src/components/ui/sidebar.tsx:
 │  className,
 │  ...props
 ⋮
-│  return (
-│    <Comp
-│      data-slot="sidebar-menu-action"
-│      data-sidebar="menu-action"
-│      className={cn(
-│        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accen
-│        // Increases the hit area of the button on mobile.
-│        "after:absolute after:-inset-2 md:after:hidden",
-│        "peer-data-[size=sm]/menu-button:top-1",
-│        "peer-data-[size=default]/menu-button:top-1.5",
-│        "peer-data-[size=lg]/menu-button:top-2.5",
-│        "group-data-[collapsible=icon]:hidden",
-│        showOnHover &&
-│          "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/me
-⋮
-│  return (
-│    <div
-│      data-slot="sidebar-menu-badge"
-│      data-sidebar="menu-badge"
-│      className={cn(
-│        "text-sidebar-foreground pointer-events-none absolute right-1 flex h-5 min-w-5 items-center
-│        "peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[active=true]/menu-button:
-│        "peer-data-[size=sm]/menu-button:top-1",
-│        "peer-data-[size=default]/menu-button:top-1.5",
-│        "peer-data-[size=lg]/menu-button:top-2.5",
-│        "group-data-[collapsible=icon]:hidden",
-│        className,
-⋮
-│  return (
-│    <ul
-│      data-slot="sidebar-menu-sub"
-│      data-sidebar="menu-sub"
-│      className={cn(
-│        "border-sidebar-border mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py
-│        "group-data-[collapsible=icon]:hidden",
-│        className,
-│      )}
-│      {...props}
-│    />
-│  );
-⋮
-│    <Comp
-│      data-slot="sidebar-menu-sub-button"
-│      data-sidebar="menu-sub-button"
-│      data-size={size}
-│      data-active={isActive}
-│      className={cn(
-│        "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accen
-│        "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
-│        size === "sm" && "text-xs",
-│        size === "md" && "text-sm",
-│        "group-data-[collapsible=icon]:hidden",
-│        className,
-│      )}
-│      {...props}
-⋮
 
 fe/src/components/ui/skeleton.tsx:
 ⋮
@@ -956,13 +856,6 @@ fe/src/components/ui/skeleton.tsx:
 │      {...props}
 │    />
 │  )
-⋮
-
-fe/src/components/ui/slider.tsx:
-⋮
-│      className={cn(
-│        "relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[
-│        className
 ⋮
 
 fe/src/components/ui/table.tsx:
@@ -997,6 +890,16 @@ fe/src/components/ui/tabs.tsx:
 │  ...props
 ⋮
 
+fe/src/components/ui/textarea.tsx:
+⋮
+│function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+⋮
+│      data-slot="textarea"
+│      className={cn(
+│        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:rin
+│        className
+⋮
+
 fe/src/components/ui/toggle-group.tsx:
 ⋮
 │function ToggleGroup({
@@ -1012,6 +915,14 @@ fe/src/components/ui/toggle-group.tsx:
 │  variant,
 │  size,
 │  ...props
+⋮
+│      className={cn(
+│        toggleVariants({
+│          variant: context.variant || variant,
+│          size: context.size || size,
+│        }),
+│        "min-w-0 flex-1 shrink-0 rounded-none shadow-none first:rounded-l-md last:rounded-r-md focu
+│        className
 ⋮
 
 fe/src/components/ui/tooltip.tsx:

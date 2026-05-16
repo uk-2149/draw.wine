@@ -167,6 +167,32 @@ Detailed notes are available in `docs/`:
 - `pwa.md`
 - `state-management.md`
 
+## LLM & Aider
+
+This repository provides a machine-readable context map for use with LLM tools (for example, Aider).
+
+- Generate the repo context map (requires `aider`):
+
+```bash
+make create-map
+```
+
+- View LLM workflow help:
+
+```bash
+make llm-help
+```
+
+- The generated file `repo-context.txt` contains a structured summary of the project (folders, key files, APIs, and workflows) and is intended to be attached to LLM prompts or passed to tools like `aider` with `--llm-context`.
+
+- Note: `.aiderignore` is now allowed in the repository (see `.gitignore`). To add your local `.aiderignore` to the repo:
+
+```bash
+git add .aiderignore
+git commit -m "Add .aiderignore"
+git push
+```
+
 ## Tech Stack
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS 4, Radix UI, Rough.js, Socket.IO client
