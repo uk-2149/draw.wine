@@ -1,17 +1,17 @@
 # draw.wine
 
 draw.wine is a real-time collaborative whiteboard built with React, TypeScript, Express, and Socket.IO.
-It supports multiplayer drawing sessions, live cursors, room invitations, and a rich set of canvas tools.
+It supports multiplayer drawing sessions, live cursor sync, room invitations, and AI-assisted drawing generation.
 
-## Highlights
+## Features
 
 - Real-time collaboration with room-based sessions
 - Live cursor presence and drawing synchronization over Socket.IO
-- Drawing tools: selection, pencil, text, rectangle, circle, diamond, line, arrow, eraser, laser
+- Drawing tools: select, pencil, text, rectangle, circle, diamond, line, arrow, eraser, laser
 - Rough.js powered sketch-style rendering
 - Invite collaborators by email via backend API
+- Gemini-powered AI drawing generation (`vector` and `raster` modes)
 - PWA-enabled frontend build
-- **Gemini AI Text-to-Drawing**: Turn natural language prompts into fully editable vector layouts or detailed raster SVG illustrations with secure local insertion.
 
 ## Monorepo Layout
 
@@ -19,7 +19,8 @@ It supports multiplayer drawing sessions, live cursors, room invitations, and a 
 .
 ├── be/   # Express + Socket.IO backend
 ├── fe/   # React + Vite frontend
-└── docs/ # Product and architecture notes
+├── docs/ # Product and architecture notes
+└── Makefile
 ```
 
 ## Prerequisites
@@ -29,17 +30,27 @@ It supports multiplayer drawing sessions, live cursors, room invitations, and a 
 
 ## Quick Start
 
-1. Clone and install dependencies.
+1. Clone the repository.
 
 ```bash
 git clone https://github.com/pandarudra/draw.wine.git
 cd draw.wine
+```
 
+2. Install dependencies (recommended).
+
+```bash
+make install
+```
+
+Alternative manual install:
+
+```bash
 cd be && npm install
 cd ../fe && npm install
 ```
 
-2. Create backend environment file at `be/.env`.
+3. Create backend environment file: `be/.env`
 
 ```env
 PORT=3000
@@ -49,20 +60,27 @@ FE_URL_PROD=https://your-frontend-domain.com
 
 # Optional: enable real email sending in production mode
 RESEND_API_KEY=
-RESEND_FROM_EMAIL=draw.wine <onboarding@resend.dev>
+RESEND_FROM_EMAIL=Draw Wine <onboarding@resend.dev>
 
-# Enable Gemini AI layout generation feature
+# Required for AI generation endpoints
 GEMINI_API_KEY=your_google_gemini_api_key_here
 ```
 
-3. (Optional) Create frontend environment file at `fe/.env` for production API routing.
+4. Optional frontend environment file: `fe/.env`
 
 ```env
+# If omitted, frontend uses http://localhost:3000 in development
 VITE_ENV=prod
 VITE_BE_URL=https://your-backend-domain.com
 ```
 
-4. Start both apps in separate terminals.
+5. Start both apps.
+
+```bash
+make dev
+```
+
+Alternative manual start:
 
 ```bash
 # Terminal 1
@@ -74,22 +92,32 @@ cd fe
 npm run dev
 ```
 
-5. Open:
+6. Open the app:
 
 - Frontend: http://localhost:5173
-- Backend health: http://localhost:3000/health
 
-## Run Scripts
+## Scripts
 
-Backend (`be`):
+### Root (Makefile)
 
 ```bash
-npm run dev    # nodemon + ts-node
-npm run build  # compile TypeScript to dist/
-npm run start  # run dist/index.js
+make install      # install frontend + backend dependencies
+make dev          # run frontend and backend together
+make build        # build frontend and backend
+make lint         # lint frontend
+make typecheck    # typecheck frontend and backend
+make check        # lint + typecheck
 ```
 
-Frontend (`fe`):
+### Backend (`be`)
+
+```bash
+npm run dev       # nodemon + ts-node (src/app.ts)
+npm run build     # compile TypeScript to dist/
+npm run start     # run dist/app.js
+```
+
+### Frontend (`fe`)
 
 ```bash
 npm run dev
@@ -98,36 +126,38 @@ npm run preview
 npm run lint
 ```
 
-## Runtime Notes
-
-- Backend CORS allow-list is composed from `FE_URL_DEV` and `FE_URL_PROD`.
-- Frontend uses `http://localhost:3000` in non-prod mode.
-- Invitation emails are simulated in development mode and actually sent via Resend only when properly configured in production mode.
-- On small screens (`<768px`), the frontend currently shows a mobile fallback screen instead of the full board UI.
-
 ## API Overview
 
-### REST
+### REST Endpoints
 
-- `GET /health`: service status + socket connection stats
-- `POST /api/rooms/send-invitations`: send room invitation emails
-- `POST /api/ai/generate`: secure proxy to Google Gemini API for intelligent text-to-drawing layout generation
+- `POST /api/rooms/send-invitations`: send invitation emails
+- `POST /api/ai/generate`: generate drawing layout from prompt
+- `POST /api/ai/chat`: chat endpoint for AI assistant features
 
-### Socket Events (high level)
+Note: there is currently no `/health` endpoint in the backend.
 
-- Room lifecycle: join/leave room
-- Collaboration state: collaborators updates, cursor updates
-- Drawing synchronization: element operations and laser pointer activity
+### Socket Collaboration (High Level)
 
-## Routes
+- Room lifecycle: join and leave room
+- Presence: collaborators and cursor updates
+- Canvas sync: drawing element operations and laser pointer activity
+
+## Frontend Routes
 
 - `/`: landing page
 - `/board/:id`: drawing board
 - `/collab`: collaborative room view
 
+## Runtime Notes
+
+- Backend CORS allow-list is composed from `FE_URL_DEV` and `FE_URL_PROD`.
+- Frontend API base URL defaults to `http://localhost:3000` unless `VITE_ENV=prod`.
+- Invitation emails are simulated in development mode and sent with Resend in production mode when configured.
+- On small screens (`<768px`), the app currently renders a mobile fallback screen instead of the full board UI.
+
 ## Documentation
 
-Additional implementation docs are available in `docs/`:
+Detailed notes are available in `docs/`:
 
 - `architecture.md`
 - `canvas-interactions.md`
@@ -140,7 +170,7 @@ Additional implementation docs are available in `docs/`:
 ## Tech Stack
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS 4, Radix UI, Rough.js, Socket.IO client
-- Backend: Express 5, Socket.IO, TypeScript, Helmet, CORS, compression, express-rate-limit, Resend
+- Backend: Express 5, Socket.IO, TypeScript, Helmet, CORS, compression, express-rate-limit, Resend, Google Generative AI SDK
 
 ## Contributing
 
