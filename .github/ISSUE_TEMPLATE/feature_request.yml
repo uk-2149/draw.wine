@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest an enhancement for draw.wine
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share your idea. The more context you provide, the easier it is to plan and prioritize.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem are you trying to solve?
+      placeholder: It is hard to organize complex drawings across multiple sections.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe your preferred solution.
+      placeholder: Add layers and lock/hide controls in the toolbar.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Other approaches you considered.
+
+  - type: textarea
+    id: ux
+    attributes:
+      label: UX / API Details
+      description: Explain expected behavior, interactions, and edge cases.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Which areas are impacted?
+      placeholder: frontend, backend, collaboration, AI, export/import, docs
+
+  - type: input
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this for your workflow?
+      placeholder: Nice to have / Important / Critical
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Include mockups, links, references, or examples.
