@@ -1,7 +1,7 @@
 import { TOOLBAR_ITEMS } from "@/constants/toolbar";
 import { Menubar } from "../../ui/menubar";
 import { CMenubtn } from "./menubtn";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useDrawing } from "@/contexts/drawing/useDrawing";
 import type { ToolType } from "@/types/drawing";
 import { useCollab } from "@/contexts/collab/useCollab";
@@ -16,10 +16,14 @@ export const Toolbar = memo(() => {
     state.userId === state.hostId ||
     !state.isCollaborating;
 
-  const visibleItems = TOOLBAR_ITEMS.filter((item) => {
-    if (canDraw) return true;
-    return ["Hand", "select", "Laser"].includes(item.tooltip);
-  });
+  const visibleItems = useMemo(
+    () =>
+      TOOLBAR_ITEMS.filter((item) => {
+        if (canDraw) return true;
+        return ["Hand", "select", "Laser"].includes(item.tooltip);
+      }),
+    [canDraw],
+  );
 
   const handleSelect = useCallback(
     (item: (typeof TOOLBAR_ITEMS)[0]) => {
