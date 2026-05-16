@@ -1,0 +1,1229 @@
+─────────────────────────────────────────────────────────────────────────────────────────────────────
+Using gpt-4o model with API key from environment.
+Aider v0.86.2
+Main model: gpt-4o with diff edit format
+Weak model: gpt-4o-mini
+Git repo: .git with 201 files
+Repo-map: using 4096 tokens, auto refresh
+Here are summaries of some files present in my git repository.
+Do not propose changes to these files, treat them as *read-only*.
+If you need to edit any of these files, ask me to *add them to the chat* first.
+
+be/src/services/sessionManager.ts:
+⋮
+│class SessionManager {
+│  private sessions: Map<string, SessionData> = new Map();
+│  private readonly SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+│
+│  /**
+│   * Get or create a chat session for a sessionId
+│   */
+│  getOrCreateSession(
+│    sessionId: string,
+│    createFn: () => ChatSession,
+⋮
+
+be/src/services/socket.service.ts:
+⋮
+│export class CollabDrawingServer {
+│  private static instance: CollabDrawingServer;
+│  private _io: SocketServer;
+│
+│  private constructor(httpServer: HTTPServer) {
+│    this._io = new SocketServer(httpServer, {
+│      cors: {
+│        origin: allowedOrigins,
+│        credentials: true,
+│      },
+⋮
+
+be/src/types/ai.t.ts:
+│export interface AiDrawingRequest {
+⋮
+│export interface GeneratedElement {
+│  type: string;
+│  x: number;
+│  y: number;
+│  width?: number;
+│  height?: number;
+│  text?: string;
+│  fontSize?: number;
+│  strokeColor?: string;
+│  fillColor?: string;
+⋮
+│export interface AiChatRequest {
+│  prompt: string;
+│  model?: string;
+│  sessionId?: string; // optional session ID for conversation history
+⋮
+
+be/src/types/email.t.ts:
+│export interface EmailInviteData {
+⋮
+
+be/src/types/socket.t.ts:
+│export interface User {
+⋮
+│export interface Room {
+│  id: string;
+│  users: Map<string, User>;
+│  elements: Element[];
+│  lastActivity: number;
+│  createdAt: number;
+│  hostId?: string;
+│  settings?: {
+│    onlyHostCanDraw: boolean;
+│    requireApproval: boolean;
+⋮
+│export interface Element {
+│  id: string;
+│  type: string;
+│  x: number;
+│  y: number;
+│  width?: number;
+│  height?: number;
+│  strokeColor: string;
+│  fillColor?: string;
+│  strokeWidth: number;
+⋮
+│export interface DrawingOperation {
+│  type:
+│    | "element_start"
+│    | "element_update"
+│    | "element_complete"
+│    | "element_delete";
+│  roomId: string;
+│  elementId: string;
+│  authorId: string;
+│  data: any;
+⋮
+
+fe/src/components/custom/ThemeToggle.tsx:
+⋮
+│export function ThemeToggle() {
+│  const { theme, setTheme } = useTheme();
+│
+│  const toggleTheme = () => {
+│    const isDark =
+│      theme === "dark" ||
+│      (theme === "system" &&
+│        window.matchMedia("(prefers-color-scheme: dark)").matches);
+│    setTheme(isDark ? "light" : "dark");
+│  };
+│
+⋮
+
+fe/src/components/custom/ai/AiChatSidebar.tsx:
+⋮
+│interface AiChatSidebarProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+⋮
+│type ChatRole = "user" | "assistant";
+│
+│type ChatMessage = {
+│  id: string;
+│  role: ChatRole;
+│  content: string;
+│  status?: "loading" | "success" | "error" | "info";
+⋮
+
+fe/src/components/custom/ai/Aibutton.tsx:
+⋮
+│interface AibuttonProps {
+│  onClick?: () => void;
+⋮
+
+fe/src/components/custom/general/HelpButton.tsx:
+⋮
+│            <div className="flex border-b border-border px-5">
+│              <button
+│                onClick={() => setActiveTab("shortcuts")}
+│                className={`relative px-3 py-2.5 text-sm font-medium transition-colors ${
+│                  activeTab === "shortcuts"
+│                    ? "text-foreground"
+│                    : "text-muted-foreground hover:text-foreground"
+│                }`}
+│              >
+│                Shortcuts
+⋮
+
+fe/src/components/custom/general/JoinRequestsSidebar.tsx:
+⋮
+│            <button
+│              onClick={() => setIsJoinSidebarOpen(false)}
+│              className="p-1 rounded hover:bg-accent transition-colors"
+⋮
+│                    <button
+│                      onClick={() => resolveJoinRequest(request.id, "accept")}
+│                      className="p-1.5 rounded-md bg-green-100 text-green-700 hover:bg-green-200 da
+│                      title="Accept"
+⋮
+│                    <button
+│                      onClick={() => resolveJoinRequest(request.id, "reject")}
+│                      className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 dark:bg-
+│                      title="Decline"
+⋮
+
+fe/src/components/custom/general/PropertiesPanel.tsx:
+⋮
+│            <button
+│              onClick={() => setFillColor(null)}
+⋮
+
+fe/src/components/custom/modals/AiPromptModal.tsx:
+⋮
+│interface AiPromptModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+⋮
+
+fe/src/components/custom/modals/EmailInviteModal.tsx:
+⋮
+│interface EmailInviteModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+│  roomId?: string;
+│  roomName?: string;
+⋮
+
+fe/src/components/custom/modals/ExportModal.tsx:
+⋮
+│interface ExportModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+│  onExport: (options: ExportOptions) => void;
+⋮
+
+fe/src/components/custom/modals/JoinRoomModal.tsx:
+⋮
+│interface JoinRoomModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+⋮
+
+fe/src/components/ui/accordion.tsx:
+⋮
+│function Accordion({
+│  ...props
+⋮
+│function AccordionItem({
+│  className,
+│  ...props
+⋮
+│function AccordionTrigger({
+│  className,
+│  children,
+│  ...props
+⋮
+
+fe/src/components/ui/alert-dialog.tsx:
+⋮
+│function AlertDialog({
+│  ...props
+⋮
+│  return (
+│    <AlertDialogPrimitive.Overlay
+│      data-slot="alert-dialog-overlay"
+│      className={cn(
+│        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│        data-slot="alert-dialog-content"
+│        className={cn(
+│          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=c
+│          className
+⋮
+│  return (
+│    <div
+│      data-slot="alert-dialog-footer"
+│      className={cn(
+│        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│function AlertDialogDescription({
+│  className,
+│  ...props
+⋮
+│    <AlertDialogPrimitive.Action
+│      className={cn(buttonVariants(), className)}
+│      {...props}
+⋮
+│    <AlertDialogPrimitive.Cancel
+│      className={cn(buttonVariants({ variant: "outline" }), className)}
+│      {...props}
+⋮
+
+fe/src/components/ui/alert.tsx:
+⋮
+│function Alert({
+│  className,
+│  variant,
+│  ...props
+⋮
+│function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="alert-title"
+│      className={cn(
+│        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│    <div
+│      data-slot="alert-description"
+│      className={cn(
+│        "text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-rel
+│        className
+⋮
+
+fe/src/components/ui/aspect-ratio.tsx:
+⋮
+│function AspectRatio({
+│  ...props
+⋮
+
+fe/src/components/ui/avatar.tsx:
+⋮
+│function AvatarImage({
+│  className,
+│  ...props
+⋮
+│function AvatarFallback({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/breadcrumb.tsx:
+⋮
+│function Breadcrumb({ ...props }: React.ComponentProps<"nav">) {
+│  return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />
+⋮
+│function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {
+│  return (
+│    <ol
+│      data-slot="breadcrumb-list"
+│      className={cn(
+│        "text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm break-words sm:gap-2.5",
+│        className
+│      )}
+│      {...props}
+│    />
+⋮
+│function BreadcrumbLink({
+│  asChild,
+│  className,
+│  ...props
+⋮
+│function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
+│  return (
+│    <span
+│      data-slot="breadcrumb-page"
+│      role="link"
+│      aria-disabled="true"
+│      aria-current="page"
+│      className={cn("text-foreground font-normal", className)}
+│      {...props}
+│    />
+⋮
+│function BreadcrumbSeparator({
+│  children,
+│  className,
+│  ...props
+⋮
+│function BreadcrumbEllipsis({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/calendar.tsx:
+⋮
+│function Calendar({
+│  className,
+│  classNames,
+│  showOutsideDays = true,
+│  captionLayout = "label",
+│  buttonVariant = "ghost",
+│  formatters,
+│  components,
+│  ...props
+⋮
+
+fe/src/components/ui/card.tsx:
+⋮
+│function Card({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="card"
+│      className={cn(
+│        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+│}
+│
+│function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="card-header"
+│      className={cn(
+│        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 h
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="card-description"
+│      className={cn("text-muted-foreground text-sm", className)}
+│      {...props}
+│    />
+│  )
+⋮
+│function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="card-action"
+│      className={cn(
+│        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="card-footer"
+│      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+│      {...props}
+│    />
+│  )
+⋮
+
+fe/src/components/ui/carousel.tsx:
+⋮
+│type CarouselApi = UseEmblaCarouselType[1]
+│type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
+│type CarouselOptions = UseCarouselParameters[0]
+│type CarouselPlugin = UseCarouselParameters[1]
+│
+⋮
+
+fe/src/components/ui/chart.tsx:
+⋮
+│export type ChartConfig = {
+│  [k in string]: {
+│    label?: React.ReactNode;
+│    icon?: React.ComponentType;
+│  } & (
+│    | { color?: string; theme?: never }
+│    | { color?: never; theme: Record<keyof typeof THEMES, string> }
+│  );
+⋮
+
+fe/src/components/ui/checkbox.tsx:
+⋮
+│function Checkbox({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/collapsible.tsx:
+⋮
+│function Collapsible({
+│  ...props
+⋮
+
+fe/src/components/ui/command.tsx:
+⋮
+│function Command({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof CommandPrimitive>) {
+│  return (
+│    <CommandPrimitive
+│      data-slot="command"
+│      className={cn(
+│        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md"
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+│}
+│
+⋮
+│function CommandGroup({
+│  className,
+│  ...props
+⋮
+│function CommandItem({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof CommandPrimitive.Item>) {
+│  return (
+⋮
+│      className={cn(
+│        "text-muted-foreground ml-auto text-xs tracking-widest",
+│        className
+⋮
+
+fe/src/components/ui/dialog.tsx:
+⋮
+│function DialogTrigger({
+│  ...props
+⋮
+│function DialogPortal({
+│  ...props
+⋮
+│function DialogClose({
+│  ...props
+⋮
+│function DialogOverlay({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/drawer.tsx:
+⋮
+│function DrawerTrigger({
+│  ...props
+⋮
+│function DrawerPortal({
+│  ...props
+⋮
+│function DrawerClose({
+│  ...props
+⋮
+│function DrawerOverlay({
+│  className,
+│  ...props
+⋮
+│function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="drawer-header"
+│      className={cn(
+│        "flex flex-col gap-0.5 p-4 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-ce
+│        className
+│      )}
+│      {...props}
+│    />
+⋮
+│function DrawerTitle({
+│  className,
+│  ...props
+⋮
+│function DrawerDescription({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/form.tsx:
+⋮
+│type FormFieldContextValue<
+│  TFieldValues extends FieldValues = FieldValues,
+│  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+⋮
+│type FormItemContextValue = {
+│  id: string
+⋮
+│        {...props}
+│      />
+│    </FormItemContext.Provider>
+│  )
+│}
+│
+│function FormLabel({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+⋮
+│  return (
+│    <Label
+│      data-slot="form-label"
+│      data-error={!!error}
+│      className={cn("data-[error=true]:text-destructive", className)}
+│      htmlFor={formItemId}
+│      {...props}
+│    />
+⋮
+│function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
+│  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
+│
+│  return (
+│    <Slot
+│      data-slot="form-control"
+│      id={formItemId}
+│      aria-describedby={
+│        !error
+│          ? `${formDescriptionId}`
+⋮
+│function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
+│  const { formDescriptionId } = useFormField()
+│
+│  return (
+│    <p
+│      data-slot="form-description"
+│      id={formDescriptionId}
+│      className={cn("text-muted-foreground text-sm", className)}
+│      {...props}
+│    />
+⋮
+│function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
+│  const { error, formMessageId } = useFormField()
+│  const body = error ? String(error?.message ?? "") : props.children
+│
+│  if (!body) {
+│    return null
+│  }
+│
+│  return (
+│    <p
+⋮
+
+fe/src/components/ui/hover-card.tsx:
+⋮
+│function HoverCard({
+│  ...props
+⋮
+
+fe/src/components/ui/input-otp.tsx:
+⋮
+│function InputOTP({
+│  className,
+│  containerClassName,
+│  ...props
+⋮
+│function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="input-otp-group"
+│      className={cn("flex items-center", className)}
+│      {...props}
+│    />
+│  )
+⋮
+
+fe/src/components/ui/navigation-menu.tsx:
+⋮
+│function NavigationMenu({
+│  className,
+│  children,
+│  viewport = true,
+│  ...props
+⋮
+│}) {
+⋮
+│function NavigationMenuTrigger({
+│  className,
+│  children,
+│  ...props
+⋮
+│function NavigationMenuContent({
+│  className,
+│  ...props
+⋮
+│function NavigationMenuViewport({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/pagination.tsx:
+⋮
+│type PaginationLinkProps = {
+│  isActive?: boolean
+⋮
+
+fe/src/components/ui/popover.tsx:
+⋮
+│function PopoverTrigger({
+│  ...props
+⋮
+
+fe/src/components/ui/radio-group.tsx:
+⋮
+│function RadioGroup({
+│  className,
+│  ...props
+⋮
+│function RadioGroupItem({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/resizable.tsx:
+⋮
+│function ResizablePanelGroup({
+│  className,
+│  ...props
+⋮
+│function ResizablePanel({
+│  ...props
+⋮
+
+fe/src/components/ui/scroll-area.tsx:
+⋮
+│function ScrollArea({
+│  className,
+│  children,
+│  ...props
+⋮
+│function ScrollBar({
+│  className,
+│  orientation = "vertical",
+│  ...props
+⋮
+
+fe/src/components/ui/select.tsx:
+⋮
+│function SelectScrollUpButton({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/separator.tsx:
+⋮
+│function Separator({
+│  className,
+│  orientation = "horizontal",
+│  decorative = true,
+│  ...props
+⋮
+
+fe/src/components/ui/sheet.tsx:
+⋮
+│function SheetTrigger({
+│  ...props
+⋮
+│function SheetClose({
+│  ...props
+⋮
+│function SheetPortal({
+│  ...props
+⋮
+│function SheetOverlay({
+│  className,
+│  ...props
+⋮
+│function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sheet-header"
+│      className={cn("flex flex-col gap-1.5 p-4", className)}
+│      {...props}
+│    />
+│  )
+⋮
+│function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sheet-footer"
+│      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+│      {...props}
+│    />
+│  )
+⋮
+│function SheetTitle({
+│  className,
+│  ...props
+⋮
+│function SheetDescription({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/sidebar.tsx:
+⋮
+│type SidebarContextProps = {
+│  state: "expanded" | "collapsed";
+│  open: boolean;
+│  setOpen: (open: boolean) => void;
+│  openMobile: boolean;
+│  setOpenMobile: (open: boolean) => void;
+│  isMobile: boolean;
+│  toggleSidebar: () => void;
+⋮
+│function useSidebar() {
+│  const context = React.useContext(SidebarContext);
+│  if (!context) {
+│    throw new Error("useSidebar must be used within a SidebarProvider.");
+│  }
+│
+│  return context;
+⋮
+│function SidebarProvider({
+│  defaultOpen = true,
+│  open: openProp,
+│  onOpenChange: setOpenProp,
+│  className,
+│  style,
+│  children,
+│  ...props
+⋮
+│function Sidebar({
+│  side = "left",
+│  variant = "sidebar",
+│  collapsible = "offcanvas",
+│  className,
+│  children,
+│  ...props
+⋮
+│function SidebarTrigger({
+│  className,
+│  onClick,
+│  ...props
+⋮
+│function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sidebar-header"
+│      data-sidebar="header"
+│      className={cn("flex flex-col gap-2 p-2", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sidebar-footer"
+│      data-sidebar="footer"
+│      className={cn("flex flex-col gap-2 p-2", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarSeparator({
+│  className,
+│  ...props
+⋮
+│function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
+│  return (
+│    <ul
+│      data-slot="sidebar-menu"
+│      data-sidebar="menu"
+│      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
+│  return (
+│    <li
+│      data-slot="sidebar-menu-item"
+│      data-sidebar="menu-item"
+│      className={cn("group/menu-item relative", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarMenuButton({
+│  asChild = false,
+│  isActive = false,
+│  variant = "default",
+│  size = "default",
+│  tooltip,
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/skeleton.tsx:
+⋮
+│function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="skeleton"
+│      className={cn("bg-accent animate-pulse rounded-md", className)}
+│      {...props}
+│    />
+│  )
+⋮
+
+fe/src/components/ui/table.tsx:
+⋮
+│function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
+│  return (
+│    <thead
+│      data-slot="table-header"
+│      className={cn("[&_tr]:border-b", className)}
+│      {...props}
+│    />
+│  )
+⋮
+│function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
+│  return (
+│    <tbody
+│      data-slot="table-body"
+│      className={cn("[&_tr:last-child]:border-0", className)}
+│      {...props}
+│    />
+│  )
+⋮
+
+fe/src/components/ui/tabs.tsx:
+⋮
+│function TabsList({
+│  className,
+│  ...props
+⋮
+│function TabsTrigger({
+│  className,
+│  ...props
+⋮
+
+fe/src/components/ui/textarea.tsx:
+⋮
+│function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+⋮
+│      data-slot="textarea"
+│      className={cn(
+│        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:rin
+│        className
+⋮
+
+fe/src/components/ui/toggle-group.tsx:
+⋮
+│function ToggleGroup({
+│  className,
+│  variant,
+│  size,
+│  children,
+│  ...props
+⋮
+│function ToggleGroupItem({
+│  className,
+│  children,
+│  variant,
+│  size,
+│  ...props
+⋮
+│      className={cn(
+│        toggleVariants({
+│          variant: context.variant || variant,
+│          size: context.size || size,
+│        }),
+│        "min-w-0 flex-1 shrink-0 rounded-none shadow-none first:rounded-l-md last:rounded-r-md focu
+│        className
+⋮
+
+fe/src/components/ui/tooltip.tsx:
+⋮
+│function TooltipContent({
+│  className,
+│  sideOffset = 0,
+│  children,
+│  ...props
+⋮
+
+fe/src/contexts/ai/types.ts:
+│export type AiStatus = "idle" | "loading" | "success" | "error";
+│export type AiMode = "vector" | "raster";
+⋮
+│export interface GeneratedElement {
+│  type: string;
+│  x: number;
+│  y: number;
+│  width?: number;
+│  height?: number;
+│  text?: string;
+│  fontSize?: number;
+│  strokeColor?: string;
+│  fillColor?: string;
+⋮
+│export interface AiContextType {
+│  model: AiModel | null;
+│  mode: AiMode;
+│  prompt: string;
+│  result: AiResult | null;
+│  error: string | null;
+│  state: AiStatus;
+│  sessionId: string | null; // for conversation history
+│  setModel: (model: AiModel | null) => void;
+│  setMode: (mode: AiMode) => void;
+⋮
+
+fe/src/contexts/collab/types.ts:
+⋮
+│export type CollabSettings = {
+│  onlyHostCanDraw: boolean;
+│  requireApproval: boolean;
+⋮
+│export interface PendingJoinRequest {
+│  id: string;
+│  name: string;
+│  color: string;
+│  roomId: string;
+⋮
+│export type CollaborativeOperation =
+│  | {
+│      type: "element_start";
+│      roomId?: string;
+│      elementId: string;
+│      authorId?: string;
+│      userId?: string;
+│      timestamp?: number;
+│      element?: Element;
+│      data?: {
+⋮
+│export interface CollabState {
+│  isConnected: boolean;
+│  isConnecting: boolean;
+│  isCollaborating: boolean;
+│  roomId: string | null;
+│  userId: string | null;
+│  pendingOperation: CollaborativeOperation | null;
+│  collaborators: Collaborator[];
+│  socket: Socket | null;
+│  error: string | null;
+⋮
+
+fe/src/contexts/general/types.ts:
+│export type GCType = {
+⋮
+
+fe/src/contexts/theme/types.ts:
+⋮
+│export type Theme = "dark" | "light" | "system";
+│
+⋮
+│export type ThemeProviderState = {
+│  theme: Theme;
+│  setTheme: (theme: Theme) => void;
+⋮
+
+fe/src/helpers/collab.h.ts:
+⋮
+│export interface RoomStatusResponse {
+│  roomId: string;
+│  userId: string;
+│  isInRoom: boolean;
+│  userInfo: {
+│    id: string;
+│    name: string;
+│    color: string;
+│    joinedAt: number;
+│  } | null;
+⋮
+
+fe/src/helpers/connectionSnap.h.ts:
+⋮
+│export type ConnectionPoint = "center" | "top" | "bottom" | "left" | "right";
+│
+⋮
+
+fe/src/helpers/export.h.ts:
+⋮
+│type ElementBounds = {
+│  minX: number;
+│  minY: number;
+│  maxX: number;
+│  maxY: number;
+⋮
+│type ElementsBounds = ElementBounds & {
+│  width: number;
+│  height: number;
+⋮
+│type RoughCanvas = ReturnType<typeof rough.canvas>;
+│
+│export type ExportFormat = "png" | "jpg" | "svg";
+│
+│export interface ExportOptions {
+│  format: ExportFormat;
+│  quality?: number;
+│  backgroundColor?: string;
+│  scale?: number;
+⋮
+
+fe/src/helpers/imageLoader.h.ts:
+│export class ImageLoader {
+⋮
+│  static load(url: string): Promise<HTMLImageElement> {
+│    if (this.imageCache.has(url)) {
+│      return Promise.resolve(this.imageCache.get(url)!);
+│    }
+│
+│    if (this.loadingPromises.has(url)) {
+│      return this.loadingPromises.get(url)!;
+│    }
+│
+│    const promise = new Promise<HTMLImageElement>((resolve, reject) => {
+⋮
+│  static getFromCache(url: string): HTMLImageElement | null {
+│    return this.imageCache.get(url) || null;
+⋮
+│  static clear() {
+│    this.imageCache.clear();
+│    this.loadingPromises.clear();
+⋮
+
+fe/src/helpers/roundedShapes.h.ts:
+⋮
+│export function rectangleCurveRadius(absW: number, absH: number): number {
+│  const w = Math.abs(absW);
+│  const h = Math.abs(absH);
+│  const m = Math.min(w, h);
+│  if (m <= 0) return 0;
+│  return Math.min(m * 0.1, m / 2 - 0.25);
+⋮
+│export function diamondCurveRadius(hw: number, hh: number): number {
+│  const edgeLen = Math.hypot(hw, hh);
+│  if (edgeLen <= 0) return 0;
+│  const cap = Math.min(hw, hh) * 0.46;
+│  return Math.max(0, Math.min(edgeLen * 0.1, cap, edgeLen / 2 - 0.5));
+⋮
+│export function pointOnSegment(
+│  from: { x: number; y: number },
+│  to: { x: number; y: number },
+│  distance: number,
+⋮
+│export function addRoundedConvexPolygonPath(
+│  ctx: CanvasRenderingContext2D,
+│  vertices: { x: number; y: number }[],
+│  radius: number,
+⋮
+│export function addRoundedDiamondPath(
+│  ctx: CanvasRenderingContext2D,
+│  cx: number,
+│  cy: number,
+│  hw: number,
+│  hh: number,
+│  radius: number,
+⋮
+
+fe/src/helpers/stroke.h.ts:
+│export type StrokePattern =
+⋮
+
+fe/src/hooks/use-mobile.ts:
+⋮
+│export function useIsMobile() {
+│  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+│
+│  React.useEffect(() => {
+│    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+│    const onChange = () => {
+│      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+│    }
+│    mql.addEventListener("change", onChange)
+│    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+⋮
+
+fe/src/hooks/useKeyboardShortcuts.ts:
+⋮
+│export interface KeyboardShortcuts {
+│  onSave?: () => void;
+│  onExport?: () => void;
+│  onImport?: () => void;
+⋮
+
+fe/src/hooks/usePWAInstall.ts:
+⋮
+│interface BeforeInstallPromptEvent extends Event {
+│  prompt(): Promise<void>;
+│  userChoice: Promise<{
+│    outcome: "accepted" | "dismissed";
+│    platform: string;
+│  }>;
+⋮
+
+fe/src/pages/PlayGround.tsx:
+⋮
+│            <Aibutton onClick={() => setIsAiSidebarOpen(true)} />
+⋮
+
+fe/src/types/collaboration.ts:
+⋮
+│export type CollaborativeOperation =
+│  | {
+│      type: "element_start";
+│      roomId?: string;
+│      elementId: string;
+│      authorId?: string;
+│      userId?: string;
+│      timestamp?: number;
+│      element?: Element;
+│      data?: {
+⋮
+│export interface CollabState {
+│  isConnected: boolean;
+│  isConnecting: boolean;
+│  isCollaborating: boolean;
+│  roomId: string | null;
+│  userId: string | null;
+│  pendingOperation: CollaborativeOperation | null;
+│  collaborators: Collaborator[];
+│  socket: Socket | null;
+│  error: string | null;
+⋮
+
+fe/src/types/components.ts:
+⋮
+│export interface CreateRoomModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+│}
+│export interface IMenubtn {
+│  state: boolean;
+│  compoBefore: FC;
+│  compoAfter: FC;
+│  onClick: () => void;
+│  shortcut?: string;
+⋮
+
+fe/src/types/drawing.ts:
+│export type ToolType =
+⋮
+
+fe/src/types/element.ts:
+│export interface Position {
+⋮
+│export interface Element {
+│  id: string;
+│  type: string;
+│  x: number;
+│  y: number;
+│  width?: number;
+│  height?: number;
+│  points?: Position[];
+│  strokeColor: string;
+│  fillColor?: string;
+⋮
+
+fe/src/types/room.ts:
+│export interface User {
+⋮
+│export interface Room {
+│  id: string;
+│  name: string;
+│  createdBy: string;
+│  createdAt: string;
+│  isPublic: boolean;
+│  inviteLink?: string;
+⋮
+│export interface CollaborationState {
+│  isCollaborating: boolean;
+│  currentRoom: Room | null;
+│  currentUser: User | null;
+│  collaborators: User[];
+│  isCreator?: boolean;
+⋮
+

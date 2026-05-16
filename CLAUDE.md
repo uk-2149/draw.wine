@@ -16,6 +16,7 @@ This file is a concise fallback summary for AI agents. If anything here conflict
 - Prefer secure defaults and ask for clarification before handling sensitive data.
 - Avoid unnecessary dependencies and untrusted external calls.
 - After every major change, run build and lint checks, or the closest available project checks, and fix relevant failures before finalizing.
+- When changing frontend UI, keep it consistent with the app's existing design language and make sure it works correctly in both light and dark themes.
 
 ## Checklist Before Finalizing
 
