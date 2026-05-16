@@ -41,7 +41,7 @@ export const useCollabRoom = () => {
 
   const handleJoin = () => {
     if (userName.trim()) {
-      const params: any = { room: roomId, name: userName };
+      const params: Record<string, string> = { room: roomId, name: userName };
       if (onlyHostCanDraw) params.onlyHostCanDraw = "true";
       if (requireApproval) params.requireApproval = "true";
       setSearchParams(params);

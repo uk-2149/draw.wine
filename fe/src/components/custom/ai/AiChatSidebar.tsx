@@ -64,9 +64,56 @@ const DRAWING_KEYWORDS = [
   "create",
 ];
 
+const ARCHITECTURE_KEYWORDS = [
+  "architecture",
+  "architectural",
+  "service",
+  "services",
+  "database",
+  "databases",
+  "gateway",
+  "api",
+  "client",
+  "frontend",
+  "backend",
+  "microservice",
+  "microservices",
+  "queue",
+  "cache",
+  "auth",
+  "payment",
+  "inventory",
+  "cart",
+  "server",
+  "servers",
+  "cloud",
+  "platform",
+  "component",
+  "components",
+  "system",
+];
+
 const isLikelyDrawingPrompt = (prompt: string) => {
   const lower = prompt.toLowerCase();
-  return DRAWING_KEYWORDS.some((keyword) => lower.includes(keyword));
+  if (DRAWING_KEYWORDS.some((keyword) => lower.includes(keyword))) {
+    return true;
+  }
+
+  const architectureHits = ARCHITECTURE_KEYWORDS.filter((keyword) =>
+    lower.includes(keyword),
+  ).length;
+
+  const hasComponentList = /,/.test(lower) || /\bwith\b/.test(lower);
+  const hasManyParts = lower
+    .split(/[\n,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean).length;
+
+  return (
+    architectureHits >= 2 ||
+    (architectureHits >= 1 && hasComponentList) ||
+    hasManyParts >= 4
+  );
 };
 
 export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
@@ -79,6 +126,8 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     finishRequest,
     failRequest,
     state,
+    sessionId,
+    setSessionId,
   } = useAi();
   const [localPrompt, setLocalPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -161,7 +210,17 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
         return;
       }
 
-      const chatResponse = await generateAiChat(trimmed, currentModel);
+      const chatResponse = await generateAiChat(
+        trimmed,
+        currentModel,
+        sessionId,
+      );
+
+      // Update session ID if the backend provides one (for first message in a session)
+      if (chatResponse.sessionId && !sessionId) {
+        setSessionId(chatResponse.sessionId);
+      }
+
       finishRequest(null);
       updateMessage(assistantId, {
         content:
@@ -169,12 +228,13 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           "Tell me what you want to draw and I will add it to the canvas.",
         status: "success",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const msg =
-        error?.message ||
-        (isDrawingPrompt
-          ? "Failed to generate layout via Gemini AI."
-          : "Failed to generate response via Gemini AI.");
+        error instanceof Error
+          ? error.message
+          : isDrawingPrompt
+            ? "Failed to generate layout via Gemini AI."
+            : "Failed to generate response via Gemini AI.";
       failRequest(msg);
       updateMessage(assistantId, { content: msg, status: "error" });
     }
@@ -187,6 +247,8 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     finishRequest,
     failRequest,
     updateMessage,
+    sessionId,
+    setSessionId,
   ]);
 
   const handleInputKeyDown = (
@@ -213,9 +275,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              AI Canvas Chat
-            </h3>
+            <h3 className="text-sm font-semibold text-foreground">Chat</h3>
             <p className="text-xs text-muted-foreground">
               Describe a layout to add it to the board.
             </p>
@@ -391,9 +451,6 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
             )}
           </Button>
         </div>
-        <span className="mt-2 block text-[11px] text-muted-foreground">
-          Enter to send, Shift+Enter for new line
-        </span>
       </div>
     </aside>
   );

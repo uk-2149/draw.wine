@@ -1,9 +1,7 @@
 import { Request, Response } from "express";
-import aiService, {
-  AiChatRequest,
-  AiDrawingRequest,
-} from "../services/ai.service";
+import aiService from "../services/ai.service";
 import { Logger } from "../helpers/ext.h";
+import { AiChatRequest, AiDrawingRequest } from "../types";
 
 export const generateDrawing = async (
   req: Request,
@@ -65,7 +63,7 @@ export const generateDrawing = async (
 
 export const chatWithAi = async (req: Request, res: Response): Promise<any> => {
   try {
-    const { prompt, model }: AiChatRequest = req.body;
+    const { prompt, model, sessionId }: AiChatRequest = req.body;
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return res.status(400).json({
@@ -82,12 +80,13 @@ export const chatWithAi = async (req: Request, res: Response): Promise<any> => {
     }
 
     Logger.info(
-      `AI chat requested. Model: ${model || "default"}, Prompt: "${prompt.substring(0, 60)}..."`,
+      `AI chat requested. Model: ${model || "default"}, Session: ${sessionId || "new"}, Prompt: "${prompt.substring(0, 60)}..."`,
     );
 
     const result = await aiService.generateChat({
       prompt: prompt.trim(),
       model,
+      sessionId,
     });
 
     Logger.success("Successfully generated chat response.");
@@ -100,7 +99,9 @@ export const chatWithAi = async (req: Request, res: Response): Promise<any> => {
     Logger.error("Controller error in chatWithAi:", error);
     return res.status(500).json({
       error: "Chat Failed",
-      message: error?.message || "An unexpected error occurred during chat.",
+      message:
+        error?.message ||
+        "An unexpected error occurred during chat generation.",
     });
   }
 };

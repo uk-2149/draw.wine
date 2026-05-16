@@ -74,9 +74,12 @@ export const AiPromptModal = ({ isOpen, onClose }: AiPromptModalProps) => {
         `Successfully added ${response.elements.length} elements to your board!`,
       );
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("AI Generation failed:", error);
-      const msg = error?.message || "Failed to generate layout via Gemini AI.";
+      const msg =
+        error instanceof Error
+          ? error.message
+          : "Failed to generate layout via Gemini AI.";
       failRequest(msg);
       toast.error(msg);
     }

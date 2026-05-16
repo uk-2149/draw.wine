@@ -18,6 +18,7 @@ export const AiProvider = ({ children }: { children: React.ReactNode }) => {
   const [result, setResult] = React.useState<AiResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [state, setState] = React.useState<AiStatus>("idle");
+  const [sessionId, setSessionId] = React.useState<string | null>(null);
 
   const reset = () => {
     setPrompt("");
@@ -57,12 +58,14 @@ export const AiProvider = ({ children }: { children: React.ReactNode }) => {
     result,
     error,
     state,
+    sessionId,
     setModel,
     setMode,
     setPrompt,
     setResult,
     setError,
     setState,
+    setSessionId,
     reset,
     startRequest,
     finishRequest,
