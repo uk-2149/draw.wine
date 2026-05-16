@@ -45,8 +45,8 @@ export function normalizeAiLayout(
     const type = shape.type || "Rectangle";
     const isImageType = type === "Image";
 
-    let x = snapToGrid(shape.x ?? 0);
-    let y = snapToGrid(shape.y ?? 0);
+    const x = snapToGrid(shape.x ?? 0);
+    const y = snapToGrid(shape.y ?? 0);
 
     let width = shape.width;
     let height = shape.height;
