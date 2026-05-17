@@ -398,6 +398,26 @@ export const CanvasBoard = () => {
     bounds: { minX: number; minY: number; maxX: number; maxY: number };
   } | null>(null);
 
+  // Preview / first-time hint state (like Excalidraw)
+  const PREVIEW_SEEN_KEY = "draw_wine_seen_preview";
+  const [showPreview, setShowPreview] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !window.localStorage.getItem(PREVIEW_SEEN_KEY);
+    } catch {
+      return false;
+    }
+  });
+
+  const hidePreview = useCallback(() => {
+    try {
+      window.localStorage.setItem(PREVIEW_SEEN_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setShowPreview(false);
+  }, []);
+
   const [snapHighlight, setSnapHighlight] = useState<{
     x: number;
     y: number;
@@ -998,6 +1018,210 @@ export const CanvasBoard = () => {
         handleCanvasElementsUpdate,
       );
   }, [isCollaborating]);
+
+  // Handle paste events: text and images from clipboard
+  useEffect(() => {
+    const handlePaste = (evt: Event) => {
+      const e = evt as ClipboardEvent;
+      (async () => {
+        try {
+          const target = e.target as HTMLElement | null;
+          // If focus is on an input/textarea/contentEditable, don't intercept
+          const tag = target?.tagName;
+          if (
+            tag === "INPUT" ||
+            tag === "TEXTAREA" ||
+            target?.isContentEditable
+          )
+            return;
+
+          const items = e.clipboardData?.items;
+          if (!items || items.length === 0) return;
+
+          // Prevent default to avoid browser navigating with pasted image URLs in some cases
+          e.preventDefault();
+
+          // Determine viewport center in canvas coordinates
+          const canvas = canvasRef.current;
+          const cw = canvas
+            ? canvas.width / window.devicePixelRatio
+            : window.innerWidth;
+          const ch = canvas
+            ? canvas.height / window.devicePixelRatio
+            : window.innerHeight;
+          const centerX = (-position.x + cw / 2) / scale;
+          const centerY = (-position.y + ch / 2) / scale;
+
+          // Prefer image blob if present
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type && item.type.startsWith("image/")) {
+              const blob =
+                item.getAsFile?.() ??
+                (item.getAsFile ? item.getAsFile() : null);
+              const file = blob as File | null;
+              if (!file) continue;
+
+              const objectUrl = URL.createObjectURL(file);
+              // load image to get dimensions
+              try {
+                const img = await ImageLoader.load(objectUrl);
+                // create a reasonable size (max 600px on longest edge)
+                const maxDim = 600;
+                let iw = img.width;
+                let ih = img.height;
+                const scaleFactor = Math.min(1, maxDim / Math.max(iw, ih));
+                iw = Math.round(iw * scaleFactor);
+                ih = Math.round(ih * scaleFactor);
+
+                const cryptoWithRandom =
+                  typeof crypto !== "undefined"
+                    ? (crypto as Crypto & { randomUUID?: () => string })
+                    : undefined;
+                const id =
+                  cryptoWithRandom && cryptoWithRandom.randomUUID
+                    ? cryptoWithRandom.randomUUID()
+                    : `img-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+                const newElement: Element = {
+                  id,
+                  type: "Image",
+                  x: centerX - iw / 2,
+                  y: centerY - ih / 2,
+                  width: iw,
+                  height: ih,
+                  strokeColor: strokeColor || "#000000",
+                  fillColor: undefined,
+                  strokeWidth: strokeWidth || 1,
+                  strokePattern: strokePattern || "solid",
+                  roughness: 1,
+                  seed: Math.floor(Math.random() * 2 ** 31),
+                  imageUrl: objectUrl,
+                  aspectRatio: iw > 0 && ih > 0 ? iw / ih : undefined,
+                } as Element;
+
+                // insert element
+                if (isCollaborating) {
+                  hidePreview();
+                  setCollaborativeElements((prev) => [...prev, newElement]);
+                  if (sendOperation && state.roomId) {
+                    sendOperation({
+                      type: "element_complete",
+                      elementId: newElement.id,
+                      data: { element: newElement },
+                      roomId: state.roomId!,
+                      authorId: state.userId!,
+                    });
+                  }
+                } else {
+                  hidePreview();
+                  recordHistorySnapshot(localElements);
+                  setLocalElements((prev) => [...prev, newElement]);
+                  setTimeout(
+                    () => saveToLocalStorage([...localElements, newElement]),
+                    0,
+                  );
+                }
+
+                return; // handled image paste
+              } catch (err) {
+                console.error("Failed to load pasted image:", err);
+              }
+            }
+          }
+
+          // If no image, fallback to plain text
+          const text = e.clipboardData?.getData("text/plain") || "";
+          if (text && text.trim().length > 0) {
+            const cryptoWithRandom =
+              typeof crypto !== "undefined"
+                ? (crypto as Crypto & { randomUUID?: () => string })
+                : undefined;
+            const id =
+              cryptoWithRandom && cryptoWithRandom.randomUUID
+                ? cryptoWithRandom.randomUUID()
+                : `text-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+            // measure text size using existing helper
+            const measured = measureTextElement({
+              text,
+              fontSize: fontSize || 16,
+              fontFamily: fontFamily || "Virgil",
+              fontWeight: fontWeight || "normal",
+              fontStyle: fontStyle || "normal",
+            });
+
+            const newTextEl: Element = {
+              id,
+              type: "Text",
+              x: centerX - measured.width / 2,
+              y: centerY - measured.height / 2,
+              text,
+              fontSize: fontSize || 16,
+              fontFamily: fontFamily || "Virgil",
+              fontWeight: fontWeight || "normal",
+              fontStyle: fontStyle || "normal",
+              textAlign: textAlign || "left",
+              strokeColor: strokeColor || "#000000",
+              fillColor: fillColor || undefined,
+              strokeWidth: 0,
+              roughness: 1,
+              seed: Math.floor(Math.random() * 2 ** 31),
+              width: measured.width,
+              height: measured.height,
+            } as Element;
+
+            if (isCollaborating) {
+              hidePreview();
+              setCollaborativeElements((prev) => [...prev, newTextEl]);
+              if (sendOperation && state.roomId) {
+                sendOperation({
+                  type: "element_complete",
+                  elementId: newTextEl.id,
+                  data: { element: newTextEl },
+                  roomId: state.roomId!,
+                  authorId: state.userId!,
+                });
+              }
+            } else {
+              hidePreview();
+              recordHistorySnapshot(localElements);
+              setLocalElements((prev) => [...prev, newTextEl]);
+              setTimeout(
+                () => saveToLocalStorage([...localElements, newTextEl]),
+                0,
+              );
+            }
+          }
+        } catch (err) {
+          console.error("Paste handling error:", err);
+        }
+      })().catch((err) => console.error("Paste handler async error:", err));
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [
+    canvasRef,
+    position,
+    scale,
+    isCollaborating,
+    sendOperation,
+    state.roomId,
+    state.userId,
+    localElements,
+    setLocalElements,
+    setCollaborativeElements,
+    strokeColor,
+    strokeWidth,
+    strokePattern,
+    fontSize,
+    fontFamily,
+    fontWeight,
+    fontStyle,
+    textAlign,
+    fillColor,
+  ]);
 
   // ─── Sync selected element properties ────────────────────────────────────────
 
@@ -2602,6 +2826,7 @@ export const CanvasBoard = () => {
 
       // ── Text tool ──
       if (selectedTool === "Text") {
+        hidePreview();
         beginHistoryAction();
         const elementId = isCollaborating
           ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -2676,6 +2901,7 @@ export const CanvasBoard = () => {
       }
 
       // ── Drawing tools ──
+      hidePreview();
       beginHistoryAction();
       setDrawing(true);
       setSelectedElement(null);
@@ -3598,6 +3824,7 @@ export const CanvasBoard = () => {
               imageUrl,
               aspectRatio,
             };
+            hidePreview();
             setElements((prev) => {
               if (!isCollaborating) recordHistorySnapshot(prev);
               return [...prev, newElement];
@@ -3687,6 +3914,160 @@ export const CanvasBoard = () => {
       />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
 
+      {/* First-time preview overlay with scattered hints (like Excalidraw) */}
+      {showPreview &&
+        localElements.length === 0 &&
+        collaborativeElements.length === 0 && (
+          <div className="absolute inset-0 z-30" onClick={() => hidePreview()}>
+            {/* Subtle overlay for click dismiss */}
+            <div className="absolute inset-0 bg-black/0" />
+
+            {/* Top center: "Pick a tool & Start drawing!" with arrow pointing down to toolbar */}
+            <div
+              className="absolute left-1/2 top-16 -translate-x-1/2 text-center pointer-events-none"
+              style={{
+                fontFamily: "Virgil, sans-serif",
+              }}
+            >
+              <p className="text-muted-foreground text-sm mb-1">
+                Pick a tool &
+              </p>
+              <p className="text-muted-foreground text-sm">Start drawing!</p>
+              <svg
+                width="60"
+                height="50"
+                viewBox="0 0 60 50"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="mx-auto mt-2"
+              >
+                <path
+                  d="M30 5 Q25 15, 30 35"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="1"
+                  fill="none"
+                />
+                <path
+                  d="M26 28 L30 35 L34 28"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="1"
+                  fill="none"
+                />
+              </svg>
+            </div>
+
+            {/* Left side: "Export, preferences, languages, ..." with arrow pointing right to sidebar */}
+            <div
+              className="absolute left-6 top-1/3 text-left pointer-events-none"
+              style={{
+                fontFamily: "Virgil, sans-serif",
+              }}
+            >
+              <p className="text-muted-foreground text-xs mb-1">Export,</p>
+              <p className="text-muted-foreground text-xs mb-1">preferences,</p>
+              <p className="text-muted-foreground text-xs mb-3">
+                languages, ...
+              </p>
+              <svg
+                width="50"
+                height="60"
+                viewBox="0 0 50 60"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 30 Q15 25, 40 30"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="1"
+                  fill="none"
+                />
+                <path
+                  d="M33 26 L40 30 L33 34"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="1"
+                  fill="none"
+                />
+              </svg>
+            </div>
+
+            {/* Bottom right: "Shortcuts & help" with arrow pointing to help button */}
+            <div
+              className="absolute right-6 bottom-24 text-right pointer-events-none"
+              style={{
+                fontFamily: "Virgil, sans-serif",
+              }}
+            >
+              <svg
+                width="50"
+                height="60"
+                viewBox="0 0 50 60"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="ml-auto mb-2"
+              >
+                <path
+                  d="M45 5 Q35 15, 10 30"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="1"
+                  fill="none"
+                />
+                <path
+                  d="M16 28 L10 30 L14 36"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="1"
+                  fill="none"
+                />
+              </svg>
+              <p className="text-muted-foreground text-xs">Shortcuts &</p>
+              <p className="text-muted-foreground text-xs">help</p>
+            </div>
+
+            {/* Center: Big title + instructions to dismiss */}
+            <div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer text-center"
+              onClick={() => hidePreview()}
+            >
+              <h1
+                className="text-5xl font-extrabold mb-3 drop-shadow-md text-primary"
+                style={{
+                  fontFamily: "Virgil, sans-serif",
+                  letterSpacing: "2px",
+                }}
+              >
+                draw.wine
+              </h1>
+              <p
+                className="text-muted-foreground text-sm mb-6 max-w-sm"
+                style={{
+                  fontFamily: "Virgil, sans-serif",
+                }}
+              >
+                Your drawings are saved in your browser's storage.
+              </p>
+              <button
+                className="rounded-lg bg-primary text-primary-foreground px-5 py-2 text-sm font-semibold shadow-lg hover:scale-[1.05] active:scale-95 transition-transform"
+                onClick={() => hidePreview()}
+              >
+                Got it — let's draw!
+              </button>
+            </div>
+          </div>
+        )}
       {isCollaborating && (
         <>
           <ConnectionStatus

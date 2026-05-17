@@ -1,9 +1,9 @@
-─────────────────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 206 files
+Git repo: .git with 221 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
@@ -364,51 +364,6 @@ fe/src/components/ui/carousel.tsx:
 │type CarouselPlugin = UseCarouselParameters[1]
 │
 ⋮
-│  return (
-│    <div
-│      ref={carouselRef}
-│      className="overflow-hidden"
-│      data-slot="carousel-content"
-│    >
-│      <div
-│        className={cn(
-│          "flex",
-│          orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col",
-│          className
-⋮
-│function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
-⋮
-│  return (
-│    <Button
-│      data-slot="carousel-previous"
-│      variant={variant}
-│      size={size}
-│      className={cn(
-│        "absolute size-8 rounded-full",
-│        orientation === "horizontal"
-│          ? "top-1/2 -left-12 -translate-y-1/2"
-│          : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
-│        className
-⋮
-│function CarouselNext({
-│  className,
-│  variant = "outline",
-│  size = "icon",
-│  ...props
-│}: React.ComponentProps<typeof Button>) {
-⋮
-│  return (
-│    <Button
-│      data-slot="carousel-next"
-│      variant={variant}
-│      size={size}
-│      className={cn(
-│        "absolute size-8 rounded-full",
-│        orientation === "horizontal"
-│          ? "top-1/2 -right-12 -translate-y-1/2"
-│          : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
-│        className
-⋮
 
 fe/src/components/ui/chart.tsx:
 ⋮
@@ -420,42 +375,6 @@ fe/src/components/ui/chart.tsx:
 │    | { color?: string; theme?: never }
 │    | { color?: never; theme: Record<keyof typeof THEMES, string> }
 │  );
-⋮
-│        className={cn(
-│          "[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid
-│          className,
-⋮
-│    if (labelFormatter) {
-│      return (
-│        <div className={cn("font-medium", labelClassName)}>
-│          {labelFormatter(value, payload)}
-│        </div>
-│      );
-⋮
-│    return <div className={cn("font-medium", labelClassName)}>{value}</div>;
-⋮
-│    <div
-│      className={cn(
-│        "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-
-│        className,
-│      )}
-⋮
-│                      <div
-│                        className={cn(
-│                          "shrink-0 rounded-[2px] border chart-tooltip-indicator",
-│                          {
-│                            "h-2.5 w-2.5": indicator === "dot",
-│                            "w-1": indicator === "line",
-│                            "w-0 border-[1.5px] border-dashed bg-transparent":
-│                              indicator === "dashed",
-│                            "my-0.5": nestLabel && indicator === "dashed",
-│                          },
-⋮
-│    <div
-│      className={cn(
-│        "flex items-center justify-center gap-4",
-│        verticalAlign === "top" ? "pb-3" : "pt-3",
-│        className,
 ⋮
 
 fe/src/components/ui/checkbox.tsx:
@@ -586,6 +505,26 @@ fe/src/components/ui/form.tsx:
 │type FormItemContextValue = {
 │  id: string
 ⋮
+│        {...props}
+│      />
+│    </FormItemContext.Provider>
+│  )
+│}
+│
+│function FormLabel({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+⋮
+│  return (
+│    <Label
+│      data-slot="form-label"
+│      data-error={!!error}
+│      className={cn("data-[error=true]:text-destructive", className)}
+│      htmlFor={formItemId}
+│      {...props}
+│    />
+⋮
 │function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
 │  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
 │
@@ -710,6 +649,68 @@ fe/src/components/ui/scroll-area.tsx:
 │function ScrollBar({
 │  className,
 │  orientation = "vertical",
+│  ...props
+⋮
+
+fe/src/components/ui/select.tsx:
+⋮
+│function SelectGroup({
+│  ...props
+⋮
+│function SelectValue({
+│  ...props
+⋮
+│function SelectTrigger({
+│  className,
+│  size = "default",
+│  children,
+│  ...props
+⋮
+│}) {
+│  return (
+│    <SelectPrimitive.Trigger
+│      data-slot="select-trigger"
+│      data-size={size}
+│      className={cn(
+│        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-m
+│        className
+│      )}
+│      {...props}
+│    >
+⋮
+│        className={cn(
+│          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:anim
+│          position === "popper" &&
+│            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:tra
+│          className
+⋮
+│        <SelectScrollUpButton />
+│        <SelectPrimitive.Viewport
+│          className={cn(
+│            "p-1",
+│            position === "popper" &&
+│              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-widt
+│          )}
+⋮
+│function SelectLabel({
+│  className,
+│  ...props
+⋮
+│function SelectItem({
+│  className,
+│  children,
+│  ...props
+⋮
+│function SelectSeparator({
+│  className,
+│  ...props
+⋮
+│function SelectScrollUpButton({
+│  className,
+│  ...props
+⋮
+│function SelectScrollDownButton({
+│  className,
 │  ...props
 ⋮
 
@@ -887,43 +888,6 @@ fe/src/components/ui/table.tsx:
 │    <tbody
 │      data-slot="table-body"
 │      className={cn("[&_tr:last-child]:border-0", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-│  return (
-│    <tfoot
-│      data-slot="table-footer"
-│      className={cn(
-│        "bg-muted/50 border-t font-medium [&>tr]:last:border-b-0",
-│        className
-│      )}
-│      {...props}
-│    />
-⋮
-│function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
-⋮
-│function TableHead({ className, ...props }: React.ComponentProps<"th">) {
-│  return (
-│    <th
-│      data-slot="table-head"
-│      className={cn(
-│        "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([rol
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-⋮
-│function TableCell({ className, ...props }: React.ComponentProps<"td">) {
-│  return (
-│    <td
-│      data-slot="table-cell"
-│      className={cn(
-│        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:trans
-│        className
-│      )}
 │      {...props}
 │    />
 │  )
@@ -1145,18 +1109,20 @@ fe/src/helpers/stroke.h.ts:
 │export type StrokePattern =
 ⋮
 
-fe/src/hooks/use-mobile.ts:
+fe/src/helpers/textMeasure.h.ts:
 ⋮
-│export function useIsMobile() {
-│  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
-│
-│  React.useEffect(() => {
-│    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-│    const onChange = () => {
-│      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-│    }
-│    mql.addEventListener("change", onChange)
-│    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+│export interface TextMeasureInput {
+│  text?: string;
+│  fontSize?: number;
+│  fontFamily?: string;
+│  fontWeight?: "normal" | "bold";
+│  fontStyle?: "normal" | "italic";
+⋮
+│export interface TextMeasureResult {
+│  width: number;
+│  height: number;
+│  lineHeight: number;
+│  lines: string[];
 ⋮
 
 fe/src/hooks/useKeyboardShortcuts.ts:
@@ -1209,10 +1175,6 @@ fe/src/types/collaboration.ts:
 
 fe/src/types/components.ts:
 ⋮
-│export interface CreateRoomModalProps {
-│  isOpen: boolean;
-│  onClose: () => void;
-│}
 │export interface IMenubtn {
 │  state: boolean;
 │  compoBefore: FC;
