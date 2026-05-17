@@ -403,7 +403,7 @@ export const CanvasBoard = () => {
   const [showPreview, setShowPreview] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     try {
-      return !Boolean(window.localStorage.getItem(PREVIEW_SEEN_KEY));
+      return !window.localStorage.getItem(PREVIEW_SEEN_KEY);
     } catch {
       return false;
     }
@@ -412,7 +412,7 @@ export const CanvasBoard = () => {
   const hidePreview = useCallback(() => {
     try {
       window.localStorage.setItem(PREVIEW_SEEN_KEY, "1");
-    } catch (err) {
+    } catch {
       /* ignore */
     }
     setShowPreview(false);
@@ -1074,9 +1074,13 @@ export const CanvasBoard = () => {
                 iw = Math.round(iw * scaleFactor);
                 ih = Math.round(ih * scaleFactor);
 
+                const cryptoWithRandom =
+                  typeof crypto !== "undefined"
+                    ? (crypto as Crypto & { randomUUID?: () => string })
+                    : undefined;
                 const id =
-                  crypto && (crypto as any).randomUUID
-                    ? (crypto as any).randomUUID()
+                  cryptoWithRandom && cryptoWithRandom.randomUUID
+                    ? cryptoWithRandom.randomUUID()
                     : `img-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
                 const newElement: Element = {
@@ -1129,9 +1133,13 @@ export const CanvasBoard = () => {
           // If no image, fallback to plain text
           const text = e.clipboardData?.getData("text/plain") || "";
           if (text && text.trim().length > 0) {
+            const cryptoWithRandom =
+              typeof crypto !== "undefined"
+                ? (crypto as Crypto & { randomUUID?: () => string })
+                : undefined;
             const id =
-              crypto && (crypto as any).randomUUID
-                ? (crypto as any).randomUUID()
+              cryptoWithRandom && cryptoWithRandom.randomUUID
+                ? cryptoWithRandom.randomUUID()
                 : `text-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
             // measure text size using existing helper
