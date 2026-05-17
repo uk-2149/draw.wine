@@ -27,6 +27,16 @@ export interface DrawingContextType {
   setFillColor: (color: string | null) => void;
   edgeStyle: "sharp" | "curve";
   setEdgeStyle: (style: "sharp" | "curve") => void;
+  fontFamily: string;
+  setFontFamily: (fontFamily: string) => void;
+  fontSize: number;
+  setFontSize: (size: number) => void;
+  fontWeight: "normal" | "bold";
+  setFontWeight: (weight: "normal" | "bold") => void;
+  fontStyle: "normal" | "italic";
+  setFontStyle: (style: "normal" | "italic") => void;
+  textAlign: "left" | "center" | "right";
+  setTextAlign: (align: "left" | "center" | "right") => void;
   activeElementTypes: ToolType[];
   setActiveElementTypes: (types: ToolType[]) => void;
 }

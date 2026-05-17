@@ -33,6 +33,17 @@
   -webkit-font-smoothing: antialiased;
 }
 
+@font-face {
+  font-family: "Tosh";
+  src: url("/fonts/Tosh%20Font%20Family/TRYToshA-Regular-BF677df27a66806.ttf")
+    format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  font-feature-settings: "kern";
+  -webkit-font-smoothing: antialiased;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
