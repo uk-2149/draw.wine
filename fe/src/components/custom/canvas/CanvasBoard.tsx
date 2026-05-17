@@ -398,6 +398,26 @@ export const CanvasBoard = () => {
     bounds: { minX: number; minY: number; maxX: number; maxY: number };
   } | null>(null);
 
+  // Preview / first-time hint state (like Excalidraw)
+  const PREVIEW_SEEN_KEY = "draw_wine_seen_preview";
+  const [showPreview, setShowPreview] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return !Boolean(window.localStorage.getItem(PREVIEW_SEEN_KEY));
+    } catch {
+      return false;
+    }
+  });
+
+  const hidePreview = useCallback(() => {
+    try {
+      window.localStorage.setItem(PREVIEW_SEEN_KEY, "1");
+    } catch (err) {
+      /* ignore */
+    }
+    setShowPreview(false);
+  }, []);
+
   const [snapHighlight, setSnapHighlight] = useState<{
     x: number;
     y: number;
@@ -1078,6 +1098,7 @@ export const CanvasBoard = () => {
 
                 // insert element
                 if (isCollaborating) {
+                  hidePreview();
                   setCollaborativeElements((prev) => [...prev, newElement]);
                   if (sendOperation && state.roomId) {
                     sendOperation({
@@ -1089,6 +1110,7 @@ export const CanvasBoard = () => {
                     });
                   }
                 } else {
+                  hidePreview();
                   recordHistorySnapshot(localElements);
                   setLocalElements((prev) => [...prev, newElement]);
                   setTimeout(
@@ -1142,6 +1164,7 @@ export const CanvasBoard = () => {
             } as Element;
 
             if (isCollaborating) {
+              hidePreview();
               setCollaborativeElements((prev) => [...prev, newTextEl]);
               if (sendOperation && state.roomId) {
                 sendOperation({
@@ -1153,6 +1176,7 @@ export const CanvasBoard = () => {
                 });
               }
             } else {
+              hidePreview();
               recordHistorySnapshot(localElements);
               setLocalElements((prev) => [...prev, newTextEl]);
               setTimeout(
@@ -2794,6 +2818,7 @@ export const CanvasBoard = () => {
 
       // ── Text tool ──
       if (selectedTool === "Text") {
+        hidePreview();
         beginHistoryAction();
         const elementId = isCollaborating
           ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -2868,6 +2893,7 @@ export const CanvasBoard = () => {
       }
 
       // ── Drawing tools ──
+      hidePreview();
       beginHistoryAction();
       setDrawing(true);
       setSelectedElement(null);
@@ -3790,6 +3816,7 @@ export const CanvasBoard = () => {
               imageUrl,
               aspectRatio,
             };
+            hidePreview();
             setElements((prev) => {
               if (!isCollaborating) recordHistorySnapshot(prev);
               return [...prev, newElement];
@@ -3879,6 +3906,160 @@ export const CanvasBoard = () => {
       />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
 
+      {/* First-time preview overlay with scattered hints (like Excalidraw) */}
+      {showPreview &&
+        localElements.length === 0 &&
+        collaborativeElements.length === 0 && (
+          <div className="absolute inset-0 z-30" onClick={() => hidePreview()}>
+            {/* Subtle overlay for click dismiss */}
+            <div className="absolute inset-0 bg-black/0" />
+
+            {/* Top center: "Pick a tool & Start drawing!" with arrow pointing down to toolbar */}
+            <div
+              className="absolute left-1/2 top-16 -translate-x-1/2 text-center pointer-events-none"
+              style={{
+                fontFamily: "Virgil, sans-serif",
+              }}
+            >
+              <p className="text-muted-foreground text-sm mb-1">
+                Pick a tool &
+              </p>
+              <p className="text-muted-foreground text-sm">Start drawing!</p>
+              <svg
+                width="60"
+                height="50"
+                viewBox="0 0 60 50"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="mx-auto mt-2"
+              >
+                <path
+                  d="M30 5 Q25 15, 30 35"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="1"
+                  fill="none"
+                />
+                <path
+                  d="M26 28 L30 35 L34 28"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="1"
+                  fill="none"
+                />
+              </svg>
+            </div>
+
+            {/* Left side: "Export, preferences, languages, ..." with arrow pointing right to sidebar */}
+            <div
+              className="absolute left-6 top-1/3 text-left pointer-events-none"
+              style={{
+                fontFamily: "Virgil, sans-serif",
+              }}
+            >
+              <p className="text-muted-foreground text-xs mb-1">Export,</p>
+              <p className="text-muted-foreground text-xs mb-1">preferences,</p>
+              <p className="text-muted-foreground text-xs mb-3">
+                languages, ...
+              </p>
+              <svg
+                width="50"
+                height="60"
+                viewBox="0 0 50 60"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 30 Q15 25, 40 30"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="1"
+                  fill="none"
+                />
+                <path
+                  d="M33 26 L40 30 L33 34"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="1"
+                  fill="none"
+                />
+              </svg>
+            </div>
+
+            {/* Bottom right: "Shortcuts & help" with arrow pointing to help button */}
+            <div
+              className="absolute right-6 bottom-24 text-right pointer-events-none"
+              style={{
+                fontFamily: "Virgil, sans-serif",
+              }}
+            >
+              <svg
+                width="50"
+                height="60"
+                viewBox="0 0 50 60"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="ml-auto mb-2"
+              >
+                <path
+                  d="M45 5 Q35 15, 10 30"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="1"
+                  fill="none"
+                />
+                <path
+                  d="M16 28 L10 30 L14 36"
+                  stroke="var(--primary)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="1"
+                  fill="none"
+                />
+              </svg>
+              <p className="text-muted-foreground text-xs">Shortcuts &</p>
+              <p className="text-muted-foreground text-xs">help</p>
+            </div>
+
+            {/* Center: Big title + instructions to dismiss */}
+            <div
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer text-center"
+              onClick={() => hidePreview()}
+            >
+              <h1
+                className="text-5xl font-extrabold mb-3 drop-shadow-md text-primary"
+                style={{
+                  fontFamily: "Virgil, sans-serif",
+                  letterSpacing: "2px",
+                }}
+              >
+                draw.wine
+              </h1>
+              <p
+                className="text-muted-foreground text-sm mb-6 max-w-sm"
+                style={{
+                  fontFamily: "Virgil, sans-serif",
+                }}
+              >
+                Your drawings are saved in your browser's storage.
+              </p>
+              <button
+                className="rounded-lg bg-primary text-primary-foreground px-5 py-2 text-sm font-semibold shadow-lg hover:scale-[1.05] active:scale-95 transition-transform"
+                onClick={() => hidePreview()}
+              >
+                Got it — let's draw!
+              </button>
+            </div>
+          </div>
+        )}
       {isCollaborating && (
         <>
           <ConnectionStatus

@@ -1,4 +1,4 @@
-─────────────────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
@@ -55,10 +55,6 @@ be/src/types/ai.t.ts:
 │  prompt: string;
 │  model?: string;
 │  sessionId?: string; // optional session ID for conversation history
-⋮
-│export interface AiChatResponse {
-│  message: string;
-│  sessionId?: string; // returned so frontend can track the session
 ⋮
 
 be/src/types/email.t.ts:
@@ -314,33 +310,6 @@ fe/src/components/ui/calendar.tsx:
 │  components,
 │  ...props
 ⋮
-│          if (orientation === "left") {
-│            return (
-│              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
-│            )
-⋮
-│              <ChevronRightIcon
-│                className={cn("size-4", className)}
-⋮
-│            <ChevronDownIcon className={cn("size-4", className)} {...props} />
-⋮
-│    <Button
-│      ref={ref}
-│      variant="ghost"
-│      size="icon"
-⋮
-│      data-range-start={modifiers.range_start}
-│      data-range-end={modifiers.range_end}
-│      data-range-middle={modifiers.range_middle}
-│      className={cn(
-│        "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground
-│        defaultClassNames.day,
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-⋮
 
 fe/src/components/ui/card.tsx:
 ⋮
@@ -395,51 +364,6 @@ fe/src/components/ui/carousel.tsx:
 │type CarouselPlugin = UseCarouselParameters[1]
 │
 ⋮
-│  return (
-│    <div
-│      ref={carouselRef}
-│      className="overflow-hidden"
-│      data-slot="carousel-content"
-│    >
-│      <div
-│        className={cn(
-│          "flex",
-│          orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col",
-│          className
-⋮
-│function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
-⋮
-│  return (
-│    <Button
-│      data-slot="carousel-previous"
-│      variant={variant}
-│      size={size}
-│      className={cn(
-│        "absolute size-8 rounded-full",
-│        orientation === "horizontal"
-│          ? "top-1/2 -left-12 -translate-y-1/2"
-│          : "-top-12 left-1/2 -translate-x-1/2 rotate-90",
-│        className
-⋮
-│function CarouselNext({
-│  className,
-│  variant = "outline",
-│  size = "icon",
-│  ...props
-│}: React.ComponentProps<typeof Button>) {
-⋮
-│  return (
-│    <Button
-│      data-slot="carousel-next"
-│      variant={variant}
-│      size={size}
-│      className={cn(
-│        "absolute size-8 rounded-full",
-│        orientation === "horizontal"
-│          ? "top-1/2 -right-12 -translate-y-1/2"
-│          : "-bottom-12 left-1/2 -translate-x-1/2 rotate-90",
-│        className
-⋮
 
 fe/src/components/ui/chart.tsx:
 ⋮
@@ -480,6 +404,45 @@ fe/src/components/ui/command.tsx:
 │function CommandItem({
 │  className,
 │  ...props
+⋮
+
+fe/src/components/ui/context-menu.tsx:
+⋮
+│  return (
+│    <ContextMenuPrimitive.SubTrigger
+│      data-slot="context-menu-sub-trigger"
+│      data-inset={inset}
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]
+│        className
+│      )}
+│      {...props}
+│    >
+⋮
+│      className={cn(
+│        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animat
+│        className
+⋮
+│  return (
+│    <ContextMenuPrimitive.Portal>
+│      <ContextMenuPrimitive.Content
+│        data-slot="context-menu-content"
+│        className={cn(
+│          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:anim
+│          className
+│        )}
+│        {...props}
+│      />
+⋮
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive d
+│        className
+⋮
+│    <span
+│      data-slot="context-menu-shortcut"
+│      className={cn(
+│        "text-muted-foreground ml-auto text-xs tracking-widest",
+│        className
 ⋮
 
 fe/src/components/ui/dialog.tsx:
@@ -541,6 +504,26 @@ fe/src/components/ui/form.tsx:
 ⋮
 │type FormItemContextValue = {
 │  id: string
+⋮
+│        {...props}
+│      />
+│    </FormItemContext.Provider>
+│  )
+│}
+│
+│function FormLabel({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+⋮
+│  return (
+│    <Label
+│      data-slot="form-label"
+│      data-error={!!error}
+│      className={cn("data-[error=true]:text-destructive", className)}
+│      htmlFor={formItemId}
+│      {...props}
+│    />
 ⋮
 │function FormControl({ ...props }: React.ComponentProps<typeof Slot>) {
 │  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
@@ -671,6 +654,57 @@ fe/src/components/ui/scroll-area.tsx:
 
 fe/src/components/ui/select.tsx:
 ⋮
+│function SelectGroup({
+│  ...props
+⋮
+│function SelectValue({
+│  ...props
+⋮
+│function SelectTrigger({
+│  className,
+│  size = "default",
+│  children,
+│  ...props
+⋮
+│}) {
+│  return (
+│    <SelectPrimitive.Trigger
+│      data-slot="select-trigger"
+│      data-size={size}
+│      className={cn(
+│        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-m
+│        className
+│      )}
+│      {...props}
+│    >
+⋮
+│        className={cn(
+│          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:anim
+│          position === "popper" &&
+│            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:tra
+│          className
+⋮
+│        <SelectScrollUpButton />
+│        <SelectPrimitive.Viewport
+│          className={cn(
+│            "p-1",
+│            position === "popper" &&
+│              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-widt
+│          )}
+⋮
+│function SelectLabel({
+│  className,
+│  ...props
+⋮
+│function SelectItem({
+│  className,
+│  children,
+│  ...props
+⋮
+│function SelectSeparator({
+│  className,
+│  ...props
+⋮
 │function SelectScrollUpButton({
 │  className,
 │  ...props
@@ -758,19 +792,6 @@ fe/src/components/ui/sidebar.tsx:
 │  style,
 │  children,
 │  ...props
-⋮
-│}) {
-⋮
-│  return (
-│    <SidebarContext.Provider value={contextValue}>
-│      <TooltipProvider delayDuration={0}>
-│        <div
-│          data-slot="sidebar-wrapper"
-│          style={style}
-│          className={cn(
-│            "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
-│            className,
-│          )}
 ⋮
 │function Sidebar({
 │  side = "left",
@@ -883,16 +904,6 @@ fe/src/components/ui/tabs.tsx:
 │  ...props
 ⋮
 
-fe/src/components/ui/textarea.tsx:
-⋮
-│function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
-⋮
-│      data-slot="textarea"
-│      className={cn(
-│        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:rin
-│        className
-⋮
-
 fe/src/components/ui/toggle-group.tsx:
 ⋮
 │function ToggleGroup({
@@ -993,12 +1004,6 @@ fe/src/contexts/theme/types.ts:
 │export type ThemeProviderState = {
 │  theme: Theme;
 │  setTheme: (theme: Theme) => void;
-⋮
-
-fe/src/helpers/cn.h.ts:
-⋮
-│export function cn(...inputs: ClassValue[]) {
-│  return twMerge(clsx(inputs));
 ⋮
 
 fe/src/helpers/collab.h.ts:
@@ -1170,10 +1175,6 @@ fe/src/types/collaboration.ts:
 
 fe/src/types/components.ts:
 ⋮
-│export interface CreateRoomModalProps {
-│  isOpen: boolean;
-│  onClose: () => void;
-│}
 │export interface IMenubtn {
 │  state: boolean;
 │  compoBefore: FC;
