@@ -999,6 +999,198 @@ export const CanvasBoard = () => {
       );
   }, [isCollaborating]);
 
+  // Handle paste events: text and images from clipboard
+  useEffect(() => {
+    const handlePaste = (evt: Event) => {
+      const e = evt as ClipboardEvent;
+      (async () => {
+        try {
+          const target = e.target as HTMLElement | null;
+          // If focus is on an input/textarea/contentEditable, don't intercept
+          const tag = target?.tagName;
+          if (
+            tag === "INPUT" ||
+            tag === "TEXTAREA" ||
+            target?.isContentEditable
+          )
+            return;
+
+          const items = e.clipboardData?.items;
+          if (!items || items.length === 0) return;
+
+          // Prevent default to avoid browser navigating with pasted image URLs in some cases
+          e.preventDefault();
+
+          // Determine viewport center in canvas coordinates
+          const canvas = canvasRef.current;
+          const cw = canvas
+            ? canvas.width / window.devicePixelRatio
+            : window.innerWidth;
+          const ch = canvas
+            ? canvas.height / window.devicePixelRatio
+            : window.innerHeight;
+          const centerX = (-position.x + cw / 2) / scale;
+          const centerY = (-position.y + ch / 2) / scale;
+
+          // Prefer image blob if present
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type && item.type.startsWith("image/")) {
+              const blob =
+                item.getAsFile?.() ??
+                (item.getAsFile ? item.getAsFile() : null);
+              const file = blob as File | null;
+              if (!file) continue;
+
+              const objectUrl = URL.createObjectURL(file);
+              // load image to get dimensions
+              try {
+                const img = await ImageLoader.load(objectUrl);
+                // create a reasonable size (max 600px on longest edge)
+                const maxDim = 600;
+                let iw = img.width;
+                let ih = img.height;
+                const scaleFactor = Math.min(1, maxDim / Math.max(iw, ih));
+                iw = Math.round(iw * scaleFactor);
+                ih = Math.round(ih * scaleFactor);
+
+                const id =
+                  crypto && (crypto as any).randomUUID
+                    ? (crypto as any).randomUUID()
+                    : `img-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+                const newElement: Element = {
+                  id,
+                  type: "Image",
+                  x: centerX - iw / 2,
+                  y: centerY - ih / 2,
+                  width: iw,
+                  height: ih,
+                  strokeColor: strokeColor || "#000000",
+                  fillColor: undefined,
+                  strokeWidth: strokeWidth || 1,
+                  strokePattern: strokePattern || "solid",
+                  roughness: 1,
+                  seed: Math.floor(Math.random() * 2 ** 31),
+                  imageUrl: objectUrl,
+                  aspectRatio: iw > 0 && ih > 0 ? iw / ih : undefined,
+                } as Element;
+
+                // insert element
+                if (isCollaborating) {
+                  setCollaborativeElements((prev) => [...prev, newElement]);
+                  if (sendOperation && state.roomId) {
+                    sendOperation({
+                      type: "element_complete",
+                      elementId: newElement.id,
+                      data: { element: newElement },
+                      roomId: state.roomId!,
+                      authorId: state.userId!,
+                    });
+                  }
+                } else {
+                  recordHistorySnapshot(localElements);
+                  setLocalElements((prev) => [...prev, newElement]);
+                  setTimeout(
+                    () => saveToLocalStorage([...localElements, newElement]),
+                    0,
+                  );
+                }
+
+                return; // handled image paste
+              } catch (err) {
+                console.error("Failed to load pasted image:", err);
+              }
+            }
+          }
+
+          // If no image, fallback to plain text
+          const text = e.clipboardData?.getData("text/plain") || "";
+          if (text && text.trim().length > 0) {
+            const id =
+              crypto && (crypto as any).randomUUID
+                ? (crypto as any).randomUUID()
+                : `text-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+            // measure text size using existing helper
+            const measured = measureTextElement({
+              text,
+              fontSize: fontSize || 16,
+              fontFamily: fontFamily || "Virgil",
+              fontWeight: fontWeight || "normal",
+              fontStyle: fontStyle || "normal",
+            });
+
+            const newTextEl: Element = {
+              id,
+              type: "Text",
+              x: centerX - measured.width / 2,
+              y: centerY - measured.height / 2,
+              text,
+              fontSize: fontSize || 16,
+              fontFamily: fontFamily || "Virgil",
+              fontWeight: fontWeight || "normal",
+              fontStyle: fontStyle || "normal",
+              textAlign: textAlign || "left",
+              strokeColor: strokeColor || "#000000",
+              fillColor: fillColor || undefined,
+              strokeWidth: 0,
+              roughness: 1,
+              seed: Math.floor(Math.random() * 2 ** 31),
+              width: measured.width,
+              height: measured.height,
+            } as Element;
+
+            if (isCollaborating) {
+              setCollaborativeElements((prev) => [...prev, newTextEl]);
+              if (sendOperation && state.roomId) {
+                sendOperation({
+                  type: "element_complete",
+                  elementId: newTextEl.id,
+                  data: { element: newTextEl },
+                  roomId: state.roomId!,
+                  authorId: state.userId!,
+                });
+              }
+            } else {
+              recordHistorySnapshot(localElements);
+              setLocalElements((prev) => [...prev, newTextEl]);
+              setTimeout(
+                () => saveToLocalStorage([...localElements, newTextEl]),
+                0,
+              );
+            }
+          }
+        } catch (err) {
+          console.error("Paste handling error:", err);
+        }
+      })().catch((err) => console.error("Paste handler async error:", err));
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [
+    canvasRef,
+    position,
+    scale,
+    isCollaborating,
+    sendOperation,
+    state.roomId,
+    state.userId,
+    localElements,
+    setLocalElements,
+    setCollaborativeElements,
+    strokeColor,
+    strokeWidth,
+    strokePattern,
+    fontSize,
+    fontFamily,
+    fontWeight,
+    fontStyle,
+    textAlign,
+    fillColor,
+  ]);
+
   // ─── Sync selected element properties ────────────────────────────────────────
 
   // Track which element IDs were last synced so we only reset drawing context
