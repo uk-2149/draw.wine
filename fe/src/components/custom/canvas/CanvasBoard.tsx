@@ -43,6 +43,7 @@ import {
   findSnapTarget,
   getConnectionCoordsForElement,
 } from "@/helpers/connectionSnap.h";
+import { measureTextElement } from "@/helpers/textMeasure.h";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -323,6 +324,17 @@ export const CanvasBoard = () => {
     setStrokePattern,
     setFillColor,
     setEdgeStyle,
+    fontFamily,
+    setFontFamily,
+    fontSize,
+    setFontSize,
+    fontWeight,
+    setFontWeight,
+    fontStyle,
+    setFontStyle,
+    textAlign,
+    setTextAlign,
+    activeElementTypes,
     setActiveElementTypes,
   } = useDrawing();
 
@@ -431,12 +443,11 @@ export const CanvasBoard = () => {
         }
         case "Text": {
           if (el.text) {
-            const textWidth = el.text.length * (el.fontSize || 20) * 0.6;
-            const textHeight = el.fontSize || 20;
+            const measured = measureTextElement(el);
             minX = Math.min(minX, el.x);
-            maxX = Math.max(maxX, el.x + textWidth);
+            maxX = Math.max(maxX, el.x + measured.width);
             minY = Math.min(minY, el.y);
-            maxY = Math.max(maxY, el.y + textHeight);
+            maxY = Math.max(maxY, el.y + measured.height);
           }
           break;
         }
@@ -841,8 +852,13 @@ export const CanvasBoard = () => {
         if (type === "Text") {
           const text = elem.text || "AI";
           const fontSize = elem.fontSize ?? 16;
-          const textWidth = text.length * fontSize * 0.6;
-          return { minX: x, maxX: x + textWidth, minY: y, maxY: y + fontSize };
+          const measured = measureTextElement({ text, fontSize });
+          return {
+            minX: x,
+            maxX: x + measured.width,
+            minY: y,
+            maxY: y + measured.height,
+          };
         }
 
         const width = elem.width ?? 200;
@@ -985,24 +1001,52 @@ export const CanvasBoard = () => {
 
   // ─── Sync selected element properties ────────────────────────────────────────
 
+  // Track which element IDs were last synced so we only reset drawing context
+  // when the user actually selects a *different* element (not when element
+  // objects are refreshed after a property update).
+  const lastSyncedSelectionRef = useRef<string>("");
+
   useLayoutEffect(() => {
-    setActiveElementTypes(
-      selectedElements.map(
-        (el) => el.type as import("@/types/drawing").ToolType,
-      ),
+    const nextActiveElementTypes = selectedElements.map(
+      (el) => el.type as import("@/types/drawing").ToolType,
     );
-    if (selectedElements.length !== 1) return;
+    const sameActiveElementTypes =
+      activeElementTypes.length === nextActiveElementTypes.length &&
+      activeElementTypes.every(
+        (type, index) => type === nextActiveElementTypes[index],
+      );
+    if (!sameActiveElementTypes) {
+      setActiveElementTypes(nextActiveElementTypes);
+    }
+    if (selectedElements.length !== 1) {
+      lastSyncedSelectionRef.current = selectedElements
+        .map((e) => e.id)
+        .join(",");
+      return;
+    }
+
     const selected = selectedElements[0];
-    setStrokeColor(selected.strokeColor);
-    setStrokeWidth(selected.strokeWidth);
-    setStrokePattern(selected.strokePattern || "solid");
-    setFillColor(selected.fillColor || null);
-    setEdgeStyle(selected.edgeStyle || "sharp");
+    const selectionKey = selected.id;
+
+    // Only sync drawing context from element when it's a NEW selection
+    if (lastSyncedSelectionRef.current !== selectionKey) {
+      lastSyncedSelectionRef.current = selectionKey;
+      setStrokeColor(selected.strokeColor);
+      setStrokeWidth(selected.strokeWidth);
+      setStrokePattern(selected.strokePattern || "solid");
+      setFillColor(selected.fillColor || null);
+      setEdgeStyle(selected.edgeStyle || "sharp");
+      if (selected.type === "Text" && selected.fontFamily) {
+        setFontFamily(selected.fontFamily);
+      }
+    }
   }, [
     selectedElements,
     setActiveElementTypes,
     setEdgeStyle,
     setFillColor,
+    setFontFamily,
+    activeElementTypes,
     setStrokeColor,
     setStrokePattern,
     setStrokeWidth,
@@ -1044,6 +1088,43 @@ export const CanvasBoard = () => {
               updatedEl.edgeStyle = edgeStyle;
               elChanged = true;
             }
+            if (el.type === "Text") {
+              if (el.fontFamily !== fontFamily) {
+                updatedEl.fontFamily = fontFamily;
+                elChanged = true;
+              }
+              if (el.fontSize !== fontSize) {
+                updatedEl.fontSize = fontSize;
+                elChanged = true;
+              }
+              if (el.fontWeight !== fontWeight) {
+                updatedEl.fontWeight = fontWeight;
+                elChanged = true;
+              }
+              if (el.fontStyle !== fontStyle) {
+                updatedEl.fontStyle = fontStyle;
+                elChanged = true;
+              }
+              if (el.textAlign !== textAlign) {
+                updatedEl.textAlign = textAlign;
+                elChanged = true;
+              }
+              const measured = measureTextElement({
+                text: updatedEl.text,
+                fontSize,
+                fontFamily,
+                fontWeight,
+                fontStyle,
+              });
+              if (
+                updatedEl.width !== measured.width ||
+                updatedEl.height !== measured.height
+              ) {
+                updatedEl.width = measured.width;
+                updatedEl.height = measured.height;
+                elChanged = true;
+              }
+            }
 
             if (elChanged) {
               hasChanges = true;
@@ -1076,7 +1157,18 @@ export const CanvasBoard = () => {
         return hasChanges ? next : prev;
       });
     }
-  }, [strokeColor, strokeWidth, strokePattern, fillColor, edgeStyle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    strokeColor,
+    strokeWidth,
+    strokePattern,
+    fillColor,
+    edgeStyle,
+    fontFamily,
+    fontSize,
+    fontWeight,
+    fontStyle,
+    textAlign,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Redraw ──────────────────────────────────────────────────────────────────
 
@@ -1468,23 +1560,29 @@ export const CanvasBoard = () => {
         }
         case "Text": {
           if (element.text && element.id !== editingTextId) {
-            const fontSize = element.fontSize || 20;
-            ctx.font = `${fontSize}px ${element.fontFamily || "Virgil"}`;
+            const elemFontSize = element.fontSize || 20;
+            const elemFontWeight = element.fontWeight || "normal";
+            const elemFontStyle = element.fontStyle || "normal";
+            const elemTextAlign = element.textAlign || "left";
+            const measured = measureTextElement(element);
+            const textBoxWidth = element.width || measured.width;
+            ctx.font = `${elemFontStyle} ${elemFontWeight} ${elemFontSize}px ${element.fontFamily || "Virgil"}`;
             ctx.fillStyle = getStrokeColor(element.strokeColor || "#000");
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
+            ctx.textAlign = elemTextAlign;
+            ctx.textBaseline = "top";
 
-            // Center text within its bounds if width/height are defined
-            const centerX = element.x + (element.width ? element.width / 2 : 0);
-            const centerY =
-              element.y + (element.height ? element.height / 2 : 0);
-
-            ctx.fillText(
-              element.text,
-              element.width ? centerX : element.x,
-              element.height ? centerY : element.y,
-            );
-            ctx.textAlign = "left"; // Reset for other operations
+            // Render each line of multiline text
+            const lines = element.text.split("\n");
+            const lineHeight = elemFontSize * 1.2;
+            lines.forEach((line, i) => {
+              let lineX = element.x;
+              if (elemTextAlign === "center") {
+                lineX = element.x + textBoxWidth / 2;
+              } else if (elemTextAlign === "right") {
+                lineX = element.x + textBoxWidth;
+              }
+              ctx.fillText(line, lineX, element.y + i * lineHeight);
+            });
           }
           break;
         }
@@ -1498,7 +1596,7 @@ export const CanvasBoard = () => {
         ctx.restore();
     });
 
-    const selectionStroke = "rgba(79, 143, 247, 0.92)";
+    const selectionStroke = "#5b9ff4"; // Excalidraw blue
     const selectionPad = 10;
     const selectionCornerSoft = 6;
 
@@ -1507,11 +1605,11 @@ export const CanvasBoard = () => {
       ctx.save();
       const padding = 6;
 
-      // Draw individual thin dotted outline for each selected element
+      // Draw individual solid outline for each selected element
       selectedElements.forEach((element) => {
         ctx.strokeStyle = selectionStroke;
-        ctx.lineWidth = 1 / scale; // stay thin regardless of zoom
-        ctx.setLineDash([4 / scale, 3 / scale]);
+        ctx.lineWidth = 1.5 / scale; // slightly thicker for visibility
+        ctx.setLineDash([]); // solid line (no dashes)
 
         switch (element.type) {
           case "Rectangle": {
@@ -1615,15 +1713,13 @@ export const CanvasBoard = () => {
           }
           case "Text": {
             if (element.text) {
-              const textWidth =
-                element.text.length * (element.fontSize || 20) * 0.6;
-              const textHeight = element.fontSize || 20;
+              const measured = measureTextElement(element);
               ctx.beginPath();
               ctx.rect(
                 element.x - selectionPad,
                 element.y - selectionPad,
-                textWidth + selectionPad * 2,
-                textHeight + selectionPad * 2,
+                measured.width + selectionPad * 2,
+                measured.height + selectionPad * 2,
               );
               ctx.stroke();
             }
@@ -2078,20 +2174,42 @@ export const CanvasBoard = () => {
 
   // ─── Text editing ─────────────────────────────────────────────────────────────
 
-  const startTextEditing = useCallback((element: Element) => {
-    setIsEditingText(true);
-    setEditingTextId(element.id);
-    setSelectedElement(element);
-    setTimeout(() => {
-      const textarea = document.querySelector(
-        'textarea[data-text-editing="true"]',
-      ) as HTMLTextAreaElement;
-      if (textarea) {
-        textarea.focus();
-        textarea.select();
-      }
-    }, 50);
-  }, []);
+  const startTextEditing = useCallback(
+    (element: Element, selectAll: boolean = false) => {
+      setIsEditingText(true);
+      setEditingTextId(element.id);
+      setSelectedElement(element);
+      // Also sync context state for text properties
+      setFontSize(element.fontSize || 20);
+      setFontWeight(element.fontWeight || "normal");
+      setFontStyle(element.fontStyle || "normal");
+      setTextAlign(element.textAlign || "left");
+      setTimeout(() => {
+        const editor = document.querySelector(
+          'div[data-text-editing="true"]',
+        ) as HTMLDivElement;
+        if (editor) {
+          editor.focus();
+          if (selectAll) {
+            // Select all text content for new elements
+            const range = document.createRange();
+            range.selectNodeContents(editor);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          } else {
+            // Place cursor at end for existing text
+            const range = document.createRange();
+            range.collapse(false);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          }
+        }
+      }, 50);
+    },
+    [setFontSize, setFontWeight, setFontStyle, setTextAlign],
+  );
 
   const finishTextEditing = useCallback(
     (newText: string) => {
@@ -2104,6 +2222,10 @@ export const CanvasBoard = () => {
             const completedElement = {
               ...updatedElement,
               text: newText.trim(),
+              fontSize,
+              fontWeight,
+              fontStyle,
+              textAlign,
               isTemporary: false,
             };
             setElements((prev) =>
@@ -2151,17 +2273,22 @@ export const CanvasBoard = () => {
       setElements,
       state.roomId,
       state.userId,
+      fontSize,
+      fontWeight,
+      fontStyle,
+      textAlign,
     ],
   );
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (isEditingText) {
-        const textarea = document.querySelector(
-          'textarea[data-text-editing="true"]',
-        ) as HTMLTextAreaElement;
-        if (textarea && !textarea.contains(e.target as Node))
-          finishTextEditing(textarea.value);
+        const editor = document.querySelector(
+          'div[data-text-editing="true"]',
+        ) as HTMLDivElement;
+        if (editor && !editor.contains(e.target as Node)) {
+          finishTextEditing(editor.innerText);
+        }
       }
     };
     if (isEditingText) {
@@ -2175,6 +2302,30 @@ export const CanvasBoard = () => {
       };
     }
   }, [isEditingText, finishTextEditing]);
+
+  // ─── Sync text properties when text element is selected ────────────────────────
+
+  useEffect(() => {
+    // When a single text element is selected, sync its properties to the context
+    if (selectedElements.length === 1 && selectedElements[0].type === "Text") {
+      const textElement = selectedElements[0];
+      setSelectedElement(textElement);
+      setFontSize(textElement.fontSize || 20);
+      setFontWeight(textElement.fontWeight || "normal");
+      setFontStyle(textElement.fontStyle || "normal");
+      setTextAlign(textElement.textAlign || "left");
+      // Note: fontFamily is already handled by its own sync effect in the selection logic
+    } else if (selectedElements.length !== 1) {
+      setSelectedElement(null);
+    }
+  }, [
+    selectedElements,
+    setSelectedElement,
+    setFontSize,
+    setFontWeight,
+    setFontStyle,
+    setTextAlign,
+  ]);
 
   // ─── Hit detection ────────────────────────────────────────────────────────────
 
@@ -2262,14 +2413,12 @@ export const CanvasBoard = () => {
           }
           case "Text": {
             if (element.text) {
-              const textWidth =
-                element.text.length * (element.fontSize || 20) * 0.6;
-              const textHeight = element.fontSize || 20;
+              const measured = measureTextElement(element);
               if (
                 point.x >= element.x &&
-                point.x <= element.x + textWidth &&
+                point.x <= element.x + measured.width &&
                 point.y >= element.y &&
-                point.y <= element.y + textHeight
+                point.y <= element.y + measured.height
               )
                 return element;
             }
@@ -2429,6 +2578,9 @@ export const CanvasBoard = () => {
               setStrokePattern(clickedElement.strokePattern || "solid");
               setFillColor(clickedElement.fillColor || null);
               setEdgeStyle(clickedElement.edgeStyle || "sharp");
+              if (clickedElement.type === "Text" && clickedElement.fontFamily) {
+                setFontFamily(clickedElement.fontFamily);
+              }
             } else {
               setSelectedElements((prev) => [...prev, clickedElement]);
             }
@@ -2470,14 +2622,17 @@ export const CanvasBoard = () => {
           roughness: 1,
           seed: Math.floor(Math.random() * 1000),
           text: "Type here...",
-          fontSize: 20,
-          fontFamily: "Virgil",
+          fontSize,
+          fontFamily,
+          fontWeight,
+          fontStyle,
+          textAlign,
           authorId: isCollaborating ? state.userId || "local" : "local",
           isTemporary: true,
         };
         setElements((prev) => [...prev, newElement]);
         markHistoryActionMutated();
-        startTextEditing(newElement);
+        startTextEditing(newElement, true); // selectAll=true for new elements
         if (isCollaborating && sendOperation && state.roomId) {
           sendOperation({
             type: "element_start",
@@ -2575,6 +2730,7 @@ export const CanvasBoard = () => {
       edgeStyle,
       strokeWidth,
       strokePattern,
+      fontFamily,
       elements,
       beginHistoryAction,
       markHistoryActionMutated,
@@ -2587,6 +2743,7 @@ export const CanvasBoard = () => {
       groupBounds,
       startTextEditing,
       setSelectedElement,
+      setFontFamily,
       scale,
       canDraw,
       draggingBendPoint,
@@ -2819,11 +2976,12 @@ export const CanvasBoard = () => {
             }
             case "Text": {
               if (el.text) {
+                const measured = measureTextElement(el);
                 const r = {
                   left: el.x,
-                  right: el.x + el.text.length * (el.fontSize || 20) * 0.6,
+                  right: el.x + measured.width,
                   top: el.y,
-                  bottom: el.y + (el.fontSize || 20),
+                  bottom: el.y + measured.height,
                 };
                 return (
                   r.left <= selRect.right &&
@@ -3333,7 +3491,7 @@ export const CanvasBoard = () => {
       if (clickedElement) {
         if (clickedElement.type === "Text") {
           if (!clickedElement.isTemporary) beginHistoryAction();
-          startTextEditing(clickedElement);
+          startTextEditing(clickedElement, false); // selectAll=false for existing text
         }
       } else {
         // Create a text element immediately at the click position and open it
@@ -3352,15 +3510,18 @@ export const CanvasBoard = () => {
           roughness: 1,
           seed: Math.floor(Math.random() * 1000),
           text: "Type here...",
-          fontSize: 20,
-          fontFamily: "Virgil",
+          fontSize,
+          fontFamily,
+          fontWeight,
+          fontStyle,
+          textAlign,
           authorId: isCollaborating ? state.userId || "local" : "local",
           isTemporary: true,
         };
         setElements((prev) => [...prev, newElement]);
         markHistoryActionMutated();
         setSelectedTool("Text");
-        startTextEditing(newElement);
+        startTextEditing(newElement, true); // selectAll=true for new elements
         if (isCollaborating && sendOperation && state.roomId) {
           sendOperation({
             type: "element_start",
@@ -3385,6 +3546,7 @@ export const CanvasBoard = () => {
       strokeColor,
       strokeWidth,
       strokePattern,
+      fontFamily,
       setElements,
       markHistoryActionMutated,
       sendOperation,
@@ -3547,34 +3709,85 @@ export const CanvasBoard = () => {
         </>
       )}
 
-      {/* Text Input Overlay */}
+      {/* Inline Text Editor — Excalidraw-style contentEditable overlay */}
       {isEditingText && selectedElement && selectedElement.type === "Text" && (
-        <textarea
+        <div
           data-text-editing="true"
-          className="absolute z-50 resize-none border-2 border-blue-500 rounded-md px-2 py-1 
-                     bg-background shadow-lg outline-none text-foreground
-                     animate-in fade-in duration-150 canvas-text-overlay pointer-events-auto"
+          contentEditable
+          suppressContentEditableWarning
+          className="canvas-text-overlay pointer-events-auto"
           style={
             {
-              "--text-left": `${Math.max(0, selectedElement.x * scale + position.x)}px`,
-              "--text-top": `${Math.max(0, selectedElement.y * scale + position.y)}px`,
-              "--text-size": `${selectedElement.fontSize || 20}px`,
+              position: "absolute",
+              left: `${selectedElement.x * scale + position.x}px`,
+              top: `${selectedElement.y * scale + position.y}px`,
+              fontSize: `${(selectedElement.fontSize || 20) * scale}px`,
+              lineHeight: 1.2,
+              fontFamily: selectedElement.fontFamily || "Virgil",
+              fontWeight:
+                selectedElement.fontWeight === "bold" ? "bold" : "normal",
+              fontStyle:
+                selectedElement.fontStyle === "italic" ? "italic" : "normal",
+              textAlign: selectedElement.textAlign || "left",
+              color: selectedElement.strokeColor || "var(--foreground)",
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              padding: 0,
+              margin: 0,
+              minWidth: `${20 * scale}px`,
+              minHeight: `${(selectedElement.fontSize || 20) * scale}px`,
+              maxWidth: selectedElement.width
+                ? `${selectedElement.width * scale}px`
+                : "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              zIndex: 50,
+              caretColor: selectedElement.strokeColor || "var(--foreground)",
+              transformOrigin: "top left",
+              boxShadow: "none",
+              resize: "none",
+              overflow: "visible",
+              userSelect: "text",
+              WebkitUserSelect: "text",
             } as React.CSSProperties
           }
-          defaultValue={selectedElement.text || ""}
-          placeholder="Type your text..."
-          autoFocus
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === "Escape") finishTextEditing("");
-            else if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === "Escape") {
               e.preventDefault();
-              finishTextEditing(e.currentTarget.value);
+              finishTextEditing("");
+            }
+            // Tab to finish editing
+            if (e.key === "Tab") {
+              e.preventDefault();
+              finishTextEditing(e.currentTarget.innerText);
             }
           }}
-          onFocus={(e) => e.currentTarget.select()}
+          ref={(el) => {
+            if (el && !el.dataset.initialized) {
+              el.dataset.initialized = "true";
+              // Set initial content — use text without "Type here..." placeholder
+              const text =
+                selectedElement.text === "Type here..."
+                  ? ""
+                  : selectedElement.text || "";
+              el.innerText = text;
+              // Focus and place cursor at end
+              requestAnimationFrame(() => {
+                el.focus();
+                if (text) {
+                  const range = document.createRange();
+                  range.selectNodeContents(el);
+                  const sel = window.getSelection();
+                  sel?.removeAllRanges();
+                  sel?.addRange(range);
+                }
+              });
+            }
+          }}
         />
       )}
 
@@ -3627,13 +3840,11 @@ export const CanvasBoard = () => {
                   break;
                 case "Text":
                   if (el.text) {
+                    const measured = measureTextElement(el);
                     minX = Math.min(minX, el.x);
-                    maxX = Math.max(
-                      maxX,
-                      el.x + el.text.length * (el.fontSize || 20) * 0.6,
-                    );
+                    maxX = Math.max(maxX, el.x + measured.width);
                     minY = Math.min(minY, el.y);
-                    maxY = Math.max(maxY, el.y + (el.fontSize || 20));
+                    maxY = Math.max(maxY, el.y + measured.height);
                   }
                   break;
                 case "Pencil":
@@ -3678,15 +3889,15 @@ export const CanvasBoard = () => {
                 key={c.corner}
                 className="absolute z-40 pointer-events-auto"
                 style={{
-                  left: `${c.x * scale + position.x - 5}px`,
-                  top: `${c.y * scale + position.y - 5}px`,
-                  width: "12px",
-                  height: "12px",
+                  left: `${c.x * scale + position.x - 4}px`,
+                  top: `${c.y * scale + position.y - 4}px`,
+                  width: "8px",
+                  height: "8px",
                   cursor: c.cursor,
-                  borderRadius: "50px",
-                  border: "2px solid #007acc",
+                  borderRadius: "1px",
+                  border: "1.5px solid #5b9ff4",
                   background: "white",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
                 }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
@@ -3731,15 +3942,15 @@ export const CanvasBoard = () => {
               key={c.corner}
               className="absolute z-40 pointer-events-auto"
               style={{
-                left: `${c.x * scale + position.x - 5}px`,
-                top: `${c.y * scale + position.y - 5}px`,
-                width: "10px",
-                height: "10px",
+                left: `${c.x * scale + position.x - 4}px`,
+                top: `${c.y * scale + position.y - 4}px`,
+                width: "8px",
+                height: "8px",
                 cursor: c.cursor,
                 borderRadius: "2px",
-                border: "2px solid #007acc",
+                border: "1.5px solid #5b9ff4",
                 background: "white",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();
@@ -3785,15 +3996,15 @@ export const CanvasBoard = () => {
             <div
               className="absolute z-40 pointer-events-auto"
               style={{
-                left: `${midX * scale + position.x - 6}px`,
-                top: `${midY * scale + position.y - 6}px`,
-                width: "12px",
-                height: "12px",
+                left: `${midX * scale + position.x - 4}px`,
+                top: `${midY * scale + position.y - 4}px`,
+                width: "8px",
+                height: "8px",
                 cursor: "grab",
-                borderRadius: "50%",
-                border: "2px solid #007acc",
-                background: el.bendPoint ? "#007acc" : "white",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                borderRadius: "1px",
+                border: "1.5px solid #5b9ff4",
+                background: el.bendPoint ? "#5b9ff4" : "white",
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();

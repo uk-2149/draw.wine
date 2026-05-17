@@ -20,6 +20,9 @@ export interface Element {
   text?: string;
   fontSize?: number;
   fontFamily?: string;
+  fontWeight?: "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  textAlign?: "left" | "center" | "right";
   authorId?: string;
   isTemporary?: boolean;
   imageUrl?: string; // URL or base64 string for the image

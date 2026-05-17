@@ -8,13 +8,20 @@
   }
 
   .canvas-text-overlay {
-    width: 200px;
-    min-height: 40px;
-    line-height: 1.2;
-    font-family: "Virgil", Arial, sans-serif;
-    left: var(--text-left);
-    top: var(--text-top);
-    font-size: var(--text-size);
+    caret-color: currentColor;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text;
+  }
+
+  .canvas-text-overlay:empty::before {
+    content: "Type here...";
+    color: var(--muted-foreground);
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
   }
 
   .canvas-resize-handle {

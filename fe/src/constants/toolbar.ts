@@ -11,6 +11,14 @@ import { LuPencil, LuHand } from "react-icons/lu";
 import { CiImageOn, CiEraser } from "react-icons/ci";
 import { ImMagicWand } from "react-icons/im";
 
+export const TEXT_FONT_FAMILIES = [
+  { label: "Virgil (Hand)", value: "Virgil" },
+  { label: "Tosh", value: "Tosh" },
+  { label: "Caveat", value: "Caveat" },
+  { label: "Comic Neue", value: "Comic Neue" },
+  { label: "Cascadia Code", value: "Cascadia Code" },
+] as const;
+
 export const TOOLBAR_ITEMS = [
   { before: LuHand, after: LuHand, tooltip: "Hand", shortcut: "Space" },
   {
