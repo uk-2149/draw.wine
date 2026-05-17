@@ -193,6 +193,46 @@ const FONT_SIZE_PRESETS = [
   { label: "XL", value: 36 },
 ] as const;
 
+const ColorPickerSwatch = ({
+  label,
+  value,
+  onChange,
+  active,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  active: boolean;
+}) => (
+  <label
+    className={cn(
+      "relative w-8 h-8 rounded-md transition-all hover:scale-110 cursor-pointer overflow-hidden",
+      active
+        ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+        : "border border-border/50",
+    )}
+    title={label}
+    aria-label={label}
+    style={{
+      background:
+        "conic-gradient(from 180deg at 50% 50%, #ff4d4d, #ffcc4d, #7dff7d, #4dd2ff, #7a7aff, #d84dff, #ff4d4d)",
+    }}
+  >
+    <span
+      className="absolute inset-[6px] rounded-sm border border-white/70"
+      style={{ backgroundColor: value }}
+      aria-hidden
+    />
+    <input
+      type="color"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="absolute inset-0 opacity-0 cursor-pointer"
+      aria-label={label}
+    />
+  </label>
+);
+
 export const PropertiesPanel = () => {
   const {
     selectedTool,
@@ -249,6 +289,9 @@ export const PropertiesPanel = () => {
     (selectedTool === "select" &&
       activeElementTypes.some((type) => type === "Text"));
 
+  const isCustomStroke = !STROKE_COLORS.includes(strokeColor);
+  const isCustomFill = !!fillColor && !STROKE_COLORS.includes(fillColor);
+
   if (!showStroke && !showFill && !showEdges && !showTextFont) {
     return null;
   }
@@ -261,7 +304,7 @@ export const PropertiesPanel = () => {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Stroke
           </h3>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-6 gap-2">
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
@@ -277,6 +320,12 @@ export const PropertiesPanel = () => {
                 aria-label={`Select color ${color}`}
               />
             ))}
+            <ColorPickerSwatch
+              label="Custom stroke color"
+              value={strokeColor}
+              onChange={setStrokeColor}
+              active={isCustomStroke}
+            />
           </div>
         </div>
       )}
@@ -343,7 +392,7 @@ export const PropertiesPanel = () => {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Fill
           </h3>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-6 gap-2">
             <button
               onClick={() => setFillColor(null)}
               className={cn(
@@ -373,6 +422,12 @@ export const PropertiesPanel = () => {
                 aria-label={`Select fill color ${color}`}
               />
             ))}
+            <ColorPickerSwatch
+              label="Custom fill color"
+              value={fillColor || "#ffffff"}
+              onChange={(value) => setFillColor(value)}
+              active={isCustomFill}
+            />
           </div>
         </div>
       )}
@@ -522,8 +577,18 @@ export const PropertiesPanel = () => {
                     value: "left" as const,
                     label: "Left",
                     icon: (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M2 3h12M2 6.5h8M2 10h10M2 13.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
+                        <path
+                          d="M2 3h12M2 6.5h8M2 10h10M2 13.5h6"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     ),
                   },
@@ -531,8 +596,18 @@ export const PropertiesPanel = () => {
                     value: "center" as const,
                     label: "Center",
                     icon: (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M2 3h12M4 6.5h8M3 10h10M5 13.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
+                        <path
+                          d="M2 3h12M4 6.5h8M3 10h10M5 13.5h6"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     ),
                   },
@@ -540,8 +615,18 @@ export const PropertiesPanel = () => {
                     value: "right" as const,
                     label: "Right",
                     icon: (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M2 3h12M6 6.5h8M4 10h10M8 13.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
+                        <path
+                          d="M2 3h12M6 6.5h8M4 10h10M8 13.5h6"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     ),
                   },
