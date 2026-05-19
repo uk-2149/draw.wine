@@ -17,4 +17,5 @@ export interface LaserPoint {
   opacity: number;
   timestamp: number;
   color: string;
+  sessionId: string;
 }

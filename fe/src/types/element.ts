@@ -28,7 +28,7 @@ export interface Element {
   imageUrl?: string; // URL or base64 string for the image
   aspectRatio?: number; // To maintain image proportions while resizing
   edgeStyle?: "sharp" | "curve"; // Edge style for Rectangle/Diamond
-  startConnection?: { elementId: string; point: "center" | "top" | "bottom" | "left" | "right" };
-  endConnection?:   { elementId: string; point: "center" | "top" | "bottom" | "left" | "right" };
+  startConnection?: { elementId: string; point: { x: number; y: number } };
+  endConnection?:   { elementId: string; point: { x: number; y: number } };
   bendPoint?: { x: number; y: number };
 }

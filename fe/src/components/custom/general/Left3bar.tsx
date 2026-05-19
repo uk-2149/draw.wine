@@ -37,7 +37,23 @@ import {
 import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
 
-export const Left3bar = () => {
+interface Left3barProps {
+  bgColor: string;
+  setBgColor: (c: string) => void;
+  bgOpacity: number;
+  setBgOpacity: (o: number) => void;
+  bgPattern: "none" | "dots" | "grid" | "lines";
+  setBgPattern: (p: "none" | "dots" | "grid" | "lines") => void;
+}
+
+export const Left3bar = ({
+  bgColor,
+  setBgColor,
+  bgOpacity,
+  setBgOpacity,
+  bgPattern,
+  setBgPattern,
+}: Left3barProps) => {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -223,6 +239,112 @@ export const Left3bar = () => {
               <RiResetLeftFill className="mr-2" />
               Reset the canvas
             </DropdownMenuItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <span className="mr-4">🎨</span> Canvas background
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent className="p-3 w-64">
+                  {/* Color swatches */}
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">
+                    Background color
+                  </p>
+                  <div className="flex gap-2 mb-3 flex-wrap">
+                    {[
+                      "#f8f5f0",
+                      "#e8e8e8",
+                      "#dbeafe",
+                      "#fefce8",
+                      "#fce7f3",
+                      "#ffffff",
+                      "#1a1a2e",
+                      "#0f172a",
+                    ].map((c) => (
+                      <button
+                        key={c}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setBgColor(c);
+                        }}
+                        className="w-7 h-7 rounded border-2 transition-all"
+                        style={{
+                          backgroundColor: c,
+                          borderColor: bgColor === c ? "#5b9ff4" : "#d1d5db",
+                          transform: bgColor === c ? "scale(1.15)" : "scale(1)",
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Custom hex input */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs text-muted-foreground">#</span>
+                    <input
+                      className="flex-1 text-xs border rounded px-2 py-1 font-mono bg-background"
+                      value={bgColor.replace("#", "")}
+                      maxLength={6}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^[0-9a-fA-F]{0,6}$/.test(val)) {
+                          if (val.length === 6) setBgColor("#" + val);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Opacity slider */}
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">
+                    Pattern opacity — {bgOpacity}%
+                  </p>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={bgOpacity}
+                    className="w-full mb-3 accent-blue-400"
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setBgOpacity(Number(e.target.value));
+                    }}
+                  />
+
+                  {/* Pattern picker */}
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">
+                    Pattern
+                  </p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(["none", "dots", "grid", "lines"] as const).map((p) => (
+                      <button
+                        key={p}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setBgPattern(p);
+                        }}
+                        className="py-1 px-2 text-xs rounded border transition-all"
+                        style={{
+                          borderColor: bgPattern === p ? "#5b9ff4" : "#d1d5db",
+                          background:
+                            bgPattern === p ? "#eff6ff" : "transparent",
+                          fontWeight: bgPattern === p ? 600 : 400,
+                        }}
+                      >
+                        {p === "none"
+                          ? "None"
+                          : p === "dots"
+                            ? "Dotted"
+                            : p === "grid"
+                              ? "Grid"
+                              : "Lines"}
+                      </button>
+                    ))}
+                  </div>
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>

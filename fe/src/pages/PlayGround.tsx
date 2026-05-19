@@ -16,11 +16,20 @@ export const PlayGround = () => {
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const { currentStage } = useGeneral();
 
+  // In PlayGround.tsx
+const [bgColor, setBgColor] = useState("#f8f5f0");
+const [bgOpacity, setBgOpacity] = useState(100);
+const [bgPattern, setBgPattern] = useState<"none" | "dots" | "grid" | "lines">("dots");
+
   return (
     <DrawingProvider>
       <div className="h-screen w-full relative overflow-hidden bg-background text-foreground">
         <div className="absolute top-0 left-0 p-4 z-10">
-          <Left3bar />
+          <Left3bar
+  bgColor={bgColor} setBgColor={setBgColor}
+  bgOpacity={bgOpacity} setBgOpacity={setBgOpacity}
+  bgPattern={bgPattern} setBgPattern={setBgPattern}
+/>
         </div>
         <div className="absolute top-0 left-1/2 -translate-x-1/2 p-4 z-10">
           <Toolbar />
@@ -36,7 +45,7 @@ export const PlayGround = () => {
         <div className="absolute top-[88px] left-4 z-10">
           <PropertiesPanel />
         </div>
-        <CanvasBoard />
+        <CanvasBoard bgColor={bgColor} bgOpacity={bgOpacity} bgPattern={bgPattern} />
         <HelpButton />
         <AiChatSidebar
           isOpen={isAiSidebarOpen}

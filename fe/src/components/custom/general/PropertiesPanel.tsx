@@ -7,7 +7,7 @@ import { STROKE_PATTERNS } from "@/helpers/stroke.h";
 
 /** Dashed frame with solid sharp 90° at top-left. */
 const EdgeSharpGlyph = () => (
-  <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden>
+  <svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden>
     <path
       d="M17 10H23V23H10V17"
       stroke="currentColor"
@@ -28,7 +28,7 @@ const EdgeSharpGlyph = () => (
 
 /** Same dashed outline; solid quadratic fillet at top-left (rounded). */
 const EdgeCurveGlyph = () => (
-  <svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden>
+  <svg width="22" height="22" viewBox="0 0 32 32" fill="none" aria-hidden>
     <path
       d="M17 10H23V23H10V17"
       stroke="currentColor"
@@ -56,40 +56,40 @@ const StrokePatternPreview = ({
     case "longDash":
       return (
         <div className="flex w-full items-center gap-1">
-          <span className="h-[3px] flex-[2] rounded-full bg-current" />
-          <span className="h-[3px] flex-[2] rounded-full bg-current" />
-          <span className="h-[3px] flex-[2] rounded-full bg-current" />
+          <span className="h-[2.5px] flex-[2] rounded-full bg-current" />
+          <span className="h-[2.5px] flex-[2] rounded-full bg-current" />
+          <span className="h-[2.5px] flex-[2] rounded-full bg-current" />
         </div>
       );
     case "shortDash":
       return (
         <div className="flex w-full items-center gap-1">
-          <span className="h-[3px] flex-1 rounded-full bg-current" />
-          <span className="h-[3px] flex-1 rounded-full bg-current" />
-          <span className="h-[3px] flex-1 rounded-full bg-current" />
-          <span className="h-[3px] flex-1 rounded-full bg-current" />
+          <span className="h-[2.5px] flex-1 rounded-full bg-current" />
+          <span className="h-[2.5px] flex-1 rounded-full bg-current" />
+          <span className="h-[2.5px] flex-1 rounded-full bg-current" />
+          <span className="h-[2.5px] flex-1 rounded-full bg-current" />
         </div>
       );
     case "dotted":
       return (
         <div className="flex w-full items-center justify-between px-0.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          <span className="h-1 w-1 rounded-full bg-current" />
+          <span className="h-1 w-1 rounded-full bg-current" />
+          <span className="h-1 w-1 rounded-full bg-current" />
+          <span className="h-1 w-1 rounded-full bg-current" />
         </div>
       );
     case "bubbled":
       return (
         <div className="flex w-full items-center justify-between px-0.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-current" />
           <span className="h-2 w-2 rounded-full bg-current" />
-          <span className="h-2.5 w-2.5 rounded-full bg-current" />
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
           <span className="h-2 w-2 rounded-full bg-current" />
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
         </div>
       );
     default:
-      return <span className="h-[3px] w-full rounded-full bg-current" />;
+      return <span className="h-[2.5px] w-full rounded-full bg-current" />;
   }
 };
 
@@ -124,9 +124,9 @@ const FontDropdown = ({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition-all",
-          "bg-muted/40 border-border/50 text-foreground hover:bg-muted/70",
-          open && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+          "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs transition-all",
+          "bg-muted/30 border-border/40 text-foreground hover:bg-muted/50",
+          open && "ring-1 ring-violet-500 ring-offset-1 ring-offset-background border-transparent",
         )}
         style={{ fontFamily }}
         aria-expanded={open}
@@ -134,8 +134,8 @@ const FontDropdown = ({
       >
         <span className="truncate">{currentFont?.label || fontFamily}</span>
         <svg
-          width="12"
-          height="12"
+          width="10"
+          height="10"
           viewBox="0 0 12 12"
           fill="none"
           className={cn(
@@ -154,7 +154,7 @@ const FontDropdown = ({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover border border-border/50 rounded-lg shadow-md overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
           {TEXT_FONT_FAMILIES.map((font) => (
             <button
               key={font.value}
@@ -163,9 +163,9 @@ const FontDropdown = ({
                 setOpen(false);
               }}
               className={cn(
-                "w-full text-left px-3 py-2 text-sm transition-colors",
+                "w-full text-left px-2.5 py-1.5 text-xs transition-colors",
                 fontFamily === font.value
-                  ? "bg-primary/10 text-foreground font-medium"
+                  ? "bg-violet-50 dark:bg-violet-950 text-foreground font-medium"
                   : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
               )}
               style={{ fontFamily: font.value }}
@@ -174,7 +174,7 @@ const FontDropdown = ({
             >
               {font.label}
               {fontFamily === font.value && (
-                <span className="float-right text-primary">✓</span>
+                <span className="float-right text-violet-500">✓</span>
               )}
             </button>
           ))}
@@ -193,6 +193,22 @@ const FONT_SIZE_PRESETS = [
   { label: "XL", value: 36 },
 ] as const;
 
+/* ─── Section Label ────────────────────────────────────────────────────── */
+
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <h3 className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-[0.07em] mb-1.5">
+    {children}
+  </h3>
+);
+
+/* ─── Thin Divider ─────────────────────────────────────────────────────── */
+
+const PanelDivider = () => (
+  <div className="-mx-[14px] h-px bg-border/30" aria-hidden />
+);
+
+/* ─── Color Swatch ─────────────────────────────────────────────────────── */
+
 const ColorPickerSwatch = ({
   label,
   value,
@@ -206,10 +222,10 @@ const ColorPickerSwatch = ({
 }) => (
   <label
     className={cn(
-      "relative w-8 h-8 rounded-md transition-all hover:scale-110 cursor-pointer overflow-hidden",
+      "relative w-[26px] h-[26px] rounded-md transition-all hover:scale-110 cursor-pointer overflow-hidden flex-shrink-0",
       active
-        ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-        : "border border-border/50",
+        ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
+        : "border border-border/40",
     )}
     title={label}
     aria-label={label}
@@ -219,7 +235,7 @@ const ColorPickerSwatch = ({
     }}
   >
     <span
-      className="absolute inset-[6px] rounded-sm border border-white/70"
+      className="absolute inset-[5px] rounded-sm border border-white/70"
       style={{ backgroundColor: value }}
       aria-hidden
     />
@@ -297,23 +313,22 @@ export const PropertiesPanel = () => {
   }
 
   return (
-    <div className="bg-background/80 backdrop-blur-md border border-border p-4 rounded-xl shadow-lg w-[280px] flex flex-col space-y-5">
-      {/* Stroke Color Section */}
+    <div className="bg-white/90 dark:bg-background/90 backdrop-blur-sm border border-border/40 p-[14px] rounded-xl shadow-sm w-[256px] flex flex-col gap-[14px]">
+
+      {/* ── Stroke Color ─────────────────────────────────────────── */}
       {showStroke && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Stroke
-          </h3>
-          <div className="grid grid-cols-6 gap-2">
+        <div>
+          <SectionLabel>Stroke</SectionLabel>
+          <div className="flex flex-wrap gap-[5px]">
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
                 onClick={() => setStrokeColor(color)}
                 className={cn(
-                  "w-8 h-8 rounded-md transition-all hover:scale-110 stroke-color-swatch",
+                  "w-[26px] h-[26px] rounded-md transition-all hover:scale-110 stroke-color-swatch flex-shrink-0",
                   strokeColor === color
-                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                    : "border border-border/50",
+                    ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
+                    : "border border-border/40",
                 )}
                 style={{ "--stroke-color": color } as CSSProperties}
                 title={color}
@@ -330,22 +345,20 @@ export const PropertiesPanel = () => {
         </div>
       )}
 
-      {/* Stroke Width Section */}
+      {/* ── Stroke Width ─────────────────────────────────────────── */}
       {showStroke && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Stroke Width
-          </h3>
-          <div className="flex bg-muted/50 rounded-lg p-1 border">
+        <div>
+          <SectionLabel>Width</SectionLabel>
+          <div className="flex bg-muted/40 rounded-lg p-[3px] gap-[2px] border border-border/40">
             {STROKE_WIDTHS.map((width) => (
               <button
                 key={width.value}
                 onClick={() => setStrokeWidth(width.value)}
                 className={cn(
-                  "flex-1 flex items-center justify-center p-2 rounded-md transition-colors",
+                  "flex-1 flex items-center justify-center py-1.5 rounded-md transition-colors",
                   strokeWidth === width.value
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:bg-muted",
+                    ? "bg-white dark:bg-background shadow-sm text-foreground border border-border/30"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 title={`${width.value}px`}
                 aria-label={`Select stroke width ${width.value}`}
@@ -357,26 +370,25 @@ export const PropertiesPanel = () => {
         </div>
       )}
 
+      {/* ── Stroke Style ─────────────────────────────────────────── */}
       {showStroke && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Stroke Style
-          </h3>
-          <div className="grid grid-cols-5 gap-2">
+        <div>
+          <SectionLabel>Style</SectionLabel>
+          <div className="grid grid-cols-5 gap-[5px]">
             {STROKE_PATTERNS.map((pattern) => (
               <button
                 key={pattern.value}
                 onClick={() => setStrokePattern(pattern.value)}
                 className={cn(
-                  "group relative flex aspect-square items-center justify-center rounded-xl border bg-muted/50 transition-all hover:-translate-y-0.5 hover:bg-muted/70",
+                  "group relative flex aspect-square items-center justify-center rounded-lg border transition-all",
                   strokePattern === pattern.value
-                    ? "border-border bg-background text-foreground shadow-sm ring-2 ring-primary ring-offset-2 ring-offset-background"
-                    : "border-border/50 text-foreground",
+                    ? "border-border/60 bg-white dark:bg-background text-foreground shadow-sm ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
+                    : "border-border/40 bg-muted/30 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
                 )}
                 title={pattern.label}
                 aria-label={`Select ${pattern.label.toLowerCase()} stroke`}
               >
-                <span className="flex h-5 w-8 items-center justify-center text-current">
+                <span className="flex h-4 w-7 items-center justify-center text-current">
                   <StrokePatternPreview pattern={pattern.value} />
                 </span>
                 <span className="sr-only">{pattern.label}</span>
@@ -386,36 +398,36 @@ export const PropertiesPanel = () => {
         </div>
       )}
 
-      {/* Fill Color Section */}
+      {/* ── Divider before Fill ───────────────────────────────────── */}
+      {showFill && showStroke && <PanelDivider />}
+
+      {/* ── Fill Color ───────────────────────────────────────────── */}
       {showFill && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Fill
-          </h3>
-          <div className="grid grid-cols-6 gap-2">
+        <div>
+          <SectionLabel>Fill</SectionLabel>
+          <div className="flex flex-wrap gap-[5px]">
             <button
               onClick={() => setFillColor(null)}
               className={cn(
-                "w-8 h-8 rounded-md transition-all hover:scale-110 flex items-center justify-center",
+                "w-[26px] h-[26px] rounded-md transition-all hover:scale-110 flex items-center justify-center text-base leading-none flex-shrink-0",
                 fillColor === null
-                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                  : "border border-border/50 text-muted-foreground",
+                  ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
+                  : "border border-dashed border-border/50 text-muted-foreground hover:border-border",
               )}
               title="No fill"
               aria-label="Disable fill"
             >
               ×
             </button>
-
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
                 onClick={() => setFillColor(color)}
                 className={cn(
-                  "w-8 h-8 rounded-md transition-all hover:scale-110 stroke-color-swatch",
+                  "w-[26px] h-[26px] rounded-md transition-all hover:scale-110 stroke-color-swatch flex-shrink-0",
                   fillColor === color
-                    ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                    : "border border-border/50",
+                    ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
+                    : "border border-border/40",
                 )}
                 style={{ "--stroke-color": color } as CSSProperties}
                 title={color}
@@ -432,21 +444,19 @@ export const PropertiesPanel = () => {
         </div>
       )}
 
-      {/* Edges Section */}
+      {/* ── Edges ────────────────────────────────────────────────── */}
       {showEdges && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Edges
-          </h3>
-          <div className="flex gap-2">
+        <div>
+          <SectionLabel>Edges</SectionLabel>
+          <div className="flex gap-1.5">
             <button
               type="button"
               onClick={() => setEdgeStyle("sharp")}
               className={cn(
-                "flex-1 flex items-center justify-center h-11 rounded-xl border transition-colors shadow-sm",
+                "flex-1 flex items-center justify-center h-[38px] rounded-[9px] border transition-all",
                 edgeStyle === "sharp"
-                  ? "bg-background border-border  text-neutral-900 dark:text-violet-100"
-                  : "bg-muted/40 border-border/55 hover:bg-muted/55 dark:bg-muted/20 dark:border-border/60 text-muted-foreground hover:text-foreground",
+                  ? "bg-white dark:bg-background border-border/60 shadow-sm ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background text-foreground"
+                  : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
               )}
               title="Sharp corners"
               aria-label="Select sharp edges"
@@ -458,10 +468,10 @@ export const PropertiesPanel = () => {
               type="button"
               onClick={() => setEdgeStyle("curve")}
               className={cn(
-                "flex-1 flex items-center justify-center h-11 rounded-xl border transition-colors shadow-sm",
+                "flex-1 flex items-center justify-center h-[38px] rounded-[9px] border transition-all",
                 edgeStyle === "curve"
-                  ? "bg-background border-border  text-neutral-900 dark:text-violet-100"
-                  : "bg-muted/40 border-border/55 hover:bg-muted/55 dark:bg-muted/20 dark:border-border/60 text-muted-foreground hover:text-foreground",
+                  ? "bg-white dark:bg-background border-border/60 shadow-sm ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background text-foreground"
+                  : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
               )}
               title="Rounded corners"
               aria-label="Select curved edges"
@@ -473,35 +483,31 @@ export const PropertiesPanel = () => {
         </div>
       )}
 
+      {/* ── Divider before Text ───────────────────────────────────── */}
+      {showTextFont && (showStroke || showFill || showEdges) && <PanelDivider />}
+
       {/* ── Text Controls ────────────────────────────────────────── */}
       {showTextFont && (
         <>
-          {/* Font Family Dropdown */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Font
-            </h3>
-            <FontDropdown
-              fontFamily={fontFamily}
-              setFontFamily={setFontFamily}
-            />
+          {/* Font Family */}
+          <div>
+            <SectionLabel>Font</SectionLabel>
+            <FontDropdown fontFamily={fontFamily} setFontFamily={setFontFamily} />
           </div>
 
           {/* Font Size */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Size
-            </h3>
-            <div className="flex items-center gap-1.5">
+          <div>
+            <SectionLabel>Size</SectionLabel>
+            <div className="flex items-center gap-[5px]">
               {FONT_SIZE_PRESETS.map((preset) => (
                 <button
                   key={preset.label}
                   onClick={() => setFontSize(preset.value)}
                   className={cn(
-                    "flex-1 flex items-center justify-center py-1.5 rounded-md border text-xs font-medium transition-all",
+                    "flex-1 flex items-center justify-center h-[28px] rounded-[7px] border text-[11px] font-medium transition-all",
                     fontSize === preset.value
-                      ? "bg-background border-border shadow-sm text-foreground ring-1 ring-primary"
-                      : "bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                      ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
+                      : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
                   )}
                   title={`${preset.value}px`}
                   aria-label={`Font size ${preset.label}`}
@@ -518,71 +524,63 @@ export const PropertiesPanel = () => {
                 }}
                 min={8}
                 max={200}
-                className="w-14 rounded-md border border-border/50 bg-muted/40 px-2 py-1.5 text-xs text-center text-foreground outline-none focus:ring-1 focus:ring-primary"
+                className="w-12 rounded-[7px] border border-border/40 bg-muted/30 px-1.5 h-[28px] text-[11px] text-center text-foreground outline-none focus:ring-[1.5px] focus:ring-violet-500 focus:border-transparent"
                 aria-label="Custom font size"
               />
             </div>
           </div>
 
-          {/* Text Style: Bold, Italic */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Style
-            </h3>
-            <div className="flex gap-1.5">
+          {/* Style + Align (combined row) */}
+          <div>
+            <SectionLabel>Style &amp; Align</SectionLabel>
+            <div className="flex gap-[5px]">
+              {/* Bold */}
               <button
                 onClick={() =>
                   setFontWeight(fontWeight === "bold" ? "normal" : "bold")
                 }
                 className={cn(
-                  "flex-1 flex items-center justify-center py-2 rounded-md border text-sm transition-all",
+                  "flex-1 flex items-center justify-center h-[30px] rounded-[7px] border text-[13px] transition-all",
                   fontWeight === "bold"
-                    ? "bg-background border-border shadow-sm text-foreground ring-1 ring-primary font-bold"
-                    : "bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                    ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
+                    : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
                 )}
                 title="Bold"
                 aria-label="Toggle bold"
                 aria-pressed={fontWeight === "bold"}
               >
-                <span className="font-bold">B</span>
+                <span className="font-bold text-sm">B</span>
               </button>
+
+              {/* Italic */}
               <button
                 onClick={() =>
                   setFontStyle(fontStyle === "italic" ? "normal" : "italic")
                 }
                 className={cn(
-                  "flex-1 flex items-center justify-center py-2 rounded-md border text-sm transition-all",
+                  "flex-1 flex items-center justify-center h-[30px] rounded-[7px] border text-[13px] transition-all",
                   fontStyle === "italic"
-                    ? "bg-background border-border shadow-sm text-foreground ring-1 ring-primary"
-                    : "bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                    ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
+                    : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
                 )}
                 title="Italic"
                 aria-label="Toggle italic"
                 aria-pressed={fontStyle === "italic"}
               >
-                <span className="italic">I</span>
+                <span className="italic text-sm">I</span>
               </button>
-            </div>
-          </div>
 
-          {/* Text Alignment */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Align
-            </h3>
-            <div className="flex gap-1.5">
+              {/* Divider pip */}
+              <div className="w-px bg-border/40 self-stretch my-0.5" aria-hidden />
+
+              {/* Align buttons */}
               {(
                 [
                   {
                     value: "left" as const,
                     label: "Left",
                     icon: (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                      >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path
                           d="M2 3h12M2 6.5h8M2 10h10M2 13.5h6"
                           stroke="currentColor"
@@ -596,12 +594,7 @@ export const PropertiesPanel = () => {
                     value: "center" as const,
                     label: "Center",
                     icon: (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                      >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path
                           d="M2 3h12M4 6.5h8M3 10h10M5 13.5h6"
                           stroke="currentColor"
@@ -615,12 +608,7 @@ export const PropertiesPanel = () => {
                     value: "right" as const,
                     label: "Right",
                     icon: (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                      >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path
                           d="M2 3h12M6 6.5h8M4 10h10M8 13.5h6"
                           stroke="currentColor"
@@ -636,10 +624,10 @@ export const PropertiesPanel = () => {
                   key={align.value}
                   onClick={() => setTextAlign(align.value)}
                   className={cn(
-                    "flex-1 flex items-center justify-center py-2 rounded-md border text-sm transition-all",
+                    "flex-1 flex items-center justify-center h-[30px] rounded-[7px] border transition-all",
                     textAlign === align.value
-                      ? "bg-background border-border shadow-sm text-foreground ring-1 ring-primary"
-                      : "bg-muted/40 border-border/50 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                      ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
+                      : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
                   )}
                   title={align.label}
                   aria-label={`Align ${align.label.toLowerCase()}`}
