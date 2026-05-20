@@ -103,7 +103,7 @@ export const PlayGround = () => {
   const handleToolbarPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
     const rect = toolbarRef.current?.getBoundingClientRect();
     if (!rect) return;
     toolbarDragRef.current = {

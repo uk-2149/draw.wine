@@ -1,11 +1,12 @@
 import { TOOLBAR_ITEMS } from "@/constants/toolbar";
-import { Menubar } from "../../ui/menubar";
+
 import { CMenubtn } from "./menubtn";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useDrawing } from "@/contexts/drawing/useDrawing";
 import type { ToolType } from "@/types/drawing";
 import { useCollab } from "@/contexts/collab/useCollab";
 import { cn } from "@/helpers/cn.h";
+import { Logger } from "@/helpers/general.h";
 
 interface ToolbarProps {
   orientation?: "horizontal" | "vertical";
@@ -49,9 +50,11 @@ export const Toolbar = memo(({ orientation = "horizontal" }: ToolbarProps) => {
   }, [selectedTool, visibleItems, canDraw, setSelectedTool]);
 
   return (
-    <Menubar
+    <div
+      role="toolbar"
+      aria-label="Drawing Tools"
       className={cn(
-        "border bg-background/90 text-foreground backdrop-blur-sm shadow-sm gap-1 items-center",
+        "bg-background/90 flex items-center rounded-md border p-1 shadow-sm text-foreground backdrop-blur-sm gap-1",
         orientation === "vertical"
           ? "h-auto w-11 flex-col px-1 py-1"
           : "h-11 flex-row px-1",
@@ -59,6 +62,12 @@ export const Toolbar = memo(({ orientation = "horizontal" }: ToolbarProps) => {
     >
       {visibleItems.map((item, index) => {
         const isActive = selected === index;
+        Logger.debug(
+          "Rendering toolbar item:",
+          item.tooltip,
+          "Active:",
+          isActive,
+        );
         // const showDivider = index > 0 && !!item.before;
         return (
           <div key={item.tooltip} className="flex items-center">
@@ -84,6 +93,6 @@ export const Toolbar = memo(({ orientation = "horizontal" }: ToolbarProps) => {
           </div>
         );
       })}
-    </Menubar>
+    </div>
   );
 });
