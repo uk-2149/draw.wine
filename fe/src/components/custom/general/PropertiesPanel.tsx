@@ -382,9 +382,7 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
     };
   };
 
-  const handlePanelPointerDown = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handlePanelPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || isInteractivePanelTarget(event.target)) return;
     const rect = panelRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -412,9 +410,7 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
     event.preventDefault();
   };
 
-  const handlePanelPointerMove = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handlePanelPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (panelResizeRef.current) {
       const nextWidth = Math.min(
         Math.max(
@@ -477,7 +473,6 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
       onPointerUp={handlePanelPointerUp}
       onPointerCancel={handlePanelPointerUp}
     >
-
       {/* ── Stroke Color ─────────────────────────────────────────── */}
       {showStroke && (
         <div className={PANEL_SECTION}>
@@ -548,9 +543,7 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
                   "group relative flex h-11 items-center justify-center rounded-xl",
                   CONTROL_SURFACE,
                   CONTROL_INTERACTIVE,
-                  strokePattern === pattern.value
-                    ? CONTROL_ACTIVE
-                    : "",
+                  strokePattern === pattern.value ? CONTROL_ACTIVE : "",
                 )}
                 title={pattern.label}
                 aria-label={`Select ${pattern.label.toLowerCase()} stroke`}
@@ -653,7 +646,9 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
       )}
 
       {/* ── Divider before Text ───────────────────────────────────── */}
-      {showTextFont && (showStroke || showFill || showEdges) && <PanelDivider />}
+      {showTextFont && (showStroke || showFill || showEdges) && (
+        <PanelDivider />
+      )}
 
       {/* ── Text Controls ────────────────────────────────────────── */}
       {showTextFont && (
@@ -661,7 +656,10 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
           {/* Font Family */}
           <div className={PANEL_SECTION}>
             <SectionLabel>Font</SectionLabel>
-            <FontDropdown fontFamily={fontFamily} setFontFamily={setFontFamily} />
+            <FontDropdown
+              fontFamily={fontFamily}
+              setFontFamily={setFontFamily}
+            />
           </div>
 
           {/* Font Size */}
@@ -752,7 +750,12 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
                     value: "left" as const,
                     label: "Left",
                     icon: (
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
                         <path
                           d="M2 3h12M2 6.5h8M2 10h10M2 13.5h6"
                           stroke="currentColor"
@@ -766,7 +769,12 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
                     value: "center" as const,
                     label: "Center",
                     icon: (
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
                         <path
                           d="M2 3h12M4 6.5h8M3 10h10M5 13.5h6"
                           stroke="currentColor"
@@ -780,7 +788,12 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
                     value: "right" as const,
                     label: "Right",
                     icon: (
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
                         <path
                           d="M2 3h12M6 6.5h8M4 10h10M8 13.5h6"
                           stroke="currentColor"

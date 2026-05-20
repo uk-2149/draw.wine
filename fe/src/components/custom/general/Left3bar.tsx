@@ -243,7 +243,13 @@ export const Left3bar = ({
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
-                <span className="mr-4">🎨</span> Canvas background
+                <span className="mr-4">
+                  <i
+                    className="w-3 h-3 inline-block rounded-full border"
+                    style={{ backgroundColor: bgColor }}
+                  ></i>
+                </span>{" "}
+                Canvas background
               </DropdownMenuSubTrigger>
               <DropdownMenuPortal>
                 <DropdownMenuSubContent className="p-3 w-64">
@@ -354,7 +360,10 @@ export const Left3bar = ({
           <DropdownMenuGroup>
             {/* Room Status Indicator */}
             {isInRoom ? (
-              <DropdownMenuItem disabled className="text-green-700 dark:text-green-400 font-medium">
+              <DropdownMenuItem
+                disabled
+                className="text-green-700 dark:text-green-400 font-medium"
+              >
                 ✓ In Room {state.roomId}
               </DropdownMenuItem>
             ) : (
