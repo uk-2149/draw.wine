@@ -7,7 +7,11 @@ import type { ToolType } from "@/types/drawing";
 import { useCollab } from "@/contexts/collab/useCollab";
 import { cn } from "@/helpers/cn.h";
 
-export const Toolbar = memo(() => {
+interface ToolbarProps {
+  orientation?: "horizontal" | "vertical";
+}
+
+export const Toolbar = memo(({ orientation = "horizontal" }: ToolbarProps) => {
   const { selectedTool, setSelectedTool } = useDrawing();
   const { state } = useCollab();
   const [selected, setSelected] = useState<number | null>(0);
@@ -45,12 +49,19 @@ export const Toolbar = memo(() => {
   }, [selectedTool, visibleItems, canDraw, setSelectedTool]);
 
   return (
-    <Menubar className="flex-row w-full h-11 border-b bg-white/90 dark:bg-background/90 backdrop-blur-sm shadow-sm px-1 gap-1 items-center">
+    <Menubar
+      className={cn(
+        "border bg-background/90 text-foreground backdrop-blur-sm shadow-sm gap-1 items-center",
+        orientation === "vertical"
+          ? "h-auto w-11 flex-col px-1 py-1"
+          : "h-11 flex-row px-1",
+      )}
+    >
       {visibleItems.map((item, index) => {
         const isActive = selected === index;
         // const showDivider = index > 0 && !!item.before;
         return (
-          <div key={item.tooltip} className="flex flex-row items-center h-full">
+          <div key={item.tooltip} className="flex items-center">
             {/* {showDivider && (
               <div className="w-px h-5 bg-border/40 mx-1" aria-hidden />
             )} */}

@@ -44,7 +44,9 @@ export const ConnectionStatus = ({
               />
               <span className="text-sm truncate">{collaborator.name}</span>
               {collaborator.isDrawing && (
-                <span className="text-xs text-gray-500">drawing...</span>
+                <span className="text-xs text-muted-foreground">
+                  drawing...
+                </span>
               )}
             </div>
           ))}

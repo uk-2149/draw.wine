@@ -1,9 +1,38 @@
 import { useDrawing } from "@/contexts/drawing/useDrawing";
-import { type CSSProperties, useState, useRef, useEffect } from "react";
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useState,
+  useRef,
+  useEffect,
+} from "react";
 import { cn } from "@/helpers/cn.h";
 import { STROKE_COLORS, STROKE_WIDTHS } from "@/constants/ext";
 import { TEXT_FONT_FAMILIES } from "@/constants/toolbar";
 import { STROKE_PATTERNS } from "@/helpers/stroke.h";
+import { X } from "lucide-react";
+
+const CONTROL_SURFACE =
+  "border border-border/45 bg-muted/30 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+const CONTROL_INTERACTIVE =
+  "transition-all duration-150 hover:border-border/70 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+const CONTROL_ACTIVE =
+  "border-ring/70 bg-card text-foreground shadow-sm ring-2 ring-violet-500 ring-offset-1 ring-offset-background";
+const PANEL_SECTION = "space-y-2";
+const SWATCH_CLASS =
+  "h-8 w-8 shrink-0 rounded-lg transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+const PANEL_MARGIN = 12;
+const PANEL_MIN_WIDTH = 292;
+const PANEL_MIN_HEIGHT = 220;
+const PANEL_DEFAULT_WIDTH = 292;
+const PANEL_DEFAULT_TOP = 88;
+const PANEL_DEFAULT_LEFT = 16;
+
+const isInteractivePanelTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  !!target.closest(
+    "button,input,textarea,select,label,[role='button'],[data-no-panel-drag='true']",
+  );
 
 /** Dashed frame with solid sharp 90° at top-left. */
 const EdgeSharpGlyph = () => (
@@ -124,9 +153,10 @@ const FontDropdown = ({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs transition-all",
-          "bg-muted/30 border-border/40 text-foreground hover:bg-muted/50",
-          open && "ring-1 ring-violet-500 ring-offset-1 ring-offset-background border-transparent",
+          "flex h-9 w-full items-center justify-between rounded-lg px-3 text-xs",
+          CONTROL_SURFACE,
+          CONTROL_INTERACTIVE,
+          open && CONTROL_ACTIVE,
         )}
         style={{ fontFamily }}
         aria-expanded={open}
@@ -154,7 +184,7 @@ const FontDropdown = ({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover border border-border/50 rounded-lg shadow-md overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 overflow-hidden rounded-lg border border-border/50 bg-popover shadow-md animate-in fade-in slide-in-from-top-1 duration-150">
           {TEXT_FONT_FAMILIES.map((font) => (
             <button
               key={font.value}
@@ -163,10 +193,10 @@ const FontDropdown = ({
                 setOpen(false);
               }}
               className={cn(
-                "w-full text-left px-2.5 py-1.5 text-xs transition-colors",
+                "w-full px-3 py-2 text-left text-xs transition-colors",
                 fontFamily === font.value
-                  ? "bg-violet-50 dark:bg-violet-950 text-foreground font-medium"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  ? "bg-accent text-accent-foreground font-medium"
+                  : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground",
               )}
               style={{ fontFamily: font.value }}
               role="option"
@@ -196,7 +226,7 @@ const FONT_SIZE_PRESETS = [
 /* ─── Section Label ────────────────────────────────────────────────────── */
 
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <h3 className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-[0.07em] mb-1.5">
+  <h3 className="text-[11px] font-semibold text-muted-foreground/75 uppercase tracking-[0.14em]">
     {children}
   </h3>
 );
@@ -204,7 +234,7 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
 /* ─── Thin Divider ─────────────────────────────────────────────────────── */
 
 const PanelDivider = () => (
-  <div className="-mx-[14px] h-px bg-border/30" aria-hidden />
+  <div className="-mx-4 h-px bg-border/35" aria-hidden />
 );
 
 /* ─── Color Swatch ─────────────────────────────────────────────────────── */
@@ -222,10 +252,11 @@ const ColorPickerSwatch = ({
 }) => (
   <label
     className={cn(
-      "relative w-[26px] h-[26px] rounded-md transition-all hover:scale-110 cursor-pointer overflow-hidden flex-shrink-0",
+      "relative cursor-pointer overflow-hidden",
+      SWATCH_CLASS,
       active
-        ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
-        : "border border-border/40",
+        ? CONTROL_ACTIVE
+        : "border border-border/50 hover:border-border/80",
     )}
     title={label}
     aria-label={label}
@@ -235,7 +266,7 @@ const ColorPickerSwatch = ({
     }}
   >
     <span
-      className="absolute inset-[5px] rounded-sm border border-white/70"
+      className="absolute inset-[6px] rounded-md border border-background/70 shadow-sm"
       style={{ backgroundColor: value }}
       aria-hidden
     />
@@ -249,7 +280,34 @@ const ColorPickerSwatch = ({
   </label>
 );
 
-export const PropertiesPanel = () => {
+interface PropertiesPanelProps {
+  className?: string;
+}
+
+export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelDragRef = useRef<{
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+  const panelResizeRef = useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
+  const [panelPosition, setPanelPosition] = useState({
+    x: PANEL_DEFAULT_LEFT,
+    y: PANEL_DEFAULT_TOP,
+  });
+  const [panelSize, setPanelSize] = useState<{
+    width: number;
+    height: number | null;
+  }>({
+    width: PANEL_DEFAULT_WIDTH,
+    height: null,
+  });
+
   const {
     selectedTool,
     strokeColor,
@@ -308,27 +366,133 @@ export const PropertiesPanel = () => {
   const isCustomStroke = !STROKE_COLORS.includes(strokeColor);
   const isCustomFill = !!fillColor && !STROKE_COLORS.includes(fillColor);
 
+  const clampPanelPosition = (x: number, y: number) => {
+    const rect = panelRef.current?.getBoundingClientRect();
+    const width = rect?.width ?? panelSize.width;
+    const height = rect?.height ?? panelSize.height ?? PANEL_MIN_HEIGHT;
+    return {
+      x: Math.min(
+        Math.max(PANEL_MARGIN, x),
+        Math.max(PANEL_MARGIN, window.innerWidth - width - PANEL_MARGIN),
+      ),
+      y: Math.min(
+        Math.max(PANEL_MARGIN, y),
+        Math.max(PANEL_MARGIN, window.innerHeight - height - PANEL_MARGIN),
+      ),
+    };
+  };
+
+  const handlePanelPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.button !== 0 || isInteractivePanelTarget(event.target)) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    panelDragRef.current = {
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handlePanelResizePointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    panelResizeRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+    };
+    event.currentTarget.parentElement?.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+    event.preventDefault();
+  };
+
+  const handlePanelPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (panelResizeRef.current) {
+      const nextWidth = Math.min(
+        Math.max(
+          PANEL_MIN_WIDTH,
+          panelResizeRef.current.startWidth +
+            event.clientX -
+            panelResizeRef.current.startX,
+        ),
+        window.innerWidth - panelPosition.x - PANEL_MARGIN,
+      );
+      const nextHeight = Math.min(
+        Math.max(
+          PANEL_MIN_HEIGHT,
+          panelResizeRef.current.startHeight +
+            event.clientY -
+            panelResizeRef.current.startY,
+        ),
+        window.innerHeight - panelPosition.y - PANEL_MARGIN,
+      );
+      setPanelSize({ width: nextWidth, height: nextHeight });
+      return;
+    }
+
+    if (!panelDragRef.current) return;
+    setPanelPosition(
+      clampPanelPosition(
+        event.clientX - panelDragRef.current.offsetX,
+        event.clientY - panelDragRef.current.offsetY,
+      ),
+    );
+  };
+
+  const handlePanelPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    panelDragRef.current = null;
+    panelResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   if (!showStroke && !showFill && !showEdges && !showTextFont) {
     return null;
   }
 
   return (
-    <div className="bg-white/90 dark:bg-background/90 backdrop-blur-sm border border-border/40 p-[14px] rounded-xl shadow-sm w-[256px] flex flex-col gap-[14px]">
+    <div
+      ref={panelRef}
+      className={cn(
+        "absolute z-20 flex min-h-0 cursor-grab flex-col gap-4 overflow-auto rounded-2xl border border-border/45 bg-background/92 p-4 text-foreground shadow-lg shadow-black/5 backdrop-blur-md active:cursor-grabbing dark:shadow-black/25",
+        className,
+      )}
+      style={{
+        left: panelPosition.x,
+        top: panelPosition.y,
+        width: panelSize.width,
+        height: panelSize.height ?? undefined,
+      }}
+      onPointerDown={handlePanelPointerDown}
+      onPointerMove={handlePanelPointerMove}
+      onPointerUp={handlePanelPointerUp}
+      onPointerCancel={handlePanelPointerUp}
+    >
 
       {/* ── Stroke Color ─────────────────────────────────────────── */}
       {showStroke && (
-        <div>
+        <div className={PANEL_SECTION}>
           <SectionLabel>Stroke</SectionLabel>
-          <div className="flex flex-wrap gap-[5px]">
+          <div className="grid grid-cols-7 gap-1.5">
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
                 onClick={() => setStrokeColor(color)}
                 className={cn(
-                  "w-[26px] h-[26px] rounded-md transition-all hover:scale-110 stroke-color-swatch flex-shrink-0",
+                  SWATCH_CLASS,
+                  "stroke-color-swatch",
                   strokeColor === color
-                    ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
-                    : "border border-border/40",
+                    ? CONTROL_ACTIVE
+                    : "border border-border/50 hover:border-border/80",
                 )}
                 style={{ "--stroke-color": color } as CSSProperties}
                 title={color}
@@ -347,18 +511,19 @@ export const PropertiesPanel = () => {
 
       {/* ── Stroke Width ─────────────────────────────────────────── */}
       {showStroke && (
-        <div>
+        <div className={PANEL_SECTION}>
           <SectionLabel>Width</SectionLabel>
-          <div className="flex bg-muted/40 rounded-lg p-[3px] gap-[2px] border border-border/40">
+          <div className="grid h-11 grid-cols-3 gap-1 rounded-xl border border-border/45 bg-muted/25 p-1">
             {STROKE_WIDTHS.map((width) => (
               <button
                 key={width.value}
                 onClick={() => setStrokeWidth(width.value)}
                 className={cn(
-                  "flex-1 flex items-center justify-center py-1.5 rounded-md transition-colors",
+                  "flex h-full items-center justify-center rounded-lg",
+                  CONTROL_INTERACTIVE,
                   strokeWidth === width.value
-                    ? "bg-white dark:bg-background shadow-sm text-foreground border border-border/30"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground",
                 )}
                 title={`${width.value}px`}
                 aria-label={`Select stroke width ${width.value}`}
@@ -372,18 +537,20 @@ export const PropertiesPanel = () => {
 
       {/* ── Stroke Style ─────────────────────────────────────────── */}
       {showStroke && (
-        <div>
+        <div className={PANEL_SECTION}>
           <SectionLabel>Style</SectionLabel>
-          <div className="grid grid-cols-5 gap-[5px]">
+          <div className="grid grid-cols-5 gap-2">
             {STROKE_PATTERNS.map((pattern) => (
               <button
                 key={pattern.value}
                 onClick={() => setStrokePattern(pattern.value)}
                 className={cn(
-                  "group relative flex aspect-square items-center justify-center rounded-lg border transition-all",
+                  "group relative flex h-11 items-center justify-center rounded-xl",
+                  CONTROL_SURFACE,
+                  CONTROL_INTERACTIVE,
                   strokePattern === pattern.value
-                    ? "border-border/60 bg-white dark:bg-background text-foreground shadow-sm ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
-                    : "border-border/40 bg-muted/30 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                    ? CONTROL_ACTIVE
+                    : "",
                 )}
                 title={pattern.label}
                 aria-label={`Select ${pattern.label.toLowerCase()} stroke`}
@@ -403,31 +570,33 @@ export const PropertiesPanel = () => {
 
       {/* ── Fill Color ───────────────────────────────────────────── */}
       {showFill && (
-        <div>
+        <div className={PANEL_SECTION}>
           <SectionLabel>Fill</SectionLabel>
-          <div className="flex flex-wrap gap-[5px]">
+          <div className="grid grid-cols-7 gap-1.5">
             <button
               onClick={() => setFillColor(null)}
               className={cn(
-                "w-[26px] h-[26px] rounded-md transition-all hover:scale-110 flex items-center justify-center text-base leading-none flex-shrink-0",
+                SWATCH_CLASS,
+                "flex items-center justify-center",
                 fillColor === null
-                  ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
-                  : "border border-dashed border-border/50 text-muted-foreground hover:border-border",
+                  ? CONTROL_ACTIVE
+                  : "border border-dashed border-border/55 text-muted-foreground hover:border-border/80",
               )}
               title="No fill"
               aria-label="Disable fill"
             >
-              ×
+              <X className="h-4 w-4" />
             </button>
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
                 onClick={() => setFillColor(color)}
                 className={cn(
-                  "w-[26px] h-[26px] rounded-md transition-all hover:scale-110 stroke-color-swatch flex-shrink-0",
+                  SWATCH_CLASS,
+                  "stroke-color-swatch",
                   fillColor === color
-                    ? "ring-2 ring-violet-500 ring-offset-1 ring-offset-background"
-                    : "border border-border/40",
+                    ? CONTROL_ACTIVE
+                    : "border border-border/50 hover:border-border/80",
                 )}
                 style={{ "--stroke-color": color } as CSSProperties}
                 title={color}
@@ -446,17 +615,17 @@ export const PropertiesPanel = () => {
 
       {/* ── Edges ────────────────────────────────────────────────── */}
       {showEdges && (
-        <div>
+        <div className={PANEL_SECTION}>
           <SectionLabel>Edges</SectionLabel>
-          <div className="flex gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setEdgeStyle("sharp")}
               className={cn(
-                "flex-1 flex items-center justify-center h-[38px] rounded-[9px] border transition-all",
-                edgeStyle === "sharp"
-                  ? "bg-white dark:bg-background border-border/60 shadow-sm ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background text-foreground"
-                  : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                "flex h-11 items-center justify-center rounded-xl",
+                CONTROL_SURFACE,
+                CONTROL_INTERACTIVE,
+                edgeStyle === "sharp" ? CONTROL_ACTIVE : "",
               )}
               title="Sharp corners"
               aria-label="Select sharp edges"
@@ -468,10 +637,10 @@ export const PropertiesPanel = () => {
               type="button"
               onClick={() => setEdgeStyle("curve")}
               className={cn(
-                "flex-1 flex items-center justify-center h-[38px] rounded-[9px] border transition-all",
-                edgeStyle === "curve"
-                  ? "bg-white dark:bg-background border-border/60 shadow-sm ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background text-foreground"
-                  : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                "flex h-11 items-center justify-center rounded-xl",
+                CONTROL_SURFACE,
+                CONTROL_INTERACTIVE,
+                edgeStyle === "curve" ? CONTROL_ACTIVE : "",
               )}
               title="Rounded corners"
               aria-label="Select curved edges"
@@ -490,24 +659,25 @@ export const PropertiesPanel = () => {
       {showTextFont && (
         <>
           {/* Font Family */}
-          <div>
+          <div className={PANEL_SECTION}>
             <SectionLabel>Font</SectionLabel>
             <FontDropdown fontFamily={fontFamily} setFontFamily={setFontFamily} />
           </div>
 
           {/* Font Size */}
-          <div>
+          <div className={PANEL_SECTION}>
             <SectionLabel>Size</SectionLabel>
-            <div className="flex items-center gap-[5px]">
+            <div className="grid grid-cols-[repeat(4,1fr)_3.5rem] gap-1.5">
               {FONT_SIZE_PRESETS.map((preset) => (
                 <button
                   key={preset.label}
                   onClick={() => setFontSize(preset.value)}
                   className={cn(
-                    "flex-1 flex items-center justify-center h-[28px] rounded-[7px] border text-[11px] font-medium transition-all",
+                    "flex h-9 items-center justify-center rounded-lg border text-[11px] font-semibold",
+                    CONTROL_INTERACTIVE,
                     fontSize === preset.value
-                      ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
-                      : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                      ? CONTROL_ACTIVE
+                      : "border-border/45 bg-muted/30 text-muted-foreground",
                   )}
                   title={`${preset.value}px`}
                   aria-label={`Font size ${preset.label}`}
@@ -524,26 +694,27 @@ export const PropertiesPanel = () => {
                 }}
                 min={8}
                 max={200}
-                className="w-12 rounded-[7px] border border-border/40 bg-muted/30 px-1.5 h-[28px] text-[11px] text-center text-foreground outline-none focus:ring-[1.5px] focus:ring-violet-500 focus:border-transparent"
+                className="h-9 w-full rounded-lg border border-border/45 bg-muted/30 px-1.5 text-center text-[11px] text-foreground outline-none transition-all focus:border-ring/70 focus:ring-2 focus:ring-ring/50"
                 aria-label="Custom font size"
               />
             </div>
           </div>
 
           {/* Style + Align (combined row) */}
-          <div>
+          <div className={PANEL_SECTION}>
             <SectionLabel>Style &amp; Align</SectionLabel>
-            <div className="flex gap-[5px]">
+            <div className="grid grid-cols-[1fr_1fr_auto_1fr_1fr_1fr] gap-1.5">
               {/* Bold */}
               <button
                 onClick={() =>
                   setFontWeight(fontWeight === "bold" ? "normal" : "bold")
                 }
                 className={cn(
-                  "flex-1 flex items-center justify-center h-[30px] rounded-[7px] border text-[13px] transition-all",
+                  "flex h-9 items-center justify-center rounded-lg border text-[13px]",
+                  CONTROL_INTERACTIVE,
                   fontWeight === "bold"
-                    ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
-                    : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                    ? CONTROL_ACTIVE
+                    : "border-border/45 bg-muted/30 text-muted-foreground",
                 )}
                 title="Bold"
                 aria-label="Toggle bold"
@@ -558,10 +729,11 @@ export const PropertiesPanel = () => {
                   setFontStyle(fontStyle === "italic" ? "normal" : "italic")
                 }
                 className={cn(
-                  "flex-1 flex items-center justify-center h-[30px] rounded-[7px] border text-[13px] transition-all",
+                  "flex h-9 items-center justify-center rounded-lg border text-[13px]",
+                  CONTROL_INTERACTIVE,
                   fontStyle === "italic"
-                    ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
-                    : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                    ? CONTROL_ACTIVE
+                    : "border-border/45 bg-muted/30 text-muted-foreground",
                 )}
                 title="Italic"
                 aria-label="Toggle italic"
@@ -571,7 +743,7 @@ export const PropertiesPanel = () => {
               </button>
 
               {/* Divider pip */}
-              <div className="w-px bg-border/40 self-stretch my-0.5" aria-hidden />
+              <div className="my-1 w-px bg-border/45" aria-hidden />
 
               {/* Align buttons */}
               {(
@@ -624,10 +796,11 @@ export const PropertiesPanel = () => {
                   key={align.value}
                   onClick={() => setTextAlign(align.value)}
                   className={cn(
-                    "flex-1 flex items-center justify-center h-[30px] rounded-[7px] border transition-all",
+                    "flex h-9 items-center justify-center rounded-lg border",
+                    CONTROL_INTERACTIVE,
                     textAlign === align.value
-                      ? "bg-white dark:bg-background border-border/60 shadow-sm text-foreground ring-[1.5px] ring-violet-500 ring-offset-1 ring-offset-background"
-                      : "bg-muted/30 border-border/40 text-muted-foreground hover:bg-white dark:hover:bg-background hover:text-foreground",
+                      ? CONTROL_ACTIVE
+                      : "border-border/45 bg-muted/30 text-muted-foreground",
                   )}
                   title={align.label}
                   aria-label={`Align ${align.label.toLowerCase()}`}
@@ -640,6 +813,15 @@ export const PropertiesPanel = () => {
           </div>
         </>
       )}
+      <button
+        type="button"
+        aria-label="Resize properties panel"
+        data-no-panel-drag="true"
+        className="absolute bottom-1.5 right-1.5 h-4 w-4 cursor-nwse-resize rounded-sm text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        onPointerDown={handlePanelResizePointerDown}
+      >
+        <span className="absolute bottom-1 right-1 h-2.5 w-2.5 border-b border-r border-current" />
+      </button>
     </div>
   );
 };

@@ -36,6 +36,7 @@ import {
 } from "@/helpers/canvasState.h";
 import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
+import { cn } from "@/helpers/cn.h";
 
 interface Left3barProps {
   bgColor: string;
@@ -267,10 +268,14 @@ export const Left3bar = ({
                           e.preventDefault();
                           setBgColor(c);
                         }}
-                        className="w-7 h-7 rounded border-2 transition-all"
+                        className={cn(
+                          "w-7 h-7 rounded border-2 transition-all",
+                          bgColor === c
+                            ? "border-ring ring-2 ring-ring/30"
+                            : "border-border hover:border-ring/60",
+                        )}
                         style={{
                           backgroundColor: c,
-                          borderColor: bgColor === c ? "#5b9ff4" : "#d1d5db",
                           transform: bgColor === c ? "scale(1.15)" : "scale(1)",
                         }}
                       />
@@ -303,7 +308,7 @@ export const Left3bar = ({
                     min={0}
                     max={100}
                     value={bgOpacity}
-                    className="w-full mb-3 accent-blue-400"
+                    className="w-full mb-3 accent-primary"
                     onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                       e.stopPropagation();
@@ -324,13 +329,12 @@ export const Left3bar = ({
                           e.stopPropagation();
                           setBgPattern(p);
                         }}
-                        className="py-1 px-2 text-xs rounded border transition-all"
-                        style={{
-                          borderColor: bgPattern === p ? "#5b9ff4" : "#d1d5db",
-                          background:
-                            bgPattern === p ? "#eff6ff" : "transparent",
-                          fontWeight: bgPattern === p ? 600 : 400,
-                        }}
+                        className={cn(
+                          "py-1 px-2 text-xs rounded border transition-all",
+                          bgPattern === p
+                            ? "border-ring bg-accent text-accent-foreground font-semibold"
+                            : "border-border bg-transparent text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
+                        )}
                       >
                         {p === "none"
                           ? "None"
@@ -350,11 +354,11 @@ export const Left3bar = ({
           <DropdownMenuGroup>
             {/* Room Status Indicator */}
             {isInRoom ? (
-              <DropdownMenuItem disabled className="text-green-900 font-medium">
+              <DropdownMenuItem disabled className="text-green-700 dark:text-green-400 font-medium">
                 ✓ In Room {state.roomId}
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem disabled className="text-gray-500">
+              <DropdownMenuItem disabled className="text-muted-foreground">
                 ○ Not in a room
               </DropdownMenuItem>
             )}
@@ -373,7 +377,7 @@ export const Left3bar = ({
             {isInRoom && (
               <DropdownMenuItem
                 onClick={handleLeaveRoomClick}
-                className="text-red-600"
+                className="text-destructive focus:text-destructive"
               >
                 Leave Room
               </DropdownMenuItem>
