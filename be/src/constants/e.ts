@@ -18,3 +18,5 @@ export const resend_api_key = process.env.RESEND_API_KEY || "re_";
 export const resend_from_email =
   process.env.RESEND_FROM_EMAIL || "Draw Wine <onboarding@resend.dev>";
 export const gemini_api_key = process.env.GEMINI_API_KEY || "";
+
+export const redis_url = process.env.REDIS_URL || "redis://localhost:6379";
