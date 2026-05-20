@@ -36,8 +36,25 @@ import {
 } from "@/helpers/canvasState.h";
 import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
+import { cn } from "@/helpers/cn.h";
 
-export const Left3bar = () => {
+interface Left3barProps {
+  bgColor: string;
+  setBgColor: (c: string) => void;
+  bgOpacity: number;
+  setBgOpacity: (o: number) => void;
+  bgPattern: "none" | "dots" | "grid" | "lines";
+  setBgPattern: (p: "none" | "dots" | "grid" | "lines") => void;
+}
+
+export const Left3bar = ({
+  bgColor,
+  setBgColor,
+  bgOpacity,
+  setBgOpacity,
+  bgPattern,
+  setBgPattern,
+}: Left3barProps) => {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -223,16 +240,134 @@ export const Left3bar = () => {
               <RiResetLeftFill className="mr-2" />
               Reset the canvas
             </DropdownMenuItem>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <span className="mr-4">
+                  <i
+                    className="w-3 h-3 inline-block rounded-full border"
+                    style={{ backgroundColor: bgColor }}
+                  ></i>
+                </span>{" "}
+                Canvas background
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent className="p-3 w-64">
+                  {/* Color swatches */}
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">
+                    Background color
+                  </p>
+                  <div className="flex gap-2 mb-3 flex-wrap">
+                    {[
+                      "#f8f5f0",
+                      "#e8e8e8",
+                      "#dbeafe",
+                      "#fefce8",
+                      "#fce7f3",
+                      "#ffffff",
+                      "#1a1a2e",
+                      "#0f172a",
+                    ].map((c) => (
+                      <button
+                        key={c}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setBgColor(c);
+                        }}
+                        className={cn(
+                          "w-7 h-7 rounded border-2 transition-all",
+                          bgColor === c
+                            ? "border-ring ring-2 ring-ring/30"
+                            : "border-border hover:border-ring/60",
+                        )}
+                        style={{
+                          backgroundColor: c,
+                          transform: bgColor === c ? "scale(1.15)" : "scale(1)",
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Custom hex input */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs text-muted-foreground">#</span>
+                    <input
+                      className="flex-1 text-xs border rounded px-2 py-1 font-mono bg-background"
+                      value={bgColor.replace("#", "")}
+                      maxLength={6}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^[0-9a-fA-F]{0,6}$/.test(val)) {
+                          if (val.length === 6) setBgColor("#" + val);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* Opacity slider */}
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">
+                    Pattern opacity — {bgOpacity}%
+                  </p>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={bgOpacity}
+                    className="w-full mb-3 accent-primary"
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      setBgOpacity(Number(e.target.value));
+                    }}
+                  />
+
+                  {/* Pattern picker */}
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">
+                    Pattern
+                  </p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {(["none", "dots", "grid", "lines"] as const).map((p) => (
+                      <button
+                        key={p}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setBgPattern(p);
+                        }}
+                        className={cn(
+                          "py-1 px-2 text-xs rounded border transition-all",
+                          bgPattern === p
+                            ? "border-ring bg-accent text-accent-foreground font-semibold"
+                            : "border-border bg-transparent text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground",
+                        )}
+                      >
+                        {p === "none"
+                          ? "None"
+                          : p === "dots"
+                            ? "Dotted"
+                            : p === "grid"
+                              ? "Grid"
+                              : "Lines"}
+                      </button>
+                    ))}
+                  </div>
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             {/* Room Status Indicator */}
             {isInRoom ? (
-              <DropdownMenuItem disabled className="text-green-900 font-medium">
+              <DropdownMenuItem
+                disabled
+                className="text-green-700 dark:text-green-400 font-medium"
+              >
                 ✓ In Room {state.roomId}
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem disabled className="text-gray-500">
+              <DropdownMenuItem disabled className="text-muted-foreground">
                 ○ Not in a room
               </DropdownMenuItem>
             )}
@@ -251,7 +386,7 @@ export const Left3bar = () => {
             {isInRoom && (
               <DropdownMenuItem
                 onClick={handleLeaveRoomClick}
-                className="text-red-600"
+                className="text-destructive focus:text-destructive"
               >
                 Leave Room
               </DropdownMenuItem>

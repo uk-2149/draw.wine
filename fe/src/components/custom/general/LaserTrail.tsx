@@ -6,7 +6,10 @@ import { NEON_RED } from "@/constants/ext";
 export function useLaserTrail() {
   const [trail, setTrail] = useState<LaserPoint[]>([]);
   const animationFrame = useRef<number | null>(null);
-  const lastPoint = useRef<Position | null>(null);
+  const lastPointRef = useRef<{ point: Position; timestamp: number } | null>(
+    null,
+  );
+  const currentSessionId = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
     const animate = () => {
@@ -15,19 +18,14 @@ export function useLaserTrail() {
         prevTrail
           .map((point) => ({
             ...point,
-            opacity: Math.max(0, 1 - (now - point.timestamp) / 3000), // Fade over 3 seconds
+            opacity: Math.max(0, 1 - (now - point.timestamp) / 2700),
           }))
           .filter((point) => point.opacity > 0),
       );
-
-      // Always keep animation frame running
       animationFrame.current = requestAnimationFrame(animate);
     };
 
-    // Start animation immediately
-    if (!animationFrame.current) {
-      animationFrame.current = requestAnimationFrame(animate);
-    }
+    animationFrame.current = requestAnimationFrame(animate);
 
     return () => {
       if (animationFrame.current) {
@@ -35,16 +33,22 @@ export function useLaserTrail() {
         animationFrame.current = null;
       }
     };
-  }, [trail]);
+  }, []);
 
   const addPoint = (point: Position, color: string = NEON_RED) => {
     const now = Date.now();
 
-    setTrail((prev) => {
-      // Keep points from last 2 seconds
-      const recentPoints = prev.filter((p) => now - p.timestamp < 2000);
+    // If the last point was >300ms ago or too far away, start a new stroke segment
+    const lastTrailPoint = lastPointRef.current;
+    const timeSinceLast = lastTrailPoint
+      ? now - lastTrailPoint.timestamp
+      : Infinity;
+    if (timeSinceLast > 150) {
+      currentSessionId.current = crypto.randomUUID();
+    }
 
-      // Add the new point
+    setTrail((prev) => {
+      const recentPoints = prev.filter((p) => now - p.timestamp < 2000);
       return [
         ...recentPoints,
         {
@@ -52,16 +56,17 @@ export function useLaserTrail() {
           opacity: 1,
           timestamp: now,
           color,
+          sessionId: currentSessionId.current,
         },
       ];
     });
 
-    lastPoint.current = point;
+    lastPointRef.current = { point, timestamp: now };
   };
 
   const clearTrail = () => {
     setTrail([]);
-    lastPoint.current = null;
+    lastPointRef.current = null;
     if (animationFrame.current) {
       cancelAnimationFrame(animationFrame.current);
       animationFrame.current = null;

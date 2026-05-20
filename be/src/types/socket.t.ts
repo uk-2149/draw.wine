@@ -11,7 +11,7 @@ export interface User {
 
 export interface Room {
   id: string;
-  users: Map<string, User>;
+  users: Record<string, User>;
   elements: Element[];
   lastActivity: number;
   createdAt: number;
@@ -20,7 +20,7 @@ export interface Room {
     onlyHostCanDraw: boolean;
     requireApproval: boolean;
   };
-  pendingUsers?: Map<
+  pendingUsers?: Record<
     string,
     { user: Omit<User, "socketId" | "joinedAt">; socketId: string }
   >;

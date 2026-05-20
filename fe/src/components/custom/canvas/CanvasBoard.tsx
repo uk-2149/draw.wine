@@ -44,6 +44,7 @@ import {
   getConnectionCoordsForElement,
 } from "@/helpers/connectionSnap.h";
 import { measureTextElement } from "@/helpers/textMeasure.h";
+import { NEON_RED } from "@/constants/ext";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -52,6 +53,24 @@ const MAX_SCALE = 5;
 const EDGE_HIT_PX = 8;
 // Corner zone: if within this many px of a corner, treat as corner resize
 const CORNER_HIT_PX = 14;
+
+const DEFAULT_CANVAS_BACKGROUND = "#f8f5f0";
+
+const invertHexColor = (color: string) => {
+  const hex = color.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
+
+  const channels = hex.match(/.{2}/g);
+  if (!channels) return color;
+
+  const inverted = channels
+    .map((channel) =>
+      (255 - Number.parseInt(channel, 16)).toString(16).padStart(2, "0"),
+    )
+    .join("");
+
+  return `#${inverted}`;
+};
 
 const cloneElementsSnapshot = (els: Element[]): Element[] =>
   els.map((el) => ({
@@ -156,10 +175,94 @@ function getElementBounds(
       }
       return null;
     }
+    case "Text": {
+      if (!element.text) return null;
+      const measured = measureTextElement(element);
+      return {
+        minX: element.x - padding,
+        maxX: element.x + measured.width + padding,
+        minY: element.y - padding,
+        maxY: element.y + measured.height + padding,
+      };
+    }
     default:
       return null;
   }
 }
+
+function resizeTextElement(
+  el: Element,
+  corner: HandleCorner,
+  point: Position,
+): Partial<Element> {
+  const measured = measureTextElement(el);
+  const minFontSize = 8;
+  const maxFontSize = 240;
+  const currentFontSize = el.fontSize || 20;
+  const left = el.x;
+  const top = el.y;
+  const right = el.x + measured.width;
+  const bottom = el.y + measured.height;
+
+  let nextX = el.x;
+  let nextY = el.y;
+  let nextWidth = measured.width;
+  let nextHeight = measured.height;
+
+  switch (corner) {
+    case "tl":
+      nextX = point.x;
+      nextY = point.y;
+      nextWidth = right - point.x;
+      nextHeight = bottom - point.y;
+      break;
+    case "tr":
+      nextY = point.y;
+      nextWidth = point.x - left;
+      nextHeight = bottom - point.y;
+      break;
+    case "bl":
+      nextX = point.x;
+      nextWidth = right - point.x;
+      nextHeight = point.y - top;
+      break;
+    case "br":
+      nextWidth = point.x - left;
+      nextHeight = point.y - top;
+      break;
+    default:
+      return {};
+  }
+
+  const scaleByWidth = Math.abs(nextWidth) / Math.max(measured.width, 1);
+  const scaleByHeight = Math.abs(nextHeight) / Math.max(measured.height, 1);
+  const nextScale = Math.max(0.1, Math.max(scaleByWidth, scaleByHeight));
+  const nextFontSize = Math.min(
+    maxFontSize,
+    Math.max(minFontSize, currentFontSize * nextScale),
+  );
+  const resized = measureTextElement({ ...el, fontSize: nextFontSize });
+
+  if (corner === "tl") {
+    nextX = right - resized.width;
+    nextY = bottom - resized.height;
+  } else if (corner === "tr") {
+    nextY = bottom - resized.height;
+  } else if (corner === "bl") {
+    nextX = right - resized.width;
+  }
+
+  return {
+    x: nextX,
+    y: nextY,
+    width: resized.width,
+    height: resized.height,
+    fontSize: nextFontSize,
+  };
+}
+
+const isCornerHandle = (corner: HandleCorner) =>
+  corner === "tl" || corner === "tr" || corner === "bl" || corner === "br";
 
 /** Apply a resize delta from an 8-point handle to a rect-like element */
 function applyHandleResize(
@@ -310,7 +413,17 @@ function isPointInBounds(
   );
 }
 
-export const CanvasBoard = () => {
+interface CanvasBoardProps {
+  bgColor?: string;
+  bgOpacity?: number;
+  bgPattern?: "none" | "dots" | "grid" | "lines";
+}
+
+export const CanvasBoard = ({
+  bgColor,
+  bgOpacity,
+  bgPattern,
+}: CanvasBoardProps) => {
   const {
     selectedTool,
     strokeColor,
@@ -346,6 +459,16 @@ export const CanvasBoard = () => {
     isJoinSidebarOpen,
   } = useCollab();
   const { theme } = useTheme();
+
+  const isDarkTheme =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const canvasBackgroundColor = isDarkTheme
+    ? invertHexColor(bgColor || DEFAULT_CANVAS_BACKGROUND)
+    : bgColor || DEFAULT_CANVAS_BACKGROUND;
+  const patternColor = isDarkTheme ? "255,255,255" : "0,0,0";
 
   const {
     canvasRef,
@@ -932,7 +1055,7 @@ export const CanvasBoard = () => {
           fillColor: elem.fillColor,
           strokeWidth: elem.strokeWidth ?? strokeWidth,
           strokePattern: "solid",
-          roughness: 1,
+          roughness: 0,
           seed: Math.floor(Math.random() * 2 ** 31),
           edgeStyle: elem.edgeStyle || "curve",
         };
@@ -1094,7 +1217,7 @@ export const CanvasBoard = () => {
                   fillColor: undefined,
                   strokeWidth: strokeWidth || 1,
                   strokePattern: strokePattern || "solid",
-                  roughness: 1,
+                  roughness: 0,
                   seed: Math.floor(Math.random() * 2 ** 31),
                   imageUrl: objectUrl,
                   aspectRatio: iw > 0 && ih > 0 ? iw / ih : undefined,
@@ -1165,7 +1288,7 @@ export const CanvasBoard = () => {
               strokeColor: strokeColor || "#000000",
               fillColor: fillColor || undefined,
               strokeWidth: 0,
-              roughness: 1,
+              roughness: 0,
               seed: Math.floor(Math.random() * 2 ** 31),
               width: measured.width,
               height: measured.height,
@@ -1392,7 +1515,7 @@ export const CanvasBoard = () => {
     fontWeight,
     fontStyle,
     textAlign,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   // ─── Redraw ──────────────────────────────────────────────────────────────────
 
@@ -1409,14 +1532,10 @@ export const CanvasBoard = () => {
 
     const rc = rough.canvas(canvas);
 
-    const isDark =
-      theme === "dark" ||
-      (theme === "system" &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches);
-
     const getStrokeColor = (color: string) => {
-      if (isDark && (color === "#000000" || color === "#000")) return "#ffffff";
-      if (!isDark && (color === "#ffffff" || color === "#fff"))
+      if (isDarkTheme && (color === "#000000" || color === "#000"))
+        return "#ffffff";
+      if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
         return "#000000";
       return color;
     };
@@ -1453,7 +1572,7 @@ export const CanvasBoard = () => {
       const baseOptions = {
         stroke: getStrokeColor(element.strokeColor),
         strokeWidth: element.strokeWidth,
-        roughness: element.roughness || 1,
+        roughness: element.roughness ?? 0,
         seed: element.seed || 1,
         strokeLineDash: strokeDash,
       };
@@ -2008,60 +2127,106 @@ export const CanvasBoard = () => {
 
     // ── Laser trails ──
     const drawLaserTrail = (
-      trail: Array<{ point: { x: number; y: number }; opacity?: number }>,
+      trail: Array<{
+        point: { x: number; y: number };
+        opacity?: number;
+        sessionId?: string;
+      }>,
       color: string,
       opacity: number,
     ) => {
       if (trail.length < 2) return;
-      ctx.save();
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      const drawSmoothPath = () => {
-        const points = trail.map((t) => t.point);
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        if (points.length === 2) {
-          ctx.lineTo(points[1].x, points[1].y);
+
+      // Group consecutive points by sessionId into segments
+      const segments: (typeof trail)[] = [];
+      let current: typeof trail = [trail[0]];
+      for (let i = 1; i < trail.length; i++) {
+        if (trail[i].sessionId !== trail[i - 1].sessionId) {
+          segments.push(current);
+          current = [trail[i]];
         } else {
-          for (let i = 0; i < points.length - 2; i++) {
-            const p1 = points[i + 1];
-            const p2 = points[i + 2];
-            ctx.quadraticCurveTo(
-              p1.x,
-              p1.y,
-              (p1.x + p2.x) / 2,
-              (p1.y + p2.y) / 2,
-            );
-          }
-          const lastPoint = points[points.length - 1];
-          const secondLastPoint = points[points.length - 2];
-          ctx.quadraticCurveTo(
-            secondLastPoint.x,
-            secondLastPoint.y,
-            lastPoint.x,
-            lastPoint.y,
-          );
+          current.push(trail[i]);
         }
-      };
-      ctx.shadowBlur = 20;
-      ctx.lineWidth = 15;
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.globalAlpha = opacity * 0.3;
-      drawSmoothPath();
-      ctx.stroke();
-      ctx.shadowBlur = 10;
-      ctx.lineWidth = 8;
-      ctx.globalAlpha = opacity * 0.6;
-      drawSmoothPath();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 3;
-      ctx.globalAlpha = opacity;
-      ctx.strokeStyle = "#ffffff";
-      drawSmoothPath();
-      ctx.stroke();
-      ctx.restore();
+      }
+      segments.push(current);
+
+      // Draw each segment independently (skip segments with < 2 points)
+      // const drawSmoothPath = (points: Array<{ x: number; y: number }>) => {
+      //   ctx.beginPath();
+      //   ctx.moveTo(points[0].x, points[0].y);
+      //   if (points.length === 2) {
+      //     ctx.lineTo(points[1].x, points[1].y);
+      //   } else {
+      //     for (let i = 0; i < points.length - 2; i++) {
+      //       const p1 = points[i + 1];
+      //       const p2 = points[i + 2];
+      //       ctx.quadraticCurveTo(p1.x, p1.y, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+      //     }
+      //     const last = points[points.length - 1];
+      //     const secondLast = points[points.length - 2];
+      //     ctx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
+      //   }
+      // };
+
+      // ctx.save();
+      // ctx.lineCap = "round";
+      // ctx.lineJoin = "round";
+
+      for (const segment of segments) {
+        if (segment.length < 2) continue;
+        const pts = segment.map((t) => t.point);
+        // Use the oldest point's opacity to represent how faded this segment is
+        const tailOpacity = segment[0].opacity ?? 1;
+
+        const drawPath = () => {
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          if (pts.length === 2) {
+            ctx.lineTo(pts[1].x, pts[1].y);
+          } else {
+            for (let i = 0; i < pts.length - 2; i++) {
+              const p1 = pts[i + 1];
+              const p2 = pts[i + 2];
+              ctx.quadraticCurveTo(
+                p1.x,
+                p1.y,
+                (p1.x + p2.x) / 2,
+                (p1.y + p2.y) / 2,
+              );
+            }
+            const last = pts[pts.length - 1];
+            const secondLast = pts[pts.length - 2];
+            ctx.quadraticCurveTo(secondLast.x, secondLast.y, last.x, last.y);
+          }
+        };
+
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        ctx.shadowBlur = 20;
+        ctx.lineWidth = 15;
+        ctx.strokeStyle = color;
+        ctx.shadowColor = color;
+        ctx.globalAlpha = opacity * tailOpacity * 0.3;
+        drawPath();
+        ctx.stroke();
+
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 8;
+        ctx.globalAlpha = opacity * tailOpacity * 0.6;
+        drawPath();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = opacity * tailOpacity;
+        ctx.strokeStyle = "#ffffff";
+        drawPath();
+        ctx.stroke();
+
+        ctx.restore();
+      }
     };
 
     if (selectedTool === "Laser" && laser.trail.length > 0) {
@@ -2132,12 +2297,12 @@ export const CanvasBoard = () => {
     selectionArea,
     isCollaborating,
     state.userId,
-    theme,
+    isDarkTheme,
   ]);
 
   useEffect(() => {
     redrawCanvas();
-  }, [theme, redrawCanvas]);
+  }, [isDarkTheme, redrawCanvas]);
 
   // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 
@@ -2452,6 +2617,8 @@ export const CanvasBoard = () => {
               textAlign,
               isTemporary: false,
             };
+            setSelectedElement(completedElement);
+            setSelectedElements([completedElement]);
             setElements((prev) =>
               prev.map((el) =>
                 el.id === editingTextId ? completedElement : el,
@@ -2471,6 +2638,7 @@ export const CanvasBoard = () => {
           markHistoryActionMutated();
           setElements((prev) => prev.filter((el) => el.id !== editingTextId));
           setSelectedElement(null);
+          setSelectedElements([]);
           if (isCollaborating && sendOperation && state.roomId) {
             sendOperation({
               type: "element_delete",
@@ -2495,6 +2663,8 @@ export const CanvasBoard = () => {
       commitHistoryAction,
       sendOperation,
       setElements,
+      setSelectedElement,
+      setSelectedElements,
       state.roomId,
       state.userId,
       fontSize,
@@ -2710,13 +2880,18 @@ export const CanvasBoard = () => {
           if (elBounds) {
             const hit = getEdgeHit(point, elBounds, scale);
             if (hit) {
-              beginHistoryAction();
-              setResizing({
-                corner: hit.corner,
-                elementId: selectedElements[0].id,
-              });
-              setResizeStart(point);
-              return;
+              if (
+                selectedElements[0].type !== "Text" ||
+                isCornerHandle(hit.corner)
+              ) {
+                beginHistoryAction();
+                setResizing({
+                  corner: hit.corner,
+                  elementId: selectedElements[0].id,
+                });
+                setResizeStart(point);
+                return;
+              }
             }
           }
           // Lines/Arrows: endpoint hit detection
@@ -2844,7 +3019,7 @@ export const CanvasBoard = () => {
           strokeColor,
           strokeWidth,
           strokePattern,
-          roughness: 1,
+          roughness: 0,
           seed: Math.floor(Math.random() * 1000),
           text: "Type here...",
           fontSize,
@@ -2905,11 +3080,22 @@ export const CanvasBoard = () => {
       beginHistoryAction();
       setDrawing(true);
       setSelectedElement(null);
+      // Snap the start point to a shape perimeter if cursor is close to one
+      const drawStartSnap =
+        selectedTool === "Arrow" || selectedTool === "Line"
+          ? findSnapTarget(point, elements, "", scale)
+          : null;
+      const startX = drawStartSnap ? drawStartSnap.x : point.x;
+      const startY = drawStartSnap ? drawStartSnap.y : point.y;
+      if (drawStartSnap)
+        setSnapHighlight({ x: drawStartSnap.x, y: drawStartSnap.y });
+
       const newElement: Element = {
         id: Date.now().toString(),
         type: selectedTool,
-        x: point.x,
-        y: point.y,
+        x: startX,
+        y: startY,
+        startConnection: drawStartSnap ? drawStartSnap.connection : undefined,
         strokeColor,
         fillColor:
           (selectedTool === "Rectangle" ||
@@ -2920,7 +3106,7 @@ export const CanvasBoard = () => {
             : undefined,
         strokeWidth,
         strokePattern,
-        roughness: 1,
+        roughness: 0,
         seed: Math.floor(Math.random() * 1000),
         points: selectedTool === "Pencil" ? [point] : undefined,
         edgeStyle:
@@ -3032,7 +3218,11 @@ export const CanvasBoard = () => {
           const elBounds = getElementBounds(selectedElements[0]);
           if (elBounds) {
             const hit = getEdgeHit(point, elBounds, scale);
-            if (hit) edgeCursor = hit.cursor;
+            if (
+              hit &&
+              (selectedElements[0].type !== "Text" || isCornerHandle(hit.corner))
+            )
+              edgeCursor = hit.cursor;
           }
           const el = selectedElements[0];
           if (
@@ -3094,15 +3284,15 @@ export const CanvasBoard = () => {
 
       if (selectedTool === "Laser") {
         if (e.buttons === 1) {
-          const isDark = document.documentElement.classList.contains("dark");
-          const getStrokeColor = (c: string) =>
-            isDark && (c === "#000000" || c === "#000")
-              ? "#ffffff"
-              : !isDark && (c === "#ffffff" || c === "#fff")
-                ? "#000000"
-                : c;
-          const laserColor = getStrokeColor(strokeColor);
-          laser.addPoint(point, laserColor);
+          // const isDark = document.documentElement.classList.contains("dark");
+          // const getStrokeColor = (c: string) =>
+          //   isDark && (c === "#000000" || c === "#000")
+          //     ? "#ffffff"
+          //     : !isDark && (c === "#ffffff" || c === "#fff")
+          //       ? "#000000"
+          //       : c;
+          // const laserColor = getStrokeColor(strokeColor);
+          laser.addPoint(point, NEON_RED);
           if (isCollaborating && updateCursor && state.roomId && state.socket) {
             updateCursor({ x: point.x, y: point.y });
             state.socket.emit("laser_point", {
@@ -3110,7 +3300,7 @@ export const CanvasBoard = () => {
               point,
               userId: state.userId,
               timestamp: Date.now(),
-              color: laserColor,
+              color: NEON_RED,
             });
           }
         }
@@ -3252,40 +3442,14 @@ export const CanvasBoard = () => {
         const selectedIds = selectedElements.map((s) => s.id);
 
         setElements((prev) => {
-          // For multi-select we anchored on groupBounds.minX/minY.
-          // For single select we anchored on element.x/y.
-          // Recompute delta by finding how much the first selected element moves.
-          const anchorEl = prev.find((el) => selectedIds.includes(el.id));
-          if (!anchorEl) return prev;
-
-          // let deltaX: number, deltaY: number;
-          // if (selectedIds.length > 1 && groupBounds) {
-          //   // dragOffset stored as (point - groupBounds.minX, point - groupBounds.minY)
-          //   deltaX =
-          //     point.x -
-          //     dragOffset.x -
-          //     anchorEl.x +
-          //     (groupBounds.minX - anchorEl.x); // simplify:
-          //   // Actually: we want new groupBounds.minX = point.x - dragOffset.x
-          //   // anchorEl.x + delta = anchorEl.x + (newMinX - oldMinX)
-          //   // delta = newMinX - oldMinX
-          //   // This is tricky because groupBounds is stale. Use a simpler mouse-move delta approach:
-          //   deltaX = e.movementX / scale;
-          //   deltaY = e.movementY / scale;
-          // } else {
-          //   // Single element anchor
-          //   const newX = point.x - dragOffset.x;
-          //   const newY = point.y - dragOffset.y;
-          //   deltaX = newX - anchorEl.x;
-          //   deltaY = newY - anchorEl.y;
-          // }
           const deltaX = e.movementX / scale;
           const deltaY = e.movementY / scale;
-
           if (deltaX === 0 && deltaY === 0) return prev;
 
-          const updated = prev.map((el) => {
-            if (!selectedIds.includes(el.id)) return el;
+          const movedIds = new Set(selectedIds);
+
+          const afterMove = prev.map((el) => {
+            if (!movedIds.has(el.id)) return el;
             const newEl = { ...el, x: el.x + deltaX, y: el.y + deltaY };
             if (el.type === "Pencil" && el.points) {
               newEl.points = el.points.map((p) => ({
@@ -3293,104 +3457,98 @@ export const CanvasBoard = () => {
                 y: p.y + deltaY,
               }));
             }
-            // Translate bend point with the element
             if (el.bendPoint) {
               newEl.bendPoint = {
                 x: el.bendPoint.x + deltaX,
                 y: el.bendPoint.y + deltaY,
               };
             }
-            if (
-              isCollaborating &&
-              sendOperation &&
-              state.roomId &&
-              state.userId
-            ) {
-              sendOperation({
-                type: "element_update",
-                roomId: state.roomId!,
-                elementId: el.id,
-                authorId: state.userId!,
-                data: {
-                  x: newEl.x,
-                  y: newEl.y,
-                  ...(newEl.points ? { points: newEl.points } : {}),
-                },
-              });
-            }
             return newEl;
           });
 
-          // After the setElements call that moves selected elements, also update connected lines:
-          setElements((prev) => {
-            const movedIds = new Set(selectedIds);
-            return prev.map((el) => {
-              if (el.type !== "Arrow" && el.type !== "Line") return el;
-              let updated = { ...el };
-              let changed = false;
+          const result = afterMove.map((el) => {
+            if (el.type !== "Arrow" && el.type !== "Line") return el;
+            if (movedIds.has(el.id)) return el;
+            let updated = { ...el };
+            let changed = false;
 
-              if (
-                el.startConnection &&
-                movedIds.has(el.startConnection.elementId)
-              ) {
-                const shape = prev.find(
-                  (s) => s.id === el.startConnection!.elementId,
+            if (
+              el.startConnection &&
+              movedIds.has(el.startConnection.elementId)
+            ) {
+              const shape = afterMove.find(
+                (s) => s.id === el.startConnection!.elementId,
+              );
+              if (shape) {
+                const newCoords = getConnectionCoordsForElement(
+                  shape,
+                  el.startConnection.point,
                 );
-                if (shape) {
-                  // const coords = getConnectionCoordsForElement(
-                  //   shape,
-                  //   el.startConnection.point,
-                  // );
-                  // Temporarily apply delta to shape to get new coords
-                  const newCoords = getConnectionCoordsForElement(
-                    { ...shape, x: shape.x + deltaX, y: shape.y + deltaY },
-                    el.startConnection.point,
-                  );
-                  const oldEndX = el.x + (el.width ?? 0);
-                  const oldEndY = el.y + (el.height ?? 0);
-                  updated = {
-                    ...updated,
-                    x: newCoords.x,
-                    y: newCoords.y,
-                    width: oldEndX - newCoords.x,
-                    height: oldEndY - newCoords.y,
-                  };
-                  changed = true;
-                }
+                const oldEndX = el.x + (el.width ?? 0);
+                const oldEndY = el.y + (el.height ?? 0);
+                updated = {
+                  ...updated,
+                  x: newCoords.x,
+                  y: newCoords.y,
+                  width: oldEndX - newCoords.x,
+                  height: oldEndY - newCoords.y,
+                };
+                changed = true;
               }
+            }
 
-              if (
-                el.endConnection &&
-                movedIds.has(el.endConnection.elementId)
-              ) {
-                const shape = prev.find(
-                  (s) => s.id === el.endConnection!.elementId,
+            if (el.endConnection && movedIds.has(el.endConnection.elementId)) {
+              const shape = afterMove.find(
+                (s) => s.id === el.endConnection!.elementId,
+              );
+              if (shape) {
+                const newCoords = getConnectionCoordsForElement(
+                  shape,
+                  el.endConnection.point,
                 );
-                if (shape) {
-                  const newCoords = getConnectionCoordsForElement(
-                    { ...shape, x: shape.x + deltaX, y: shape.y + deltaY },
-                    el.endConnection.point,
-                  );
-                  updated = {
-                    ...updated,
-                    width: newCoords.x - updated.x,
-                    height: newCoords.y - updated.y,
-                  };
-                  changed = true;
-                }
+                updated = {
+                  ...updated,
+                  width: newCoords.x - updated.x,
+                  height: newCoords.y - updated.y,
+                };
+                changed = true;
               }
+            }
 
-              return changed ? updated : el;
-            });
+            return changed ? updated : el;
           });
 
           setSelectedElements(
-            updated.filter((el) => selectedIds.includes(el.id)),
+            result.filter((el) => selectedIds.includes(el.id)),
           );
           setSelectedElement((prev) =>
-            prev ? (updated.find((el) => el.id === prev.id) ?? prev) : null,
+            prev ? (result.find((el) => el.id === prev.id) ?? prev) : null,
           );
-          return updated;
+
+          if (
+            isCollaborating &&
+            sendOperation &&
+            state.roomId &&
+            state.userId
+          ) {
+            result
+              .filter((el) => movedIds.has(el.id))
+              .forEach((el) => {
+                sendOperation({
+                  type: "element_update",
+                  roomId: state.roomId!,
+                  elementId: el.id,
+                  authorId: state.userId!,
+                  data: {
+                    x: el.x,
+                    y: el.y,
+                    ...(el.points ? { points: el.points } : {}),
+                  },
+                });
+              });
+          }
+
+          return result;
         });
         return;
       }
@@ -3439,16 +3597,19 @@ export const CanvasBoard = () => {
         // Single element resize
         setElements((prev) => {
           let updatedElement: Element | null = null;
-          const updated = prev.map((el) => {
+
+          const afterResize = prev.map((el) => {
             if (el.id !== resizing.elementId) return el;
 
-            const patch = applyHandleResize(
-              el,
-              resizing.corner as HandleCorner,
-              point,
-            );
+            const patch =
+              el.type === "Text"
+                ? resizeTextElement(el, resizing.corner as HandleCorner, point)
+                : applyHandleResize(
+                    el,
+                    resizing.corner as HandleCorner,
+                    point,
+                  );
 
-            // ── Snap logic: mutate patch FIRST, then build updatedElement ──
             if (
               (el.type === "Arrow" || el.type === "Line") &&
               (resizing.corner === "start" || resizing.corner === "end")
@@ -3460,12 +3621,12 @@ export const CanvasBoard = () => {
                   patch.height = snap.y - el.y;
                   patch.endConnection = snap.connection;
                 } else {
-                  const oldEndX = el.x + (el.width ?? 0);
-                  const oldEndY = el.y + (el.height ?? 0);
+                  const oex = el.x + (el.width ?? 0),
+                    oey = el.y + (el.height ?? 0);
                   patch.x = snap.x;
                   patch.y = snap.y;
-                  patch.width = oldEndX - snap.x;
-                  patch.height = oldEndY - snap.y;
+                  patch.width = oex - snap.x;
+                  patch.height = oey - snap.y;
                   patch.startConnection = snap.connection;
                 }
                 setSnapHighlight({ x: snap.x, y: snap.y });
@@ -3476,9 +3637,7 @@ export const CanvasBoard = () => {
               }
             }
 
-            // ← Build updatedElement AFTER snap has modified patch
             updatedElement = { ...el, ...patch };
-
             if (
               isCollaborating &&
               sendOperation &&
@@ -3496,11 +3655,66 @@ export const CanvasBoard = () => {
             return updatedElement;
           });
 
+          const result = afterResize.map((el) => {
+            if (el.type !== "Arrow" && el.type !== "Line") return el;
+            if (el.id === resizing.elementId) return el;
+            let updated = { ...el };
+            let changed = false;
+
+            if (
+              el.startConnection &&
+              el.startConnection.elementId === resizing.elementId
+            ) {
+              const shape = afterResize.find(
+                (s) => s.id === resizing.elementId,
+              );
+              if (shape) {
+                const newCoords = getConnectionCoordsForElement(
+                  shape,
+                  el.startConnection.point,
+                );
+                const oldEndX = el.x + (el.width ?? 0);
+                const oldEndY = el.y + (el.height ?? 0);
+                updated = {
+                  ...updated,
+                  x: newCoords.x,
+                  y: newCoords.y,
+                  width: oldEndX - newCoords.x,
+                  height: oldEndY - newCoords.y,
+                };
+                changed = true;
+              }
+            }
+
+            if (
+              el.endConnection &&
+              el.endConnection.elementId === resizing.elementId
+            ) {
+              const shape = afterResize.find(
+                (s) => s.id === resizing.elementId,
+              );
+              if (shape) {
+                const newCoords = getConnectionCoordsForElement(
+                  shape,
+                  el.endConnection.point,
+                );
+                updated = {
+                  ...updated,
+                  width: newCoords.x - updated.x,
+                  height: newCoords.y - updated.y,
+                };
+                changed = true;
+              }
+            }
+
+            return changed ? updated : el;
+          });
+
           if (updatedElement) {
             setSelectedElement(updatedElement);
             setSelectedElements([updatedElement]);
           }
-          return updated;
+          return result;
         });
 
         return;
@@ -3733,7 +3947,7 @@ export const CanvasBoard = () => {
           strokeColor,
           strokeWidth,
           strokePattern,
-          roughness: 1,
+          roughness: 0,
           seed: Math.floor(Math.random() * 1000),
           text: "Type here...",
           fontSize,
@@ -3885,8 +4099,27 @@ export const CanvasBoard = () => {
   return (
     <div
       ref={containerRef}
-      className={cn("h-full w-full overflow-hidden bg-dot-pattern")}
+      className={cn("h-full w-full overflow-hidden")}
       style={{
+        backgroundColor: canvasBackgroundColor,
+        opacity: 1, // container stays full opacity
+        backgroundImage:
+          bgPattern === "dots"
+            ? `radial-gradient(circle, rgba(${patternColor},${((bgOpacity ?? 100) / 100) * 0.15}) 1px, transparent 1px)`
+            : bgPattern === "grid"
+              ? `linear-gradient(rgba(${patternColor},${((bgOpacity ?? 100) / 100) * 0.1}) 1px, transparent 1px),
+         linear-gradient(90deg, rgba(${patternColor},${((bgOpacity ?? 100) / 100) * 0.1}) 1px, transparent 1px)`
+              : bgPattern === "lines"
+                ? `linear-gradient(rgba(${patternColor},${((bgOpacity ?? 100) / 100) * 0.1}) 1px, transparent 1px)`
+                : "none",
+        backgroundSize:
+          bgPattern === "dots"
+            ? "20px 20px"
+            : bgPattern === "grid"
+              ? "40px 40px"
+              : bgPattern === "lines"
+                ? "100% 40px"
+                : "auto",
         cursor: isPanning
           ? "grabbing"
           : selectedTool === "Hand"
@@ -4277,8 +4510,10 @@ export const CanvasBoard = () => {
                   cursor: c.cursor,
                   borderRadius: "1px",
                   border: "1.5px solid #5b9ff4",
-                  background: "white",
-                  boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
+                  background: "var(--card)",
+                  boxShadow: `0 0 0 1px ${
+                    isDarkTheme ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.05)"
+                  }`,
                 }}
                 onMouseDown={(e) => {
                   e.stopPropagation();
@@ -4290,7 +4525,7 @@ export const CanvasBoard = () => {
               />
             ));
           }
-          const PAD = 6; // matches canvas drawing padding
+          const PAD = selectedElements.length > 1 ? 14 : 9;
           const corners = [
             {
               x: bounds.minX - PAD,
@@ -4330,8 +4565,10 @@ export const CanvasBoard = () => {
                 cursor: c.cursor,
                 borderRadius: "2px",
                 border: "1.5px solid #5b9ff4",
-                background: "white",
-                boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
+                background: "var(--card)",
+                boxShadow: `0 0 0 1px ${
+                  isDarkTheme ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.05)"
+                }`,
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();
@@ -4384,8 +4621,10 @@ export const CanvasBoard = () => {
                 cursor: "grab",
                 borderRadius: "1px",
                 border: "1.5px solid #5b9ff4",
-                background: el.bendPoint ? "#5b9ff4" : "white",
-                boxShadow: "0 0 0 1px rgba(0,0,0,0.05)",
+                background: el.bendPoint ? "#5b9ff4" : "var(--card)",
+                boxShadow: `0 0 0 1px ${
+                  isDarkTheme ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.05)"
+                }`,
               }}
               onMouseDown={(e) => {
                 e.stopPropagation();
@@ -4432,7 +4671,7 @@ export const CanvasBoard = () => {
       )}
       {/* Bottom Controls */}
       <div
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-background/80 backdrop-blur-md border border-border rounded-xl shadow-lg flex items-center gap-1 p-1"
+        className="absolute bottom-5 left-4 z-50 bg-background/90 text-foreground backdrop-blur-md border border-border rounded-xl shadow-lg flex items-center gap-1 p-1"
         onMouseDown={(e) => e.stopPropagation()}
         onMouseUp={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}

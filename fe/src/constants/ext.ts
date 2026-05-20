@@ -1,7 +1,7 @@
 import React from "react";
 import { Minus } from "lucide-react";
 
-export const NEON_RED = "#ff0000"; // Bright red
+export const NEON_RED = "#ff073a"; // Bright red
 
 export const STROKE_COLORS = [
   "#495057", // Soft Black / Dark Gray
