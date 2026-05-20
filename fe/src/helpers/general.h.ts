@@ -11,22 +11,22 @@ export const Colors = {
 };
 
 export const Logger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     console.log(Colors.blue("[LOG]"), ...args);
   },
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     console.error(Colors.red("[ERROR]"), ...args);
   },
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     console.warn(Colors.yellow("[WARN]"), ...args);
   },
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     console.info(Colors.cyan("[INFO]"), ...args);
   },
-  success: (...args: any[]) => {
+  success: (...args: unknown[]) => {
     console.log(Colors.green("[SUCCESS]"), ...args);
   },
-  debug: (...args: any[]) => {
+  debug: (...args: unknown[]) => {
     console.debug(Colors.magenta("[DEBUG]"), ...args);
   },
 };
