@@ -45,6 +45,7 @@ import {
 } from "@/helpers/connectionSnap.h";
 import { measureTextElement } from "@/helpers/textMeasure.h";
 import { NEON_RED } from "@/constants/ext";
+import { IconModal } from "../modals/IconModal";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -77,6 +78,9 @@ const cloneElementsSnapshot = (els: Element[]): Element[] =>
     ...el,
     points: el.points ? el.points.map((p) => ({ ...p })) : undefined,
   }));
+
+// ─── Icon blob URL cache (stable URLs preserve SMIL animations across re-renders)
+const iconBlobCache = new Map<string, string>();
 
 // ─── Edge/corner hit-detection helpers ────────────────────────────────────────
 
@@ -164,7 +168,8 @@ function getElementBounds(
     case "Rectangle":
     case "Diamond":
     case "Circle":
-    case "Image": {
+    case "Image":
+    case "Icon": {
       if (element.width !== undefined && element.height !== undefined) {
         return {
           minX: Math.min(element.x, element.x + element.width) - padding,
@@ -328,9 +333,9 @@ function applyHandleResize(
       break;
   }
 
-  // For images maintain aspect ratio on corner handles
+  // For images/icons maintain aspect ratio on corner handles
   if (
-    el.type === "Image" &&
+    (el.type === "Image" || el.type === "Icon") &&
     el.aspectRatio &&
     ["tl", "tr", "bl", "br"].includes(corner)
   ) {
@@ -565,7 +570,8 @@ export const CanvasBoard = ({
         case "Rectangle":
         case "Diamond":
         case "Circle":
-        case "Image": {
+        case "Image":
+        case "Icon": {
           if (el.width !== undefined && el.height !== undefined) {
             minX = Math.min(minX, el.x, el.x + el.width);
             maxX = Math.max(maxX, el.x, el.x + el.width);
@@ -927,6 +933,37 @@ export const CanvasBoard = ({
     }
   }, [applyCollaborativeOperation, isCollaborating]);
 
+  // ─── Collaborative laser trail decay animation ────────────────────────────────
+  useEffect(() => {
+    if (!isCollaborating) return;
+    let rafId: number;
+    const decay = () => {
+      const now = Date.now();
+      setCollaborativeLaserTrails((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        next.forEach((trail, userId) => {
+          const updated = trail
+            .map((p) => ({ ...p, opacity: Math.max(0, 1 - (now - p.timestamp) / 2700) }))
+            .filter((p) => p.opacity > 0);
+          if (updated.length !== trail.length || updated.some((p, i) => p.opacity !== trail[i].opacity)) {
+            changed = true;
+          }
+          if (updated.length === 0) {
+            next.delete(userId);
+            changed = true;
+          } else {
+            next.set(userId, updated);
+          }
+        });
+        return changed ? next : prev;
+      });
+      rafId = requestAnimationFrame(decay);
+    };
+    rafId = requestAnimationFrame(decay);
+    return () => cancelAnimationFrame(rafId);
+  }, [isCollaborating, setCollaborativeLaserTrails]);
+
   // ─── Persist / load ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1041,7 +1078,8 @@ export const CanvasBoard = ({
 
       // ═══ Convert GeneratedElement[] → canvas Element[] ═══
       const newElements: Element[] = generatedElements.map((elem, index) => {
-        const isImage = elem.type === "Image";
+        const isImage = elem.type === "Image" || elem.type === "Icon";
+        const ar = isImage && (elem as any).aspectRatio ? (elem as any).aspectRatio : null;
         const isText = elem.type === "Text";
 
         const baseElement: Element = {
@@ -1068,7 +1106,7 @@ export const CanvasBoard = ({
 
         if (isImage) {
           baseElement.imageUrl = elem.text || elem.imageUrl || "";
-          baseElement.aspectRatio = (elem.width || 1) / (elem.height || 1);
+          baseElement.aspectRatio = ar || (elem.width || 1) / (elem.height || 1);
           delete baseElement.text;
         }
 
@@ -1410,6 +1448,11 @@ export const CanvasBoard = ({
             if (el.strokeColor !== strokeColor) {
               updatedEl.strokeColor = strokeColor;
               elChanged = true;
+              if (updatedEl.type === "Icon" && updatedEl.iconSvg) {
+                // Only replace currentColor — preserve the icon's native colors
+                const newSvg = updatedEl.iconSvg.replace(/currentColor/g, strokeColor);
+                updatedEl.imageUrl = `data:image/svg+xml;utf8,${encodeURIComponent(newSvg)}`;
+              }
             }
             if (el.strokeWidth !== strokeWidth) {
               updatedEl.strokeWidth = strokeWidth;
@@ -1422,7 +1465,10 @@ export const CanvasBoard = ({
             if (
               (el.type === "Rectangle" ||
                 el.type === "Diamond" ||
-                el.type === "Circle") &&
+                el.type === "Image" ||
+                el.type === "Icon" ||
+                el.type === "Circle" ||
+                el.type === "Text") &&
               el.fillColor !== fillColor
             ) {
               updatedEl.fillColor = fillColor || undefined;
@@ -1599,6 +1645,11 @@ export const CanvasBoard = ({
       }
 
       switch (element.type) {
+        case "Icon": {
+          // Icons are rendered as HTML overlays to preserve SVG animations.
+          // Canvas only draws selection handles (via getElementBounds).
+          break;
+        }
         case "Image": {
           if (element.imageUrl && element.width && element.height) {
             const isVisible = isElementInViewport(
@@ -2016,7 +2067,8 @@ export const CanvasBoard = ({
             }
             break;
           }
-          case "Image": {
+          case "Image":
+          case "Icon": {
             if (element.width !== undefined && element.height !== undefined) {
               const minX = Math.min(element.x, element.x + element.width);
               const maxX = Math.max(element.x, element.x + element.width);
@@ -2130,6 +2182,7 @@ export const CanvasBoard = ({
       trail: Array<{
         point: { x: number; y: number };
         opacity?: number;
+        timestamp?: number;
         sessionId?: string;
       }>,
       color: string,
@@ -2137,15 +2190,26 @@ export const CanvasBoard = ({
     ) => {
       if (trail.length < 2) return;
 
-      // Group consecutive points by sessionId into segments
+      // Group consecutive points into segments by sessionId or time gap
+      const TIME_GAP_MS = 200;
       const segments: (typeof trail)[] = [];
       let current: typeof trail = [trail[0]];
       for (let i = 1; i < trail.length; i++) {
-        if (trail[i].sessionId !== trail[i - 1].sessionId) {
+        const prev = trail[i - 1];
+        const cur = trail[i];
+        const sessionBreak =
+          cur.sessionId !== undefined &&
+          prev.sessionId !== undefined &&
+          cur.sessionId !== prev.sessionId;
+        const timeBreak =
+          cur.timestamp !== undefined &&
+          prev.timestamp !== undefined &&
+          cur.timestamp - prev.timestamp > TIME_GAP_MS;
+        if (sessionBreak || timeBreak) {
           segments.push(current);
-          current = [trail[i]];
+          current = [cur];
         } else {
-          current.push(trail[i]);
+          current.push(cur);
         }
       }
       segments.push(current);
@@ -2308,7 +2372,17 @@ export const CanvasBoard = ({
 
   useEffect(() => {
     const handleToolShortcuts = (e: KeyboardEvent) => {
-      if (isEditingText || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (
+        isEditingText ||
+        e.ctrlKey ||
+        e.altKey ||
+        e.metaKey ||
+        (e.target instanceof HTMLElement &&
+          (e.target.tagName === "INPUT" ||
+            e.target.tagName === "TEXTAREA" ||
+            e.target.isContentEditable))
+      )
+        return;
       switch (e.key.toLowerCase()) {
         case " ":
           e.preventDefault();
@@ -2415,6 +2489,11 @@ export const CanvasBoard = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
+      
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         !isEditingText &&
@@ -2422,13 +2501,29 @@ export const CanvasBoard = ({
       ) {
         e.preventDefault();
         if (!isCollaborating) recordHistorySnapshot(localElements);
+
+        // Collect IDs to delete
+        const idsToDelete = new Set<string>();
+        selectedElements.forEach((el) => idsToDelete.add(el.id));
+        if (selectedElement) idsToDelete.add(selectedElement.id);
+
         setElements((prev) =>
-          prev.filter(
-            (el) =>
-              !selectedElements.some((selected) => selected.id === el.id) &&
-              (!selectedElement || el.id !== selectedElement.id),
-          ),
+          prev.filter((el) => !idsToDelete.has(el.id)),
         );
+
+        // Send delete operations to collaborators
+        if (isCollaborating && sendOperation && state.roomId) {
+          idsToDelete.forEach((elementId) => {
+            sendOperation({
+              type: "element_delete",
+              roomId: state.roomId!,
+              elementId,
+              authorId: state.userId!,
+              data: {},
+            });
+          });
+        }
+
         setSelectedElements([]);
         setSelectedElement(null);
       }
@@ -2443,10 +2538,18 @@ export const CanvasBoard = ({
     localElements,
     recordHistorySnapshot,
     setElements,
+    sendOperation,
+    state.roomId,
+    state.userId,
   ]);
 
   useEffect(() => {
     const handleTabKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
+      
       if (isEditingText) return;
       if (e.key === "Tab") {
         e.preventDefault();
@@ -2466,6 +2569,11 @@ export const CanvasBoard = ({
 
   useEffect(() => {
     const handleArrowKeys = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
+
       if (isEditingText) return;
       const ARROW_PAN_SPEED = 50;
       switch (e.key) {
@@ -2731,7 +2839,8 @@ export const CanvasBoard = ({
           case "Rectangle":
           case "Diamond":
           case "Circle":
-          case "Image": {
+          case "Image":
+          case "Icon": {
             if (element.width && element.height) {
               const minX = Math.min(element.x, element.x + element.width);
               const maxX = Math.max(element.x, element.x + element.width);
@@ -3353,7 +3462,8 @@ export const CanvasBoard = ({
             case "Rectangle":
             case "Diamond":
             case "Circle":
-            case "Image": {
+            case "Image":
+            case "Icon": {
               if (el.width && el.height) {
                 const r = {
                   left: Math.min(el.x, el.x + el.width),
@@ -3851,12 +3961,7 @@ export const CanvasBoard = ({
     setSnapHighlight(null);
     draggingBendPointRef.current = null; // ← clear ref
     setDraggingBendPoint(null);
-    //     if (draggingBendPoint) {
-    //       draggingBendPointRef.current = null;   // ← clear ref
-    // setDraggingBendPoint(null);
-    //       commitHistoryAction();
-    //       return;
-    //     }
+
     if (
       drawing &&
       currentElement &&
@@ -4074,6 +4179,71 @@ export const CanvasBoard = ({
     ],
   );
 
+  const handleSelectIcon = useCallback(
+    (svgString: string) => {
+      beginHistoryAction();
+      const elementId = isCollaborating
+        ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        : Date.now().toString();
+
+      // Only replace currentColor — preserve the icon's native fill/stroke attributes
+      const coloredSvg = svgString.replace(/currentColor/g, strokeColor);
+      const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(coloredSvg)}`;
+
+      // Approximate center of viewport
+      const centerX = -position.x / scale + window.innerWidth / (2 * scale) - 50;
+      const centerY = -position.y / scale + window.innerHeight / (2 * scale) - 50;
+
+      const newElement: Element = {
+        id: elementId,
+        type: "Icon",
+        x: centerX,
+        y: centerY,
+        width: 100,
+        height: 100,
+        iconSvg: svgString,
+        imageUrl: dataUrl,
+        aspectRatio: 1,
+        strokeColor,
+        strokeWidth,
+        authorId: isCollaborating ? state.userId || "local" : "local",
+        isTemporary: false,
+      };
+
+      setElements((prev) => [...prev, newElement]);
+      markHistoryActionMutated();
+      setSelectedTool("select");
+      setSelectedElements([newElement]);
+      setSelectedElement(newElement);
+
+      if (isCollaborating && sendOperation && state.roomId) {
+        sendOperation({
+          type: "element_create",
+          roomId: state.roomId,
+          elementId: newElement.id,
+          authorId: state.userId!,
+          data: { element: newElement },
+        });
+      }
+    },
+    [
+      beginHistoryAction,
+      isCollaborating,
+      state.userId,
+      state.roomId,
+      position,
+      scale,
+      strokeColor,
+      strokeWidth,
+      setElements,
+      markHistoryActionMutated,
+      setSelectedTool,
+      setSelectedElements,
+      setSelectedElement,
+      sendOperation,
+    ],
+  );
+
   // ─── Reset on collab end ──────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -4146,6 +4316,64 @@ export const CanvasBoard = ({
         onChange={handleImageUpload}
       />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
+
+      {/* Icon elements rendered as HTML overlays to preserve SVG animations */}
+      {elements
+        .filter((el) => el.type === "Icon" && el.iconSvg && el.width && el.height)
+        .map((el) => {
+          const screenX = el.x * scale + position.x;
+          const screenY = el.y * scale + position.y;
+          const screenW = el.width! * scale;
+          const screenH = el.height! * scale;
+          // Build a stable blob URL for this icon so the browser keeps the SVG animation running
+          const cacheKey = `${el.id}:${el.strokeColor}`;
+          if (!iconBlobCache.has(cacheKey)) {
+            // Revoke old blob for this element if color changed
+            for (const [k, url] of iconBlobCache.entries()) {
+              if (k.startsWith(el.id + ":")) {
+                URL.revokeObjectURL(url);
+                iconBlobCache.delete(k);
+              }
+            }
+            const coloredSvg = el.iconSvg!
+              .replace(/currentColor/g, el.strokeColor || "#000")
+              .replace(
+                /<svg\b[^>]*>/,
+                (svgTag) =>
+                  svgTag
+                    .replace(/\s+width\s*=\s*"[^"]*"/g, "")
+                    .replace(/\s+height\s*=\s*"[^"]*"/g, "")
+                    .replace("<svg", '<svg width="100%" height="100%"'),
+              );
+            const blob = new Blob([coloredSvg], { type: "image/svg+xml" });
+            iconBlobCache.set(cacheKey, URL.createObjectURL(blob));
+          }
+          const blobUrl = iconBlobCache.get(cacheKey)!;
+          return (
+            <object
+              key={el.id}
+              data={blobUrl}
+              type="image/svg+xml"
+              aria-label="icon"
+              style={{
+                position: "absolute",
+                left: screenX,
+                top: screenY,
+                width: screenW,
+                height: screenH,
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            />
+          );
+        })}
+
+
+      <IconModal
+        isOpen={selectedTool === "Icon"}
+        onClose={() => setSelectedTool("select")}
+        onSelectIcon={handleSelectIcon}
+      />
 
       {/* First-time preview overlay with scattered hints (like Excalidraw) */}
       {showPreview &&
@@ -4436,6 +4664,7 @@ export const CanvasBoard = ({
                 case "Diamond":
                 case "Circle":
                 case "Image":
+                case "Icon":
                   if (el.width !== undefined && el.height !== undefined) {
                     minX = Math.min(minX, el.x, el.x + el.width);
                     maxX = Math.max(maxX, el.x, el.x + el.width);

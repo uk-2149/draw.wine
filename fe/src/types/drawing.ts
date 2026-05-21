@@ -8,6 +8,7 @@ export type ToolType =
   | "Pencil"
   | "Text"
   | "Image"
+  | "Icon"
   | "Eraser"
   | "Laser"
   | "Hand";

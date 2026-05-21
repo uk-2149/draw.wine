@@ -17,7 +17,6 @@ export class CollabDrawingServer {
         credentials: true,
       },
     });
-    this.setupSocketEvents();
   }
 
   public static async getInstance(

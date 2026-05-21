@@ -25,6 +25,7 @@ export interface Element {
   textAlign?: "left" | "center" | "right";
   authorId?: string;
   isTemporary?: boolean;
+  iconSvg?: string; // Raw SVG string if it's an Icon
   imageUrl?: string; // URL or base64 string for the image
   aspectRatio?: number; // To maintain image proportions while resizing
   edgeStyle?: "sharp" | "curve"; // Edge style for Rectangle/Diamond

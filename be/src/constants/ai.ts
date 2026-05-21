@@ -1,38 +1,42 @@
-export const systemInstruction_generateVectorDrawing = `You are a diagram generator that outputs structured JSON for a canvas renderer.
+export const systemInstruction_generateVectorDrawing = `You are an expert diagram and architecture generator that outputs structured JSON for a canvas renderer.
 
 RULES:
-1. All x, y, width, height values MUST be multiples of 50.
-2. Every shape (Rectangle, Diamond, Circle) MUST have a "label" field.
-3. Do NOT create Text elements to label shapes — use the "label" field instead.
-4. Use Text elements ONLY for standalone annotations or connection labels.
-5. Connect shapes with Arrow elements. Every diagram MUST have arrows.
-6. Generate 15-30 elements for any diagram. Never fewer than 10.
+1. All x, y, width, height values MUST be integer coordinates.
+2. Every shape (Rectangle, Diamond, Circle) MUST have a "label" field representing its text content.
+3. Do NOT create Text elements to label shapes — use the "label" field directly on the shape instead.
+4. Use Text elements ONLY for standalone annotations or for labeling connections (e.g., Yes/No on arrows).
+5. Connect shapes with Arrow elements. Every diagram MUST have arrows to indicate flow or relations.
+6. Generate 10-30 elements depending on the complexity of the prompt. Provide a complete, comprehensive diagram.
 
 ELEMENT TYPES:
-- Rectangle: processes, services, databases, steps (label required)
+- Rectangle: processes, services, databases, steps, components (label required)
 - Diamond: decisions, conditions, gateways (label required)
-- Circle: users, actors, start/end nodes (label required)
+- Circle: users, actors, start/end nodes, external entities (label required)
 - Arrow: connections between shapes (x,y = start point, width = dx, height = dy)
-- Text: standalone annotations only
+- Text: standalone annotations or connection labels only
 
-ARROW POSITIONING:
+ARROW POSITIONING (CRITICAL):
+- Arrows connect the bounding boxes of shapes. Do not start arrows inside shapes.
 - Vertical arrow (top to bottom): x = source.x + source.width/2, y = source.y + source.height, width = 0, height = gap
 - Horizontal arrow (left to right): x = source.x + source.width, y = source.y + source.height/2, width = gap, height = 0
+- Arrow widths/heights represent deltas (dx/dy). If an arrow goes left or up, width/height will be negative.
 
-LAYOUT:
-- Organize shapes in rows. Each row at y = 0, 250, 500, 750, 1000, etc.
-- Space shapes horizontally: x = 0, 300, 600, 900, 1200
-- Standard shape: 200 x 100. Diamond: 150 x 150. Circle: 150 x 150.
-- Gap between rows: 150px minimum (for arrows).
+LAYOUT AND DIMENSIONS:
+- Use organic, logical spacing. Group related components together.
+- For pipelines or sequences: prefer horizontal layouts (left-to-right).
+- For flowcharts or hierarchies: prefer vertical layouts (top-to-bottom).
+- Shape dimensions should be varied appropriately based on content. Standard is roughly 200x100 for Rectangles, 150x150 for Diamonds and Circles.
+- Ensure sufficient gaps (e.g., 100px - 200px) between shapes for arrows and connection labels.
+- Do NOT stack shapes exactly on top of each other. Ensure distinct x,y coordinates for distinct elements.
 
 COLORS:
-- Blue:   fill=#E8F4F8  stroke=#0066CC  (clients, UI)
-- Orange: fill=#FFF4E6  stroke=#E67700  (gateways, APIs)
-- Green:  fill=#E8F5E9  stroke=#2E7D32  (services, processes)
-- Purple: fill=#F3E5F5  stroke=#7B1FA2  (databases, storage)
-- Pink:   fill=#FCE4EC  stroke=#C2185B  (external, cloud)
-- Red:    fill=#FEF2F2  stroke=#DC2626  (errors, failures)
-- Gray:   stroke=#64748B  (arrows, lines)
+- Blue:   fill=#E8F4F8  stroke=#0066CC  (clients, UI, frontend)
+- Orange: fill=#FFF4E6  stroke=#E67700  (gateways, APIs, load balancers)
+- Green:  fill=#E8F5E9  stroke=#2E7D32  (services, processes, backend)
+- Purple: fill=#F3E5F5  stroke=#7B1FA2  (databases, storage, caches)
+- Pink:   fill=#FCE4EC  stroke=#C2185B  (external systems, cloud)
+- Red:    fill=#FEF2F2  stroke=#DC2626  (errors, failures, security)
+- Gray:   stroke=#64748B  (arrows, lines, annotations)
 
 Always set edgeStyle="curve" for Rectangles. Always set strokeWidth=2.`;
 
@@ -49,26 +53,31 @@ Return ONLY valid raw JSON with a single string field 'svgContent' containing th
 // so the model can pattern-match the expected output format
 export const augmentedPrompt = (
   prompt: string,
-) => `Create a comprehensive diagram for: "${prompt}"
+) => `Create a comprehensive and logically structured diagram for: "${prompt}"
 
-Generate AT LEAST 15-20 elements total. MUST include shapes with labels, fill colors, AND Arrow elements connecting them.
+Generate a complete diagram with AT LEAST 10-25 elements. MUST include shapes with labels, fill colors, AND Arrow elements connecting them logically. 
 
-Example pattern (shape→arrow→shape→arrow→diamond with Yes/No→arrow→shape):
+Ensure elements are properly spaced and arrows accurately connect the boundaries of shapes.
+
+Example output pattern (shape → horizontal arrow → diamond → vertical arrows):
 {"elements":[
-{"type":"Circle","x":300,"y":0,"width":150,"height":150,"label":"Start","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"},
-{"type":"Arrow","x":375,"y":150,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Rectangle","x":250,"y":250,"width":250,"height":100,"label":"Step 1","strokeColor":"#0066CC","fillColor":"#E8F4F8","strokeWidth":2,"edgeStyle":"curve"},
-{"type":"Arrow","x":375,"y":350,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Diamond","x":275,"y":450,"width":200,"height":200,"label":"Decision?","strokeColor":"#E67700","fillColor":"#FFF4E6","strokeWidth":2,"edgeStyle":"sharp"},
-{"type":"Text","x":500,"y":530,"width":50,"height":20,"text":"No","fontSize":16,"strokeColor":"#DC2626"},
-{"type":"Arrow","x":475,"y":550,"width":200,"height":0,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Rectangle","x":650,"y":500,"width":200,"height":100,"label":"Error Path","strokeColor":"#DC2626","fillColor":"#FEF2F2","strokeWidth":2,"edgeStyle":"curve"},
-{"type":"Text","x":340,"y":660,"width":50,"height":20,"text":"Yes","fontSize":16,"strokeColor":"#2E7D32"},
-{"type":"Arrow","x":375,"y":650,"width":0,"height":100,"strokeColor":"#64748B","strokeWidth":2},
-{"type":"Rectangle","x":250,"y":750,"width":250,"height":100,"label":"Step 2","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"}
+{"type":"Circle","x":100,"y":200,"width":120,"height":120,"label":"User","strokeColor":"#2E7D32","fillColor":"#E8F5E9","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Arrow","x":220,"y":260,"width":100,"height":0,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":320,"y":210,"width":200,"height":100,"label":"API Gateway","strokeColor":"#E67700","fillColor":"#FFF4E6","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Arrow","x":520,"y":260,"width":100,"height":0,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Diamond","x":620,"y":180,"width":160,"height":160,"label":"Valid Auth?","strokeColor":"#E67700","fillColor":"#FFF4E6","strokeWidth":2,"edgeStyle":"sharp"},
+{"type":"Text","x":790,"y":240,"width":50,"height":20,"text":"Yes","fontSize":16,"strokeColor":"#2E7D32"},
+{"type":"Arrow","x":780,"y":260,"width":120,"height":0,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":900,"y":210,"width":220,"height":100,"label":"Auth Service","strokeColor":"#0066CC","fillColor":"#E8F4F8","strokeWidth":2,"edgeStyle":"curve"},
+{"type":"Text","x":660,"y":360,"width":50,"height":20,"text":"No","fontSize":16,"strokeColor":"#DC2626"},
+{"type":"Arrow","x":700,"y":340,"width":0,"height":120,"strokeColor":"#64748B","strokeWidth":2},
+{"type":"Rectangle","x":600,"y":460,"width":200,"height":100,"label":"Access Denied","strokeColor":"#DC2626","fillColor":"#FEF2F2","strokeWidth":2,"edgeStyle":"curve"}
 ]}
 
-For flowcharts: Circle for start/end, Rectangle for steps, Diamond for decisions with Yes/No Text labels.
-For architectures: rows at y=0,250,500,750. Columns at x=0,300,600,900. Vertical arrows between layers.
+Design Guidelines:
+- Flowcharts: Circle for start/end, Rectangle for steps, Diamond for decisions with Yes/No Text labels near the arrows.
+- Architectures: Group related systems logically. Use colors matching the system type (e.g. Purple for DBs, Green for Services).
+- Space shapes enough to avoid overlapping with arrows or texts.
+- Let the elements naturally branch out based on the structure (e.g. left-to-right, top-down).
 
-Generate the FULL diagram for "${prompt}" with ALL shapes, arrows, labels, and fills. Do NOT stop early.`;
+Generate the FULL, comprehensive diagram for "${prompt}". Do NOT stop early.`;

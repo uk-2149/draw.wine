@@ -7,7 +7,7 @@ import {
 } from "react-icons/tb";
 import { FaRegCircle, FaCircle, FaArrowRightLong } from "react-icons/fa6";
 import { MdOutlineHorizontalRule, MdFormatColorText } from "react-icons/md";
-import { LuPencil, LuHand } from "react-icons/lu";
+import { LuPencil, LuHand, LuShapes } from "react-icons/lu";
 import { CiImageOn, CiEraser } from "react-icons/ci";
 import { ImMagicWand } from "react-icons/im";
 
@@ -60,6 +60,7 @@ export const TOOLBAR_ITEMS = [
     shortcut: "T",
   },
   { before: CiImageOn, after: CiImageOn, tooltip: "Image", shortcut: "I" },
+  { before: LuShapes, after: LuShapes, tooltip: "Icon", shortcut: "O" },
   { before: CiEraser, after: CiEraser, tooltip: "Eraser", shortcut: "E" },
   { before: ImMagicWand, after: ImMagicWand, tooltip: "Laser", shortcut: "Q" },
 ];
