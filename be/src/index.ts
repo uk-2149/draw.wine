@@ -5,7 +5,7 @@ import compression from "compression";
 import { createServer } from "http";
 import { corsOptions, limiter, PORT } from "./constants";
 import { CollabDrawingServer, RedisService } from "./services";
-import { aiRouter, roomRouter } from "./routes";
+import { aiRouter, roomRouter, configRouter } from "./routes";
 import { Logger } from "./helpers";
 
 export const initServer = async () => {
@@ -36,6 +36,7 @@ export const initServer = async () => {
   }
   app.use("/api/rooms", roomRouter);
   app.use("/api/ai", aiRouter);
+  app.use("/api/config", configRouter);
 
   httpServer.listen(PORT, () =>
     Logger.info(`Server is running on port ${PORT}`),

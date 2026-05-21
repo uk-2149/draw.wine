@@ -92,6 +92,11 @@ export interface CollabState {
   isWaitingForApproval: boolean;
   joinRejected: boolean;
   pendingJoinRequests: PendingJoinRequest[];
+  // Tier-related state
+  expiresAt: number | null;
+  maxUsers: number | null;
+  isRoomExpired: boolean;
+  isRoomFull: boolean;
 }
 
 export type CollabAction =
@@ -107,10 +112,14 @@ export type CollabAction =
         elements?: Element[];
         hostId?: string;
         settings?: CollabSettings;
+        expiresAt?: number;
+        maxUsers?: number;
       };
     }
   | { type: "WAITING_FOR_APPROVAL" }
   | { type: "JOIN_REJECTED" }
+  | { type: "ROOM_EXPIRED" }
+  | { type: "ROOM_FULL"; payload: { maxUsers: number } }
   | { type: "ADD_JOIN_REQUEST"; payload: PendingJoinRequest }
   | { type: "REMOVE_JOIN_REQUEST"; payload: string }
   | {

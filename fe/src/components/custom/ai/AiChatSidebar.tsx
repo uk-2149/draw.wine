@@ -16,6 +16,9 @@ import { generateAiChat, generateAiDrawing } from "@/helpers/aiApi";
 import { insertAiElementsIntoCanvas } from "@/helpers/aiInsertion.h";
 import { cn } from "@/helpers/cn.h";
 import { Loader2, Sparkles, X, Zap } from "lucide-react";
+import { useTier } from "@/contexts/tier/useTier";
+import { AiUsageBar } from "@/components/custom/tier/AiUsageBar";
+import { UpgradeBanner } from "@/components/custom/tier/UpgradeBanner";
 
 interface AiChatSidebarProps {
   isOpen: boolean;
@@ -129,6 +132,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     sessionId,
     setSessionId,
   } = useAi();
+  const { aiQuota, refreshAiQuota, isFree } = useTier();
   const [localPrompt, setLocalPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -141,6 +145,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isLoading = state === "loading";
+  const isQuotaExhausted = isFree && aiQuota.remaining <= 0;
   const currentModel = model ?? MODEL_OPTIONS[0].value;
 
   useEffect(() => {
@@ -164,6 +169,9 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
   const handleSend = useCallback(async () => {
     const trimmed = localPrompt.trim();
     if (!trimmed || isLoading) return;
+
+    // Block if quota exhausted
+    if (isQuotaExhausted) return;
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -207,6 +215,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           content: `Added ${response.elements.length} elements to the canvas.`,
           status: "success",
         });
+        await refreshAiQuota();
         return;
       }
 
@@ -228,6 +237,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           "Tell me what you want to draw and I will add it to the canvas.",
         status: "success",
       });
+      await refreshAiQuota();
     } catch (error: unknown) {
       const msg =
         error instanceof Error
@@ -241,6 +251,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
   }, [
     localPrompt,
     isLoading,
+    isQuotaExhausted,
     mode,
     currentModel,
     startRequest,
@@ -249,6 +260,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     updateMessage,
     sessionId,
     setSessionId,
+    refreshAiQuota,
   ]);
 
   const handleInputKeyDown = (
@@ -290,6 +302,11 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
         >
           <X className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* AI Usage Bar */}
+      <div className="border-b px-4 py-2.5">
+        <AiUsageBar />
       </div>
 
       <div className="border-b px-4 py-3">
@@ -438,7 +455,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           </div>
           <Button
             onClick={handleSend}
-            disabled={isLoading || !localPrompt.trim()}
+            disabled={isLoading || !localPrompt.trim() || isQuotaExhausted}
             className="gap-2"
           >
             {isLoading ? (
@@ -446,6 +463,8 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Working
               </>
+            ) : isQuotaExhausted ? (
+              "Quota Used"
             ) : (
               "Send"
             )}

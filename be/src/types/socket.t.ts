@@ -15,6 +15,8 @@ export interface Room {
   elements: Element[];
   lastActivity: number;
   createdAt: number;
+  expiresAt?: number;
+  maxUsers?: number;
   hostId?: string;
   settings?: {
     onlyHostCanDraw: boolean;

@@ -17,6 +17,10 @@ export const initialState: CollabState = {
   isWaitingForApproval: false,
   joinRejected: false,
   pendingJoinRequests: [],
+  expiresAt: null,
+  maxUsers: null,
+  isRoomExpired: false,
+  isRoomFull: false,
 };
 
 const collaboratorColors = [

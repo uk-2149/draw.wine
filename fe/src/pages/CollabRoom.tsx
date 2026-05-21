@@ -80,6 +80,48 @@ const CollabRoom = () => {
 
   // Show joining state
   if (state.isConnected && !state.isCollaborating) {
+    if (state.isRoomExpired) {
+      return (
+        <div className="h-screen w-full flex flex-col items-center justify-center">
+          <div className="text-center max-w-md p-6 bg-card text-card-foreground rounded-xl shadow-sm border border-amber-500/20">
+            <div className="w-16 h-16 bg-amber-500/10 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Room Expired</h2>
+            <p className="text-muted-foreground mb-6">
+              This room session has ended. Free rooms are limited to 1 hour. Upgrade to Premium for extended sessions.
+            </p>
+            <Button onClick={() => window.location.href = "/"}>
+              Return Home
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    if (state.isRoomFull) {
+      return (
+        <div className="h-screen w-full flex flex-col items-center justify-center">
+          <div className="text-center max-w-md p-6 bg-card text-card-foreground rounded-xl shadow-sm border border-amber-500/20">
+            <div className="w-16 h-16 bg-amber-500/10 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Room Full</h2>
+            <p className="text-muted-foreground mb-6">
+              This room has reached its capacity of {state.maxUsers} users. Upgrade to Premium for higher limits.
+            </p>
+            <Button onClick={() => window.location.href = "/"}>
+              Return Home
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     if (state.joinRejected) {
       return (
         <div className="h-screen w-full flex flex-col items-center justify-center">

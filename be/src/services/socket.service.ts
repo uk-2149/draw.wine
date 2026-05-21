@@ -5,6 +5,7 @@ import { allowedOrigins } from "../constants";
 import { Logger } from "../helpers";
 import { RedisService } from "./redis.service";
 import { createAdapter } from "@socket.io/redis-adapter";
+import { roomExpiryService } from "./room-expiry.service";
 
 export class CollabDrawingServer {
   private static instance: CollabDrawingServer;
@@ -27,6 +28,9 @@ export class CollabDrawingServer {
 
       await CollabDrawingServer.instance.setupRedisAdapter();
       CollabDrawingServer.instance.setupSocketEvents();
+
+      // Start the room expiry checker
+      roomExpiryService.start(CollabDrawingServer.instance._io);
     }
     return CollabDrawingServer.instance;
   }
