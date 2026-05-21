@@ -1,4 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  type DragEvent as ReactDragEvent,
+} from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +21,8 @@ interface IconModalProps {
   onClose: () => void;
   onSelectIcon: (svgString: string) => void;
 }
+
+const ICON_DRAG_MIME = "application/x-draw-wine-icon";
 
 export const IconModal = ({ isOpen, onClose, onSelectIcon }: IconModalProps) => {
   const [search, setSearch] = useState("");
@@ -74,6 +81,15 @@ export const IconModal = ({ isOpen, onClose, onSelectIcon }: IconModalProps) => 
     }
   }, [onSelectIcon, onClose]);
 
+  const handleDragStart = useCallback(
+    (event: ReactDragEvent<HTMLButtonElement>, iconId: string) => {
+      event.dataTransfer.setData(ICON_DRAG_MIME, iconId);
+      event.dataTransfer.setData("text/plain", iconId);
+      event.dataTransfer.effectAllowed = "copy";
+    },
+    [],
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[640px] h-[75vh] flex flex-col border-border bg-card text-card-foreground shadow-lg overflow-hidden">
@@ -108,9 +124,12 @@ export const IconModal = ({ isOpen, onClose, onSelectIcon }: IconModalProps) => 
                 {icons.map((iconId) => (
                   <button
                     key={iconId}
+                    type="button"
+                    draggable
+                    onDragStart={(event) => handleDragStart(event, iconId)}
                     onClick={() => handleSelect(iconId)}
                     disabled={selecting !== null}
-                    className="flex flex-col items-center justify-center aspect-square rounded-xl border border-border bg-background hover:bg-primary/10 hover:border-primary/50 transition-colors group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex flex-col items-center justify-center aspect-square rounded-xl border border-border bg-background hover:bg-primary/10 hover:border-primary/50 transition-colors group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-grab active:cursor-grabbing"
                     title={iconId}
                   >
                     {selecting === iconId ? (

@@ -6,7 +6,8 @@ export const getResizeHandles = (element: Element | null) => {
     case "Rectangle":
     case "Diamond":
     case "Circle":
-    case "Image": {
+    case "Image":
+    case "Icon": {
       if (element.width && element.height) {
         const minX = Math.min(element.x, element.x + element.width);
         const maxX = Math.max(element.x, element.x + element.width);
@@ -79,7 +80,8 @@ export const eraseElements = (
     if (
       el.type === "Rectangle" ||
       el.type === "Diamond" ||
-      el.type === "Circle"
+      el.type === "Circle" ||
+      el.type === "Icon"
     ) {
       const minX = Math.min(el.x, el.x + (el.width || 0));
       const maxX = Math.max(el.x, el.x + (el.width || 0));

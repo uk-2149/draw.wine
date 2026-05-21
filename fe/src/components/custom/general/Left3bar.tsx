@@ -13,7 +13,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu";
-import { MdSaveAlt, MdOutlineImage, MdOutlineFileUpload } from "react-icons/md";
+import {
+  MdSaveAlt,
+  MdOutlineImage,
+  MdOutlineFileUpload,
+  MdOutlineColorLens,
+} from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
 import { useState, useCallback } from "react";
 import { CreateRoomModal } from "../modals/CreateRoomModal";
@@ -243,12 +248,7 @@ export const Left3bar = ({
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
-                <span className="mr-4">
-                  <i
-                    className="w-3 h-3 inline-block rounded-full border"
-                    style={{ backgroundColor: bgColor }}
-                  ></i>
-                </span>{" "}
+                <MdOutlineColorLens className="mr-2" />
                 Canvas background
               </DropdownMenuSubTrigger>
               <DropdownMenuPortal>
@@ -286,25 +286,35 @@ export const Left3bar = ({
                         }}
                       />
                     ))}
-                  </div>
 
-                  {/* Custom hex input */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs text-muted-foreground">#</span>
-                    <input
-                      className="flex-1 text-xs border rounded px-2 py-1 font-mono bg-background"
-                      value={bgColor.replace("#", "")}
-                      maxLength={6}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^[0-9a-fA-F]{0,6}$/.test(val)) {
-                          if (val.length === 6) setBgColor("#" + val);
-                        }
+                    {/* Custom input */}
+                    <label
+                      className="relative mb-3 flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-sm border-2 border-border/50 hover:border-border/80 transition-all"
+                      style={{
+                        background:
+                          "conic-gradient(from 180deg at 50% 50%, #ff4d4d, #ffcc4d, #7dff7d, #4dd2ff, #7a7aff, #d84dff, #ff4d4d)",
                       }}
-                    />
+                      title="Custom background color"
+                      aria-label="Pick custom background color"
+                    >
+                      <span
+                        className="absolute inset-[5px] rounded-md border border-background/70 shadow-sm"
+                        style={{ backgroundColor: bgColor }}
+                        aria-hidden
+                      />
+                      <input
+                        type="color"
+                        value={bgColor}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setBgColor(e.target.value);
+                        }}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        aria-label="Custom background color"
+                      />
+                    </label>
                   </div>
-
                   {/* Opacity slider */}
                   <p className="text-xs text-muted-foreground mb-1 font-medium">
                     Pattern opacity — {bgOpacity}%

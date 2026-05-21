@@ -44,12 +44,13 @@ import {
   getConnectionCoordsForElement,
 } from "@/helpers/connectionSnap.h";
 import { measureTextElement } from "@/helpers/textMeasure.h";
-import { NEON_RED } from "@/constants/ext";
 import { IconModal } from "../modals/IconModal";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 5;
+const ICON_DEFAULT_SIZE = 100;
+const ICON_DRAG_MIME = "application/x-draw-wine-icon";
 // How many screen-pixels away from an edge counts as "on the edge"
 const EDGE_HIT_PX = 8;
 // Corner zone: if within this many px of a corner, treat as corner resize
@@ -944,9 +945,15 @@ export const CanvasBoard = ({
         const next = new Map(prev);
         next.forEach((trail, userId) => {
           const updated = trail
-            .map((p) => ({ ...p, opacity: Math.max(0, 1 - (now - p.timestamp) / 2700) }))
-            .filter((p) => p.opacity > 0);
-          if (updated.length !== trail.length || updated.some((p, i) => p.opacity !== trail[i].opacity)) {
+            .map((p) => ({
+              ...p,
+              opacity: Math.max(0, 1 - (now - p.timestamp) / 2700),
+            }))
+            .filter((p) => p.opacity > 0.05);
+          if (
+            updated.length !== trail.length ||
+            updated.some((p, i) => p.opacity !== trail[i].opacity)
+          ) {
             changed = true;
           }
           if (updated.length === 0) {
@@ -1079,7 +1086,7 @@ export const CanvasBoard = ({
       // ═══ Convert GeneratedElement[] → canvas Element[] ═══
       const newElements: Element[] = generatedElements.map((elem, index) => {
         const isImage = elem.type === "Image" || elem.type === "Icon";
-        const ar = isImage && (elem as any).aspectRatio ? (elem as any).aspectRatio : null;
+        const ar = isImage && elem.aspectRatio ? elem.aspectRatio : null;
         const isText = elem.type === "Text";
 
         const baseElement: Element = {
@@ -1106,7 +1113,8 @@ export const CanvasBoard = ({
 
         if (isImage) {
           baseElement.imageUrl = elem.text || elem.imageUrl || "";
-          baseElement.aspectRatio = ar || (elem.width || 1) / (elem.height || 1);
+          baseElement.aspectRatio =
+            ar || (elem.width || 1) / (elem.height || 1);
           delete baseElement.text;
         }
 
@@ -1438,6 +1446,48 @@ export const CanvasBoard = ({
   ]);
 
   useEffect(() => {
+    if (selectedTool === "select" || isEditingText) return;
+    if (selectedElements.length > 0) setSelectedElements([]);
+    if (selectedElement) setSelectedElement(null);
+    setSelectionArea(null);
+    setResizing(null);
+    setResizeStart(null);
+    setResizeSnapshot(null);
+  }, [
+    selectedTool,
+    isEditingText,
+    selectedElements.length,
+    selectedElement,
+    setSelectedElements,
+    setSelectedElement,
+    setSelectionArea,
+    setResizing,
+    setResizeStart,
+  ]);
+
+  useEffect(() => {
+    const existingIds = new Set(elements.map((el) => el.id));
+
+    if (selectedElements.some((el) => !existingIds.has(el.id))) {
+      const nextSelectedElements = selectedElements.filter((el) =>
+        existingIds.has(el.id),
+      );
+      setSelectedElements(nextSelectedElements);
+      if (nextSelectedElements.length !== 1) setSelectedElement(null);
+    }
+
+    if (selectedElement && !existingIds.has(selectedElement.id)) {
+      setSelectedElement(null);
+    }
+  }, [
+    elements,
+    selectedElements,
+    selectedElement,
+    setSelectedElements,
+    setSelectedElement,
+  ]);
+
+  useEffect(() => {
     if (selectedElements.length > 0) {
       setElements((prev) => {
         let hasChanges = false;
@@ -1450,7 +1500,10 @@ export const CanvasBoard = ({
               elChanged = true;
               if (updatedEl.type === "Icon" && updatedEl.iconSvg) {
                 // Only replace currentColor — preserve the icon's native colors
-                const newSvg = updatedEl.iconSvg.replace(/currentColor/g, strokeColor);
+                const newSvg = updatedEl.iconSvg.replace(
+                  /currentColor/g,
+                  strokeColor,
+                );
                 updatedEl.imageUrl = `data:image/svg+xml;utf8,${encodeURIComponent(newSvg)}`;
               }
             }
@@ -1995,7 +2048,7 @@ export const CanvasBoard = ({
     const selectionCornerSoft = 6;
 
     // ── Draw individual selection outlines for each selected element ──
-    if (selectedElements.length > 0) {
+    if (selectedTool === "select" && selectedElements.length > 0) {
       ctx.save();
       const padding = 6;
 
@@ -2296,27 +2349,26 @@ export const CanvasBoard = ({
     if (selectedTool === "Laser" && laser.trail.length > 0) {
       const trailColor = laser.trail[laser.trail.length - 1].color || "#ff0000";
       drawLaserTrail(laser.trail, trailColor, 1.0);
-      ctx.save();
-      const lastPoint = laser.trail[laser.trail.length - 1].point;
-      ctx.globalAlpha = 1;
-      const gradient = ctx.createRadialGradient(
-        lastPoint.x,
-        lastPoint.y,
-        0,
-        lastPoint.x,
-        lastPoint.y,
-        5,
-      );
-      gradient.addColorStop(0, trailColor);
-      gradient.addColorStop(
-        1,
-        trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)",
-      );
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      // Only draw the tip dot while actively drawing (mouse held down)
+      const now = Date.now();
+      const lastPoint = laser.trail[laser.trail.length - 1];
+      const isActivelyDrawing = now - lastPoint.timestamp < 80;
+      if (isActivelyDrawing) {
+        ctx.save();
+        const pt = lastPoint.point;
+        ctx.globalAlpha = 1;
+        const gradient = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, 5);
+        gradient.addColorStop(0, trailColor);
+        gradient.addColorStop(
+          1,
+          trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)",
+        );
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     collaborativeLaserTrails.forEach((trail) => {
@@ -2493,7 +2545,7 @@ export const CanvasBoard = ({
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
         return;
-      
+
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         !isEditingText &&
@@ -2507,9 +2559,7 @@ export const CanvasBoard = ({
         selectedElements.forEach((el) => idsToDelete.add(el.id));
         if (selectedElement) idsToDelete.add(selectedElement.id);
 
-        setElements((prev) =>
-          prev.filter((el) => !idsToDelete.has(el.id)),
-        );
+        setElements((prev) => prev.filter((el) => !idsToDelete.has(el.id)));
 
         // Send delete operations to collaborators
         if (isCollaborating && sendOperation && state.roomId) {
@@ -2549,7 +2599,7 @@ export const CanvasBoard = ({
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
         return;
-      
+
       if (isEditingText) return;
       if (e.key === "Tab") {
         e.preventDefault();
@@ -2656,17 +2706,24 @@ export const CanvasBoard = ({
 
   // ─── Coordinate transform ─────────────────────────────────────────────────────
 
-  const getTransformedPoint = useCallback(
-    (e: React.MouseEvent): Position => {
+  const getCanvasPointFromClient = useCallback(
+    (clientX: number, clientY: number): Position => {
       const canvas = canvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
       return {
-        x: (e.clientX - rect.left - position.x) / scale,
-        y: (e.clientY - rect.top - position.y) / scale,
+        x: (clientX - rect.left - position.x) / scale,
+        y: (clientY - rect.top - position.y) / scale,
       };
     },
     [position, scale],
+  );
+
+  const getTransformedPoint = useCallback(
+    (e: React.MouseEvent): Position => {
+      return getCanvasPointFromClient(e.clientX, e.clientY);
+    },
+    [getCanvasPointFromClient],
   );
 
   // ─── Text editing ─────────────────────────────────────────────────────────────
@@ -3329,7 +3386,8 @@ export const CanvasBoard = ({
             const hit = getEdgeHit(point, elBounds, scale);
             if (
               hit &&
-              (selectedElements[0].type !== "Text" || isCornerHandle(hit.corner))
+              (selectedElements[0].type !== "Text" ||
+                isCornerHandle(hit.corner))
             )
               edgeCursor = hit.cursor;
           }
@@ -3393,15 +3451,15 @@ export const CanvasBoard = ({
 
       if (selectedTool === "Laser") {
         if (e.buttons === 1) {
-          // const isDark = document.documentElement.classList.contains("dark");
-          // const getStrokeColor = (c: string) =>
-          //   isDark && (c === "#000000" || c === "#000")
-          //     ? "#ffffff"
-          //     : !isDark && (c === "#ffffff" || c === "#fff")
-          //       ? "#000000"
-          //       : c;
-          // const laserColor = getStrokeColor(strokeColor);
-          laser.addPoint(point, NEON_RED);
+          const isDark = document.documentElement.classList.contains("dark");
+          const getStrokeColor = (c: string) =>
+            isDark && (c === "#000000" || c === "#000")
+              ? "#ffffff"
+              : !isDark && (c === "#ffffff" || c === "#fff")
+                ? "#000000"
+                : c;
+          const laserColor = getStrokeColor(strokeColor);
+          laser.addPoint(point, laserColor);
           if (isCollaborating && updateCursor && state.roomId && state.socket) {
             updateCursor({ x: point.x, y: point.y });
             state.socket.emit("laser_point", {
@@ -3409,7 +3467,7 @@ export const CanvasBoard = ({
               point,
               userId: state.userId,
               timestamp: Date.now(),
-              color: NEON_RED,
+              color: laserColor,
             });
           }
         }
@@ -3714,11 +3772,7 @@ export const CanvasBoard = ({
             const patch =
               el.type === "Text"
                 ? resizeTextElement(el, resizing.corner as HandleCorner, point)
-                : applyHandleResize(
-                    el,
-                    resizing.corner as HandleCorner,
-                    point,
-                  );
+                : applyHandleResize(el, resizing.corner as HandleCorner, point);
 
             if (
               (el.type === "Arrow" || el.type === "Line") &&
@@ -4179,8 +4233,8 @@ export const CanvasBoard = ({
     ],
   );
 
-  const handleSelectIcon = useCallback(
-    (svgString: string) => {
+  const createIconElement = useCallback(
+    (svgString: string, dropPoint?: Position) => {
       beginHistoryAction();
       const elementId = isCollaborating
         ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -4190,17 +4244,21 @@ export const CanvasBoard = ({
       const coloredSvg = svgString.replace(/currentColor/g, strokeColor);
       const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(coloredSvg)}`;
 
-      // Approximate center of viewport
-      const centerX = -position.x / scale + window.innerWidth / (2 * scale) - 50;
-      const centerY = -position.y / scale + window.innerHeight / (2 * scale) - 50;
+      const halfIconSize = ICON_DEFAULT_SIZE / 2;
+      const centerX =
+        dropPoint?.x ??
+        -position.x / scale + window.innerWidth / (2 * scale);
+      const centerY =
+        dropPoint?.y ??
+        -position.y / scale + window.innerHeight / (2 * scale);
 
       const newElement: Element = {
         id: elementId,
         type: "Icon",
-        x: centerX,
-        y: centerY,
-        width: 100,
-        height: 100,
+        x: centerX - halfIconSize,
+        y: centerY - halfIconSize,
+        width: ICON_DEFAULT_SIZE,
+        height: ICON_DEFAULT_SIZE,
         iconSvg: svgString,
         imageUrl: dataUrl,
         aspectRatio: 1,
@@ -4243,6 +4301,70 @@ export const CanvasBoard = ({
       sendOperation,
     ],
   );
+
+  const handleSelectIcon = useCallback(
+    (svgString: string) => {
+      createIconElement(svgString);
+    },
+    [createIconElement],
+  );
+
+  useEffect(() => {
+    const getDraggedIconId = (dataTransfer: DataTransfer | null) => {
+      if (!dataTransfer) return "";
+      return (
+        dataTransfer.getData(ICON_DRAG_MIME) ||
+        dataTransfer.getData("text/plain")
+      );
+    };
+
+    const isIconDrag = (dataTransfer: DataTransfer | null) =>
+      !!dataTransfer && Array.from(dataTransfer.types).includes(ICON_DRAG_MIME);
+
+    const handleDocumentDragOver = (event: DragEvent) => {
+      if (!isIconDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleDocumentDrop = async (event: DragEvent) => {
+      if (!isIconDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!canDraw) return;
+
+      const iconId = getDraggedIconId(event.dataTransfer);
+      if (!iconId) return;
+
+      try {
+        const response = await fetch(`https://api.iconify.design/${iconId}.svg`);
+        if (!response.ok) throw new Error("Failed to fetch SVG");
+        const svgText = await response.text();
+        createIconElement(
+          svgText,
+          getCanvasPointFromClient(event.clientX, event.clientY),
+        );
+        hidePreview();
+        setSelectedTool("select");
+      } catch (error) {
+        console.error("Failed to load dropped icon:", error);
+      }
+    };
+
+    document.addEventListener("dragover", handleDocumentDragOver);
+    document.addEventListener("drop", handleDocumentDrop);
+    return () => {
+      document.removeEventListener("dragover", handleDocumentDragOver);
+      document.removeEventListener("drop", handleDocumentDrop);
+    };
+  }, [
+    canDraw,
+    createIconElement,
+    getCanvasPointFromClient,
+    hidePreview,
+    setSelectedTool,
+  ]);
 
   // ─── Reset on collab end ──────────────────────────────────────────────────────
 
@@ -4319,7 +4441,9 @@ export const CanvasBoard = ({
 
       {/* Icon elements rendered as HTML overlays to preserve SVG animations */}
       {elements
-        .filter((el) => el.type === "Icon" && el.iconSvg && el.width && el.height)
+        .filter(
+          (el) => el.type === "Icon" && el.iconSvg && el.width && el.height,
+        )
         .map((el) => {
           const screenX = el.x * scale + position.x;
           const screenY = el.y * scale + position.y;
@@ -4335,15 +4459,13 @@ export const CanvasBoard = ({
                 iconBlobCache.delete(k);
               }
             }
-            const coloredSvg = el.iconSvg!
-              .replace(/currentColor/g, el.strokeColor || "#000")
-              .replace(
-                /<svg\b[^>]*>/,
-                (svgTag) =>
-                  svgTag
-                    .replace(/\s+width\s*=\s*"[^"]*"/g, "")
-                    .replace(/\s+height\s*=\s*"[^"]*"/g, "")
-                    .replace("<svg", '<svg width="100%" height="100%"'),
+            const coloredSvg = el
+              .iconSvg!.replace(/currentColor/g, el.strokeColor || "#000")
+              .replace(/<svg\b[^>]*>/, (svgTag) =>
+                svgTag
+                  .replace(/\s+width\s*=\s*"[^"]*"/g, "")
+                  .replace(/\s+height\s*=\s*"[^"]*"/g, "")
+                  .replace("<svg", '<svg width="100%" height="100%"'),
               );
             const blob = new Blob([coloredSvg], { type: "image/svg+xml" });
             iconBlobCache.set(cacheKey, URL.createObjectURL(blob));
@@ -4368,163 +4490,220 @@ export const CanvasBoard = ({
           );
         })}
 
-
       <IconModal
         isOpen={selectedTool === "Icon"}
         onClose={() => setSelectedTool("select")}
         onSelectIcon={handleSelectIcon}
       />
 
-      {/* First-time preview overlay with scattered hints (like Excalidraw) */}
+      {/* First-time preview overlay */}
       {showPreview &&
         localElements.length === 0 &&
         collaborativeElements.length === 0 && (
-          <div className="absolute inset-0 z-30" onClick={() => hidePreview()}>
-            {/* Subtle overlay for click dismiss */}
-            <div className="absolute inset-0 bg-black/0" />
+          <div className="draw-preview absolute inset-0 z-30 overflow-hidden">
+            <div className="draw-preview-vignette" aria-hidden />
+            <div className="draw-preview-noise" aria-hidden />
 
-            {/* Top center: "Pick a tool & Start drawing!" with arrow pointing down to toolbar */}
-            <div
-              className="absolute left-1/2 top-16 -translate-x-1/2 text-center pointer-events-none"
-              style={{
-                fontFamily: "Virgil, sans-serif",
-              }}
+            <svg
+              className="draw-preview-sketch draw-preview-sketch-left"
+              width="260"
+              height="190"
+              viewBox="0 0 260 190"
+              fill="none"
+              aria-hidden
             >
-              <p className="text-muted-foreground text-sm mb-1">
-                Pick a tool &
-              </p>
-              <p className="text-muted-foreground text-sm">Start drawing!</p>
+              <path
+                d="M28 116 C58 76 105 64 143 86 C177 106 195 143 232 121"
+                stroke="currentColor"
+                strokeWidth="6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M70 144 L112 98 L151 139 L190 83"
+                stroke="currentColor"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M28 116 C58 76 105 64 143 86 C177 106 195 143 232 121"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.65"
+              />
+            </svg>
+
+            <svg
+              className="draw-preview-sketch draw-preview-sketch-right"
+              width="270"
+              height="220"
+              viewBox="0 0 270 220"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M56 166 C86 102 144 67 209 52"
+                stroke="currentColor"
+                strokeWidth="6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M187 39 L212 51 L194 73"
+                stroke="currentColor"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="68"
+                cy="164"
+                r="25"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                d="M56 166 C86 102 144 67 209 52"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.65"
+              />
+            </svg>
+
+            <div
+              className="draw-preview-callout draw-preview-callout-toolbar"
+              aria-hidden
+            >
+              <span>Pick a tool</span>
               <svg
-                width="60"
-                height="50"
-                viewBox="0 0 60 50"
+                width="72"
+                height="58"
+                viewBox="0 0 72 58"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className="mx-auto mt-2"
               >
                 <path
-                  d="M30 5 Q25 15, 30 35"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M37 4 C29 20 31 35 39 49"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
-                  opacity="1"
-                  fill="none"
                 />
                 <path
-                  d="M26 28 L30 35 L34 28"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M29 43 L39 50 L44 39"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="1"
-                  fill="none"
                 />
               </svg>
             </div>
 
-            {/* Left side: "Export, preferences, languages, ..." with arrow pointing right to sidebar */}
             <div
-              className="absolute left-6 top-1/3 text-left pointer-events-none"
-              style={{
-                fontFamily: "Virgil, sans-serif",
-              }}
+              className="draw-preview-callout draw-preview-callout-menu"
+              aria-hidden
             >
-              <p className="text-muted-foreground text-xs mb-1">Export,</p>
-              <p className="text-muted-foreground text-xs mb-1">preferences,</p>
-              <p className="text-muted-foreground text-xs mb-3">
-                languages, ...
-              </p>
               <svg
-                width="50"
-                height="60"
-                viewBox="0 0 50 60"
+                width="88"
+                height="72"
+                viewBox="0 0 88 72"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  d="M5 30 Q15 25, 40 30"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M76 62 C50 54 34 30 17 9"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
-                  opacity="1"
-                  fill="none"
                 />
                 <path
-                  d="M33 26 L40 30 L33 34"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M17 21 L17 9 L29 13"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="1"
-                  fill="none"
                 />
               </svg>
+              <span>Export and settings</span>
             </div>
 
-            {/* Bottom right: "Shortcuts & help" with arrow pointing to help button */}
             <div
-              className="absolute right-6 bottom-24 text-right pointer-events-none"
-              style={{
-                fontFamily: "Virgil, sans-serif",
-              }}
+              className="draw-preview-callout draw-preview-callout-ai"
+              aria-hidden
             >
               <svg
-                width="50"
-                height="60"
-                viewBox="0 0 50 60"
+                width="116"
+                height="74"
+                viewBox="0 0 116 74"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className="ml-auto mb-2"
               >
                 <path
-                  d="M45 5 Q35 15, 10 30"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M14 66 C42 34 73 22 101 9"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
-                  opacity="1"
-                  fill="none"
                 />
                 <path
-                  d="M16 28 L10 30 L14 36"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M91 6 L102 8 L99 20"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="1"
-                  fill="none"
                 />
               </svg>
-              <p className="text-muted-foreground text-xs">Shortcuts &</p>
-              <p className="text-muted-foreground text-xs">help</p>
+              <span>Draw with AI</span>
             </div>
 
-            {/* Center: Big title + instructions to dismiss */}
             <div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer text-center"
-              onClick={() => hidePreview()}
+              className="draw-preview-callout draw-preview-callout-help"
+              aria-hidden
             >
-              <h1
-                className="text-5xl font-extrabold mb-3 drop-shadow-md text-primary"
-                style={{
-                  fontFamily: "Virgil, sans-serif",
-                  letterSpacing: "2px",
-                }}
+              <span>Shortcuts and help</span>
+              <svg
+                width="84"
+                height="72"
+                viewBox="0 0 84 72"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
               >
+                <path
+                  d="M9 8 C30 29 55 35 73 58"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M60 57 L74 59 L71 45"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            <div
+              className="draw-preview-panel"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="draw-preview-orbit" aria-hidden>
+                <span />
+                <span />
+                <span />
+              </div>
+              <p className="draw-preview-kicker">Your sketch space is ready</p>
+              <h1 className="draw-preview-title">
                 draw.wine
               </h1>
-              <p
-                className="text-muted-foreground text-sm mb-6 max-w-sm"
-                style={{
-                  fontFamily: "Virgil, sans-serif",
-                }}
-              >
-                Your drawings are saved in your browser's storage.
+              <p className="draw-preview-copy">
+                Drop shapes, icons, images, and notes onto an infinite canvas.
               </p>
               <button
-                className="rounded-lg bg-primary text-primary-foreground px-5 py-2 text-sm font-semibold shadow-lg hover:scale-[1.05] active:scale-95 transition-transform"
+                className="draw-preview-button"
                 onClick={() => hidePreview()}
               >
-                Got it — let's draw!
+                Start drawing
               </button>
             </div>
           </div>

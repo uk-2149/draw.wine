@@ -489,7 +489,7 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
                     ? CONTROL_ACTIVE
                     : "border border-border/50 hover:border-border/80",
                 )}
-                style={{ "--stroke-color": color } as CSSProperties}
+                style={{ "--stroke-color": color, backgroundColor: color } as CSSProperties}
                 title={color}
                 aria-label={`Select color ${color}`}
               />
@@ -591,7 +591,7 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
                     ? CONTROL_ACTIVE
                     : "border border-border/50 hover:border-border/80",
                 )}
-                style={{ "--stroke-color": color } as CSSProperties}
+                style={{ "--stroke-color": color, backgroundColor: color } as CSSProperties}
                 title={color}
                 aria-label={`Select fill color ${color}`}
               />

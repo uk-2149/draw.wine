@@ -18,7 +18,6 @@ import { cn } from "@/helpers/cn.h";
 import { Loader2, Sparkles, X, Zap } from "lucide-react";
 import { useTier } from "@/contexts/tier/useTier";
 import { AiUsageBar } from "@/components/custom/tier/AiUsageBar";
-import { UpgradeBanner } from "@/components/custom/tier/UpgradeBanner";
 
 interface AiChatSidebarProps {
   isOpen: boolean;

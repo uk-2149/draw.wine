@@ -20,7 +20,7 @@ export function useLaserTrail() {
             ...point,
             opacity: Math.max(0, 1 - (now - point.timestamp) / 2700),
           }))
-          .filter((point) => point.opacity > 0),
+          .filter((point) => point.opacity > 0.05),
       );
       animationFrame.current = requestAnimationFrame(animate);
     };
