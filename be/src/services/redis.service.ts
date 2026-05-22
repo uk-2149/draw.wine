@@ -12,7 +12,7 @@ export class RedisService {
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
       lazyConnect: true,
-      family: 6, // Force IPv6 – IPv4 route to Redis Cloud is unreachable from this network
+      // family: 6, // Force IPv6 – IPv4 route to Redis Cloud is unreachable from this network
     });
 
     this.subscriber = this.client.duplicate();

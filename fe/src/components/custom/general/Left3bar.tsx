@@ -21,6 +21,11 @@ import {
 } from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
 import { IoWalletOutline } from "react-icons/io5";
+import {
+  IoCopyOutline,
+  IoSwapHorizontalOutline,
+  IoLogOutOutline,
+} from "react-icons/io5";
 import { useState, useCallback } from "react";
 import { CreateRoomModal } from "../modals/CreateRoomModal";
 import { JoinRoomModal } from "../modals/JoinRoomModal";
@@ -44,7 +49,8 @@ import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
 import { cn } from "@/helpers/cn.h";
 import { useTheme } from "@/contexts/theme/useTheme";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 
 interface Left3barProps {
@@ -71,6 +77,29 @@ export const Left3bar = ({
 
   // Wallet auth
   useWalletAuth();
+
+  // Wallet state
+  const { publicKey, wallet, connected, disconnect } = useWallet();
+  const { setVisible: setWalletModalVisible } = useWalletModal();
+
+  const truncatedAddress = publicKey
+    ? `${publicKey.toBase58().slice(0, 4)}..${publicKey.toBase58().slice(-4)}`
+    : null;
+
+  const handleCopyAddress = useCallback(() => {
+    if (publicKey) {
+      navigator.clipboard.writeText(publicKey.toBase58());
+      toast.success("Address copied to clipboard");
+    }
+  }, [publicKey]);
+
+  const handleChangeWallet = useCallback(() => {
+    setWalletModalVisible(true);
+  }, [setWalletModalVisible]);
+
+  const handleDisconnect = useCallback(() => {
+    disconnect();
+  }, [disconnect]);
 
   // Get collaboration context for room information
   const { state, isUserInCurrentRoom, leaveRoom } = useCollab();
@@ -479,15 +508,48 @@ export const Left3bar = ({
           <DropdownMenuSeparator />
           {/* Wallet Connection */}
           <DropdownMenuGroup>
-            <div
-              className="flex items-center gap-2 px-2 py-1.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <IoWalletOutline className="shrink-0" />
-              <div className="[&_.wallet-adapter-button]:!h-8 [&_.wallet-adapter-button]:!text-xs [&_.wallet-adapter-button]:!rounded-md [&_.wallet-adapter-button]:!px-3">
-                <WalletMultiButton />
-              </div>
-            </div>
+            {connected && publicKey ? (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <IoWalletOutline className="mr-2" />
+                  <span className="flex items-center gap-2">
+                    {wallet?.adapter?.icon && (
+                      <img
+                        src={wallet.adapter.icon}
+                        alt={wallet.adapter.name}
+                        className="w-4 h-4 rounded-sm"
+                      />
+                    )}
+                    {truncatedAddress}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={handleCopyAddress}>
+                      <IoCopyOutline className="mr-2" />
+                      Copy address
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleChangeWallet}>
+                      <IoSwapHorizontalOutline className="mr-2" />
+                      Change wallet
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleDisconnect}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <IoLogOutOutline className="mr-2" />
+                      Disconnect
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            ) : (
+              <DropdownMenuItem onClick={handleChangeWallet}>
+                <IoWalletOutline className="mr-2" />
+                Connect Wallet
+              </DropdownMenuItem>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>
