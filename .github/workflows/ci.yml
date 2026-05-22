@@ -26,11 +26,11 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: be
-        run: npm ci
+        run: npm i
 
       - name: Install frontend dependencies
         working-directory: fe
-        run: npm ci
+        run: npm i
 
       - name: Lint frontend
         working-directory: fe
