@@ -5,13 +5,15 @@ It supports multiplayer drawing sessions, live cursor sync, room invitations, an
 
 ## Features
 
-- Real-time collaboration with room-based sessions
-- Live cursor presence and drawing synchronization over Socket.IO
-- Drawing tools: select, pencil, text, rectangle, circle, diamond, line, arrow, eraser, laser
-- Rough.js powered sketch-style rendering
+- Real-time collaboration with room-based sessions and live cursor sync
+- Drawing tools for select, pencil, text, image, rectangle, circle, diamond, line, arrow, eraser, and laser pointer
+- Custom stroke styles with adjustable width and curated colors
+- Export and import support for PNG, JPG, SVG, JSON, and Mermaid diagrams
+- Save and restore drawings from project files or imported JSON
+- Undo and redo history with up to 50 steps
 - Invite collaborators by email via backend API
 - Gemini-powered AI drawing generation (`vector` and `raster` modes)
-- PWA-enabled frontend build
+- Installable PWA frontend for desktop and mobile use
 
 ## Monorepo Layout
 
@@ -22,6 +24,13 @@ It supports multiplayer drawing sessions, live cursor sync, room invitations, an
 ├── docs/ # Product and architecture notes
 └── Makefile
 ```
+
+## API Docs
+
+- REST API (OpenAPI / Swagger): served by the backend at `/api` when the backend is running. In development the Swagger UI is available at `http://localhost:3000/api` (adjust the port if you use a different `PORT`). The OpenAPI spec is generated from JSDoc annotations in `be/src` via `swagger-jsdoc`.
+- WebSocket / Realtime events (AsyncAPI): the AsyncAPI JSON spec is available at `/asyncapi.json` and an AsyncAPI web UI is served at `/ws`. In development you can visit `http://localhost:3000/ws` to view the WebSocket event documentation and examples. The source spec lives at `be/src/asyncapi.json`.
+
+These docs make it easy to explore the backend's REST endpoints and the realtime socket messages supported by draw.wine.
 
 ## Prerequisites
 

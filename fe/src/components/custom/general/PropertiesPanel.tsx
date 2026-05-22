@@ -10,6 +10,7 @@ import { cn } from "@/helpers/cn.h";
 import { STROKE_COLORS, STROKE_WIDTHS } from "@/constants/ext";
 import { TEXT_FONT_FAMILIES } from "@/constants/toolbar";
 import { STROKE_PATTERNS } from "@/helpers/stroke.h";
+import { useTheme } from "@/contexts/theme/useTheme";
 import { X } from "lucide-react";
 
 const CONTROL_SURFACE =
@@ -363,9 +364,6 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
     (selectedTool === "select" &&
       activeElementTypes.some((type) => type === "Text"));
 
-  const isCustomStroke = !STROKE_COLORS.includes(strokeColor);
-  const isCustomFill = !!fillColor && !STROKE_COLORS.includes(fillColor);
-
   const clampPanelPosition = (x: number, y: number) => {
     const rect = panelRef.current?.getBoundingClientRect();
     const width = rect?.width ?? panelSize.width;
@@ -381,6 +379,63 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
       ),
     };
   };
+
+  // ── Theme-aware color helpers ──────────────────────────────────────────
+  const { theme } = useTheme();
+  const isDarkTheme =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  // const invertHexColor = (color: string) => {
+  //   const hex = color.replace("#", "");
+  //   if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
+  //   const channels = hex.match(/.{2}/g);
+  //   if (!channels) return color;
+  //   const inverted = channels
+  //     .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
+  //     .join("");
+  //   return `#${inverted}`;
+  // };
+
+  // What canvas actually renders for a given stored color
+  const displayColor = (color: string) => {
+    if (isDarkTheme && (color === "#000000" || color === "#000"))
+      return "#ffffff";
+    if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
+      return "#000000";
+    return color;
+  };
+
+  // When user picks a swatch in the panel, store the canvas-space color
+  // (panel swatches show display colors; canvas stores them directly)
+  const setStrokeColorThemed = (color: string) => {
+    if (isDarkTheme && (color === "#ffffff" || color === "#fff"))
+      setStrokeColor("#000000");
+    else if (!isDarkTheme && (color === "#000000" || color === "#000"))
+      setStrokeColor("#ffffff");
+    else setStrokeColor(color);
+  };
+
+  const setFillColorThemed = (color: string | null) => {
+    if (color === null) {
+      setFillColor(null);
+      return;
+    }
+    if (isDarkTheme && (color === "#ffffff" || color === "#fff"))
+      setFillColor("#000000");
+    else if (!isDarkTheme && (color === "#000000" || color === "#000"))
+      setFillColor("#ffffff");
+    else setFillColor(color);
+  };
+
+  // The color as it appears on screen (for active-swatch matching & custom picker)
+  const displayedStrokeColor = displayColor(strokeColor);
+  const displayedFillColor = fillColor ? displayColor(fillColor) : null;
+
+  const isCustomStroke = !STROKE_COLORS.includes(displayedStrokeColor);
+  const isCustomFill =
+    !!displayedFillColor && !STROKE_COLORS.includes(displayedFillColor);
 
   const handlePanelPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || isInteractivePanelTarget(event.target)) return;
@@ -481,23 +536,28 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
-                onClick={() => setStrokeColor(color)}
+                onClick={() => setStrokeColorThemed(color)}
                 className={cn(
                   SWATCH_CLASS,
                   "stroke-color-swatch",
-                  strokeColor === color
+                  displayedStrokeColor === color
                     ? CONTROL_ACTIVE
                     : "border border-border/50 hover:border-border/80",
                 )}
-                style={{ "--stroke-color": color } as CSSProperties}
+                style={
+                  {
+                    "--stroke-color": color,
+                    backgroundColor: color,
+                  } as CSSProperties
+                }
                 title={color}
                 aria-label={`Select color ${color}`}
               />
             ))}
             <ColorPickerSwatch
               label="Custom stroke color"
-              value={strokeColor}
-              onChange={setStrokeColor}
+              value={displayedStrokeColor}
+              onChange={setStrokeColorThemed}
               active={isCustomStroke}
             />
           </div>
@@ -583,23 +643,28 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
-                onClick={() => setFillColor(color)}
+                onClick={() => setFillColorThemed(color)}
                 className={cn(
                   SWATCH_CLASS,
                   "stroke-color-swatch",
-                  fillColor === color
+                  displayedFillColor === color
                     ? CONTROL_ACTIVE
                     : "border border-border/50 hover:border-border/80",
                 )}
-                style={{ "--stroke-color": color } as CSSProperties}
+                style={
+                  {
+                    "--stroke-color": color,
+                    backgroundColor: color,
+                  } as CSSProperties
+                }
                 title={color}
                 aria-label={`Select fill color ${color}`}
               />
             ))}
             <ColorPickerSwatch
               label="Custom fill color"
-              value={fillColor || "#ffffff"}
-              onChange={(value) => setFillColor(value)}
+              value={displayedFillColor || "#ffffff"}
+              onChange={(v) => setFillColorThemed(v)}
               active={isCustomFill}
             />
           </div>

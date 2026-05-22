@@ -16,6 +16,8 @@ const Landing = lazy(() =>
 
 import { ThemeProvider } from "./contexts/theme/ThemeContext";
 import { AiProvider } from "./contexts/ai/AiContext";
+import { TierProvider } from "./contexts/tier/TierContext";
+import { SolanaProvider } from "./contexts/solana/SolanaContext";
 
 const PlayGround = lazy(() =>
   import("./pages/PlayGround").then((module) => ({
@@ -60,20 +62,24 @@ export const App = () => {
   return (
     <ThemeProvider defaultTheme="light" storageKey="draw-wine-theme">
       <GeneralProvider>
-        <CollabProvider>
-          <AiProvider>
-            <BrowserRouter>
-              <Suspense fallback={<LoadingFallback />}>
-                <Routes>
-                  <Route path="/" element={<Landing />} />
-                  <Route path="/board/:id" element={<PlayGround />} />
-                  <Route path="/collab" element={<CollabRoom />} />
-                </Routes>
-              </Suspense>
-              <Toaster />
-            </BrowserRouter>
-          </AiProvider>
-        </CollabProvider>
+        <SolanaProvider>
+          <TierProvider>
+            <CollabProvider>
+              <AiProvider>
+                <BrowserRouter>
+                  <Suspense fallback={<LoadingFallback />}>
+                    <Routes>
+                      <Route path="/" element={<Landing />} />
+                      <Route path="/board/:id" element={<PlayGround />} />
+                      <Route path="/collab" element={<CollabRoom />} />
+                    </Routes>
+                  </Suspense>
+                  <Toaster />
+                </BrowserRouter>
+              </AiProvider>
+            </CollabProvider>
+          </TierProvider>
+        </SolanaProvider>
       </GeneralProvider>
     </ThemeProvider>
   );

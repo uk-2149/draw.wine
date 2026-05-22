@@ -1,7 +1,15 @@
 import { Room } from "../types";
+import { tierConfig } from "../constants";
 import { RedisService } from "./redis.service";
 
-const ROOM_TTL = 24 * 60 * 60; // 24h
+const getDynamicTtl = (room?: Room | null): number => {
+  if (room && room.expiresAt) {
+    const remaining = Math.max(1, Math.floor((room.expiresAt - Date.now()) / 1000));
+    return remaining;
+  }
+  return tierConfig.roomTtlSeconds;
+};
+
 const SNAPSHOT_KEY = (id: string) => `room:${id}:snapshot`;
 const OPS_KEY = (id: string) => `room:${id}:ops`;
 export class RoomStateManager {
@@ -19,7 +27,7 @@ export class RoomStateManager {
       SNAPSHOT_KEY(roomId),
       JSON.stringify(room),
       "EX",
-      ROOM_TTL,
+      getDynamicTtl(room),
     );
   }
   static async deleteRoom(roomId: string): Promise<void> {
@@ -30,9 +38,12 @@ export class RoomStateManager {
   static async appendOp(roomId: string, op: any, maxOps = 1000): Promise<void> {
     const client = await RedisService.getClient();
     const raw = JSON.stringify(op);
+    const room = await this.getRoom(roomId);
+    if (!room) return;
+    
     await client.lpush(OPS_KEY(roomId), raw); // Add to the head of the list
     await client.ltrim(OPS_KEY(roomId), 0, maxOps - 1); // Keep only the latest maxOps operations
-    await client.expire(OPS_KEY(roomId), ROOM_TTL); // Reset TTL on each operation
+    await client.expire(OPS_KEY(roomId), getDynamicTtl(room)); // Reset TTL on each operation
   }
   static async atomicUpdate(
     roomId: string,
@@ -51,7 +62,7 @@ export class RoomStateManager {
       const multi = client.multi();
 
       if (updated !== null) {
-        multi.set(key, JSON.stringify(updated), "EX", ROOM_TTL);
+        multi.set(key, JSON.stringify(updated), "EX", getDynamicTtl(updated));
       } else {
         multi.del(key);
       }
@@ -61,4 +72,28 @@ export class RoomStateManager {
     }
     throw new Error("atomicUpdate : max retries exceeded");
   }
+
+  /**
+   * Check if a room has exceeded its tier-based lifetime.
+   * Returns true if the room is expired based on createdAt + configured TTL.
+   */
+  static async isRoomExpired(roomId: string): Promise<boolean> {
+    const room = await this.getRoom(roomId);
+    if (!room) return true; // no room ⇒ treat as expired
+    const expiresAt = room.expiresAt ?? room.createdAt + tierConfig.roomTtlSeconds * 1000;
+    return Date.now() >= expiresAt;
+  }
+
+  /**
+   * Returns the number of seconds remaining before the room expires.
+   * Returns 0 if expired or room not found.
+   */
+  static async getRoomTimeRemaining(roomId: string): Promise<number> {
+    const room = await this.getRoom(roomId);
+    if (!room) return 0;
+    const expiresAt = room.expiresAt ?? room.createdAt + tierConfig.roomTtlSeconds * 1000;
+    const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    return remaining;
+  }
 }
+

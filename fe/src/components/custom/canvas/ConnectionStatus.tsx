@@ -11,7 +11,7 @@ export const ConnectionStatus = ({
   visible?: boolean;
 }) => (
   <div
-    className={`absolute top-16 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border ${
+    className={`absolute top-18 right-4 z-50 bg-background rounded-lg shadow-lg p-3 max-w-xs border ${
       visible ? "block" : "hidden"
     }`}
   >

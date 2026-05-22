@@ -16,6 +16,12 @@ import { generateAiChat, generateAiDrawing } from "@/helpers/aiApi";
 import { insertAiElementsIntoCanvas } from "@/helpers/aiInsertion.h";
 import { cn } from "@/helpers/cn.h";
 import { Loader2, Sparkles, X, Zap } from "lucide-react";
+import { useTier } from "@/contexts/tier/useTier";
+import { AiUsageBar } from "@/components/custom/tier/AiUsageBar";
+import {
+  isMermaidSyntax,
+  parseMermaidToElements,
+} from "@/helpers/mermaidParser.h";
 
 interface AiChatSidebarProps {
   isOpen: boolean;
@@ -129,6 +135,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     sessionId,
     setSessionId,
   } = useAi();
+  const { aiQuota, refreshAiQuota, isFree } = useTier();
   const [localPrompt, setLocalPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -141,6 +148,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isLoading = state === "loading";
+  const isQuotaExhausted = isFree && aiQuota.remaining <= 0;
   const currentModel = model ?? MODEL_OPTIONS[0].value;
 
   useEffect(() => {
@@ -165,6 +173,9 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     const trimmed = localPrompt.trim();
     if (!trimmed || isLoading) return;
 
+    // Block if quota exhausted
+    if (isQuotaExhausted) return;
+
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -183,6 +194,31 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setLocalPrompt("");
+
+    // ── Local Mermaid Processing Bypassing LLM ──
+    if (isMermaidSyntax(trimmed)) {
+      try {
+        const elements = parseMermaidToElements(trimmed);
+        if (elements.length > 0) {
+          insertAiElementsIntoCanvas(elements);
+          updateMessage(assistantId, {
+            content: `Added ${elements.length} elements to the canvas from Mermaid diagram.`,
+            status: "success",
+          });
+        } else {
+          updateMessage(assistantId, {
+            content: "Could not parse any shapes from the Mermaid syntax.",
+            status: "info",
+          });
+        }
+      } catch (err: unknown) {
+        updateMessage(assistantId, {
+          content: `Failed to parse Mermaid diagram: ${err instanceof Error ? err.message : "Unknown error"}`,
+          status: "error",
+        });
+      }
+      return;
+    }
 
     startRequest(trimmed, mode);
 
@@ -207,6 +243,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           content: `Added ${response.elements.length} elements to the canvas.`,
           status: "success",
         });
+        await refreshAiQuota();
         return;
       }
 
@@ -228,6 +265,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           "Tell me what you want to draw and I will add it to the canvas.",
         status: "success",
       });
+      await refreshAiQuota();
     } catch (error: unknown) {
       const msg =
         error instanceof Error
@@ -241,6 +279,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
   }, [
     localPrompt,
     isLoading,
+    isQuotaExhausted,
     mode,
     currentModel,
     startRequest,
@@ -249,6 +288,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
     updateMessage,
     sessionId,
     setSessionId,
+    refreshAiQuota,
   ]);
 
   const handleInputKeyDown = (
@@ -290,6 +330,11 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
         >
           <X className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* AI Usage Bar */}
+      <div className="border-b px-4 py-2.5">
+        <AiUsageBar />
       </div>
 
       <div className="border-b px-4 py-3">
@@ -394,12 +439,19 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
       </div>
 
       <div className="border-t px-4 py-3">
-        <Label
-          htmlFor="ai-chat-input"
-          className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-        >
-          Prompt
-        </Label>
+        <div className="flex items-center justify-between">
+          <Label
+            htmlFor="ai-chat-input"
+            className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+          >
+            Prompt
+          </Label>
+          {isMermaidSyntax(localPrompt) && (
+            <span className="text-[10px] uppercase font-bold tracking-widest text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/50 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Zap className="h-3 w-3" /> Mermaid
+            </span>
+          )}
+        </div>
         <Textarea
           id="ai-chat-input"
           rows={3}
@@ -438,7 +490,7 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
           </div>
           <Button
             onClick={handleSend}
-            disabled={isLoading || !localPrompt.trim()}
+            disabled={isLoading || !localPrompt.trim() || isQuotaExhausted}
             className="gap-2"
           >
             {isLoading ? (
@@ -446,6 +498,8 @@ export const AiChatSidebar = ({ isOpen, onClose }: AiChatSidebarProps) => {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Working
               </>
+            ) : isQuotaExhausted ? (
+              "Quota Used"
             ) : (
               "Send"
             )}

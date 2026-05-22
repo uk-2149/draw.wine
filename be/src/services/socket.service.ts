@@ -5,6 +5,10 @@ import { allowedOrigins } from "../constants";
 import { Logger } from "../helpers";
 import { RedisService } from "./redis.service";
 import { createAdapter } from "@socket.io/redis-adapter";
+import { roomExpiryService } from "./room-expiry.service";
+import jwt from "jsonwebtoken";
+import { jwt_secret } from "../constants";
+import { TierService } from "./tier.service";
 
 export class CollabDrawingServer {
   private static instance: CollabDrawingServer;
@@ -17,7 +21,6 @@ export class CollabDrawingServer {
         credentials: true,
       },
     });
-    this.setupSocketEvents();
   }
 
   public static async getInstance(
@@ -28,6 +31,9 @@ export class CollabDrawingServer {
 
       await CollabDrawingServer.instance.setupRedisAdapter();
       CollabDrawingServer.instance.setupSocketEvents();
+
+      // Start the room expiry checker
+      roomExpiryService.start(CollabDrawingServer.instance._io);
     }
     return CollabDrawingServer.instance;
   }
@@ -46,6 +52,29 @@ export class CollabDrawingServer {
   }
   private setupSocketEvents() {
     const io = this._io;
+
+    io.use(async (socket, next) => {
+      try {
+        const token = socket.handshake.auth?.token;
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, jwt_secret) as { wallet: string };
+            socket.data.wallet = decoded.wallet;
+            socket.data.isPremium = await TierService.isPremiumUser(decoded.wallet);
+            Logger.info(`Socket authenticated for wallet: ${decoded.wallet}`);
+          } catch (err) {
+            Logger.warn("Invalid socket token provided, proceeding as anonymous.");
+            socket.data.isPremium = await TierService.isPremiumUser(); // fallback to global default
+          }
+        } else {
+          socket.data.isPremium = await TierService.isPremiumUser();
+        }
+        next();
+      } catch (err) {
+        next(new Error("Internal error during authentication"));
+      }
+    });
+
     ExecSocketEvents(io);
   }
 

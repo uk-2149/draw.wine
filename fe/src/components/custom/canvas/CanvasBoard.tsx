@@ -44,11 +44,17 @@ import {
   getConnectionCoordsForElement,
 } from "@/helpers/connectionSnap.h";
 import { measureTextElement } from "@/helpers/textMeasure.h";
-import { NEON_RED } from "@/constants/ext";
+import { IconModal } from "../modals/IconModal";
+import {
+  isElementInsideLasso,
+  simplifyPath,
+} from "@/helpers/lassoGeometry.h";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 5;
+const ICON_DEFAULT_SIZE = 100;
+const ICON_DRAG_MIME = "application/x-draw-wine-icon";
 // How many screen-pixels away from an edge counts as "on the edge"
 const EDGE_HIT_PX = 8;
 // Corner zone: if within this many px of a corner, treat as corner resize
@@ -77,6 +83,9 @@ const cloneElementsSnapshot = (els: Element[]): Element[] =>
     ...el,
     points: el.points ? el.points.map((p) => ({ ...p })) : undefined,
   }));
+
+// ─── Icon blob URL cache (stable URLs preserve SMIL animations across re-renders)
+const iconBlobCache = new Map<string, string>();
 
 // ─── Edge/corner hit-detection helpers ────────────────────────────────────────
 
@@ -164,7 +173,8 @@ function getElementBounds(
     case "Rectangle":
     case "Diamond":
     case "Circle":
-    case "Image": {
+    case "Image":
+    case "Icon": {
       if (element.width !== undefined && element.height !== undefined) {
         return {
           minX: Math.min(element.x, element.x + element.width) - padding,
@@ -328,9 +338,9 @@ function applyHandleResize(
       break;
   }
 
-  // For images maintain aspect ratio on corner handles
+  // For images/icons maintain aspect ratio on corner handles
   if (
-    el.type === "Image" &&
+    (el.type === "Image" || el.type === "Icon") &&
     el.aspectRatio &&
     ["tl", "tr", "bl", "br"].includes(corner)
   ) {
@@ -513,6 +523,10 @@ export const CanvasBoard = ({
     setSelectedElements,
     collaborativeLaserTrails,
     setCollaborativeLaserTrails,
+    lassoPath,
+    setLassoPath,
+    isLassoing,
+    setIsLassoing,
   } = useCanvasBoardState();
 
   const laser = useLaserTrail();
@@ -565,7 +579,8 @@ export const CanvasBoard = ({
         case "Rectangle":
         case "Diamond":
         case "Circle":
-        case "Image": {
+        case "Image":
+        case "Icon": {
           if (el.width !== undefined && el.height !== undefined) {
             minX = Math.min(minX, el.x, el.x + el.width);
             maxX = Math.max(maxX, el.x, el.x + el.width);
@@ -927,6 +942,43 @@ export const CanvasBoard = ({
     }
   }, [applyCollaborativeOperation, isCollaborating]);
 
+  // ─── Collaborative laser trail decay animation ────────────────────────────────
+  useEffect(() => {
+    if (!isCollaborating) return;
+    let rafId: number;
+    const decay = () => {
+      const now = Date.now();
+      setCollaborativeLaserTrails((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        next.forEach((trail, userId) => {
+          const updated = trail
+            .map((p) => ({
+              ...p,
+              opacity: Math.max(0, 1 - (now - p.timestamp) / 2700),
+            }))
+            .filter((p) => p.opacity > 0.05);
+          if (
+            updated.length !== trail.length ||
+            updated.some((p, i) => p.opacity !== trail[i].opacity)
+          ) {
+            changed = true;
+          }
+          if (updated.length === 0) {
+            next.delete(userId);
+            changed = true;
+          } else {
+            next.set(userId, updated);
+          }
+        });
+        return changed ? next : prev;
+      });
+      rafId = requestAnimationFrame(decay);
+    };
+    rafId = requestAnimationFrame(decay);
+    return () => cancelAnimationFrame(rafId);
+  }, [isCollaborating, setCollaborativeLaserTrails]);
+
   // ─── Persist / load ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1041,7 +1093,8 @@ export const CanvasBoard = ({
 
       // ═══ Convert GeneratedElement[] → canvas Element[] ═══
       const newElements: Element[] = generatedElements.map((elem, index) => {
-        const isImage = elem.type === "Image";
+        const isImage = elem.type === "Image" || elem.type === "Icon";
+        const ar = isImage && elem.aspectRatio ? elem.aspectRatio : null;
         const isText = elem.type === "Text";
 
         const baseElement: Element = {
@@ -1068,7 +1121,8 @@ export const CanvasBoard = ({
 
         if (isImage) {
           baseElement.imageUrl = elem.text || elem.imageUrl || "";
-          baseElement.aspectRatio = (elem.width || 1) / (elem.height || 1);
+          baseElement.aspectRatio =
+            ar || (elem.width || 1) / (elem.height || 1);
           delete baseElement.text;
         }
 
@@ -1400,6 +1454,48 @@ export const CanvasBoard = ({
   ]);
 
   useEffect(() => {
+    if (selectedTool === "select" || isEditingText) return;
+    if (selectedElements.length > 0) setSelectedElements([]);
+    if (selectedElement) setSelectedElement(null);
+    setSelectionArea(null);
+    setResizing(null);
+    setResizeStart(null);
+    setResizeSnapshot(null);
+  }, [
+    selectedTool,
+    isEditingText,
+    selectedElements.length,
+    selectedElement,
+    setSelectedElements,
+    setSelectedElement,
+    setSelectionArea,
+    setResizing,
+    setResizeStart,
+  ]);
+
+  useEffect(() => {
+    const existingIds = new Set(elements.map((el) => el.id));
+
+    if (selectedElements.some((el) => !existingIds.has(el.id))) {
+      const nextSelectedElements = selectedElements.filter((el) =>
+        existingIds.has(el.id),
+      );
+      setSelectedElements(nextSelectedElements);
+      if (nextSelectedElements.length !== 1) setSelectedElement(null);
+    }
+
+    if (selectedElement && !existingIds.has(selectedElement.id)) {
+      setSelectedElement(null);
+    }
+  }, [
+    elements,
+    selectedElements,
+    selectedElement,
+    setSelectedElements,
+    setSelectedElement,
+  ]);
+
+  useEffect(() => {
     if (selectedElements.length > 0) {
       setElements((prev) => {
         let hasChanges = false;
@@ -1410,6 +1506,14 @@ export const CanvasBoard = ({
             if (el.strokeColor !== strokeColor) {
               updatedEl.strokeColor = strokeColor;
               elChanged = true;
+              if (updatedEl.type === "Icon" && updatedEl.iconSvg) {
+                // Only replace currentColor — preserve the icon's native colors
+                const newSvg = updatedEl.iconSvg.replace(
+                  /currentColor/g,
+                  strokeColor,
+                );
+                updatedEl.imageUrl = `data:image/svg+xml;utf8,${encodeURIComponent(newSvg)}`;
+              }
             }
             if (el.strokeWidth !== strokeWidth) {
               updatedEl.strokeWidth = strokeWidth;
@@ -1422,7 +1526,10 @@ export const CanvasBoard = ({
             if (
               (el.type === "Rectangle" ||
                 el.type === "Diamond" ||
-                el.type === "Circle") &&
+                el.type === "Image" ||
+                el.type === "Icon" ||
+                el.type === "Circle" ||
+                el.type === "Text") &&
               el.fillColor !== fillColor
             ) {
               updatedEl.fillColor = fillColor || undefined;
@@ -1599,6 +1706,11 @@ export const CanvasBoard = ({
       }
 
       switch (element.type) {
+        case "Icon": {
+          // Icons are rendered as HTML overlays to preserve SVG animations.
+          // Canvas only draws selection handles (via getElementBounds).
+          break;
+        }
         case "Image": {
           if (element.imageUrl && element.width && element.height) {
             const isVisible = isElementInViewport(
@@ -1944,7 +2056,7 @@ export const CanvasBoard = ({
     const selectionCornerSoft = 6;
 
     // ── Draw individual selection outlines for each selected element ──
-    if (selectedElements.length > 0) {
+    if (selectedTool === "select" && selectedElements.length > 0) {
       ctx.save();
       const padding = 6;
 
@@ -2016,7 +2128,8 @@ export const CanvasBoard = ({
             }
             break;
           }
-          case "Image": {
+          case "Image":
+          case "Icon": {
             if (element.width !== undefined && element.height !== undefined) {
               const minX = Math.min(element.x, element.x + element.width);
               const maxX = Math.max(element.x, element.x + element.width);
@@ -2125,11 +2238,30 @@ export const CanvasBoard = ({
       ctx.restore();
     }
 
+    // ── Draw lasso path while selecting ──
+    if (lassoPath.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = "#007acc";
+      ctx.lineWidth = 1.5 / scale;
+      ctx.fillStyle = "rgba(0, 122, 204, 0.08)";
+      ctx.setLineDash([4 / scale, 4 / scale]);
+      ctx.beginPath();
+      ctx.moveTo(lassoPath[0].x, lassoPath[0].y);
+      for (let i = 1; i < lassoPath.length; i++) {
+        ctx.lineTo(lassoPath[i].x, lassoPath[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // ── Laser trails ──
     const drawLaserTrail = (
       trail: Array<{
         point: { x: number; y: number };
         opacity?: number;
+        timestamp?: number;
         sessionId?: string;
       }>,
       color: string,
@@ -2137,15 +2269,26 @@ export const CanvasBoard = ({
     ) => {
       if (trail.length < 2) return;
 
-      // Group consecutive points by sessionId into segments
+      // Group consecutive points into segments by sessionId or time gap
+      const TIME_GAP_MS = 200;
       const segments: (typeof trail)[] = [];
       let current: typeof trail = [trail[0]];
       for (let i = 1; i < trail.length; i++) {
-        if (trail[i].sessionId !== trail[i - 1].sessionId) {
+        const prev = trail[i - 1];
+        const cur = trail[i];
+        const sessionBreak =
+          cur.sessionId !== undefined &&
+          prev.sessionId !== undefined &&
+          cur.sessionId !== prev.sessionId;
+        const timeBreak =
+          cur.timestamp !== undefined &&
+          prev.timestamp !== undefined &&
+          cur.timestamp - prev.timestamp > TIME_GAP_MS;
+        if (sessionBreak || timeBreak) {
           segments.push(current);
-          current = [trail[i]];
+          current = [cur];
         } else {
-          current.push(trail[i]);
+          current.push(cur);
         }
       }
       segments.push(current);
@@ -2232,27 +2375,26 @@ export const CanvasBoard = ({
     if (selectedTool === "Laser" && laser.trail.length > 0) {
       const trailColor = laser.trail[laser.trail.length - 1].color || "#ff0000";
       drawLaserTrail(laser.trail, trailColor, 1.0);
-      ctx.save();
-      const lastPoint = laser.trail[laser.trail.length - 1].point;
-      ctx.globalAlpha = 1;
-      const gradient = ctx.createRadialGradient(
-        lastPoint.x,
-        lastPoint.y,
-        0,
-        lastPoint.x,
-        lastPoint.y,
-        5,
-      );
-      gradient.addColorStop(0, trailColor);
-      gradient.addColorStop(
-        1,
-        trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)",
-      );
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(lastPoint.x, lastPoint.y, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      // Only draw the tip dot while actively drawing (mouse held down)
+      const now = Date.now();
+      const lastPoint = laser.trail[laser.trail.length - 1];
+      const isActivelyDrawing = now - lastPoint.timestamp < 80;
+      if (isActivelyDrawing) {
+        ctx.save();
+        const pt = lastPoint.point;
+        ctx.globalAlpha = 1;
+        const gradient = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, 5);
+        gradient.addColorStop(0, trailColor);
+        gradient.addColorStop(
+          1,
+          trailColor.length === 7 ? trailColor + "00" : "rgba(255,0,0,0)",
+        );
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
 
     collaborativeLaserTrails.forEach((trail) => {
@@ -2295,6 +2437,7 @@ export const CanvasBoard = ({
     selectedTool,
     laser.trail,
     selectionArea,
+    lassoPath,
     isCollaborating,
     state.userId,
     isDarkTheme,
@@ -2308,14 +2451,28 @@ export const CanvasBoard = ({
 
   useEffect(() => {
     const handleToolShortcuts = (e: KeyboardEvent) => {
-      if (isEditingText || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (
+        isEditingText ||
+        e.ctrlKey ||
+        e.altKey ||
+        e.metaKey ||
+        (e.target instanceof HTMLElement &&
+          (e.target.tagName === "INPUT" ||
+            e.target.tagName === "TEXTAREA" ||
+            e.target.isContentEditable))
+      )
+        return;
       switch (e.key.toLowerCase()) {
         case " ":
           e.preventDefault();
           setSelectedTool("Hand");
           break;
         case "s":
-          setSelectedTool("select");
+          if (e.shiftKey) {
+            setSelectedTool("Lasso");
+          } else {
+            setSelectedTool("select");
+          }
           break;
         case "p":
           setSelectedTool("Pencil");
@@ -2415,6 +2572,11 @@ export const CanvasBoard = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
+
       if (
         (e.key === "Delete" || e.key === "Backspace") &&
         !isEditingText &&
@@ -2422,13 +2584,27 @@ export const CanvasBoard = ({
       ) {
         e.preventDefault();
         if (!isCollaborating) recordHistorySnapshot(localElements);
-        setElements((prev) =>
-          prev.filter(
-            (el) =>
-              !selectedElements.some((selected) => selected.id === el.id) &&
-              (!selectedElement || el.id !== selectedElement.id),
-          ),
-        );
+
+        // Collect IDs to delete
+        const idsToDelete = new Set<string>();
+        selectedElements.forEach((el) => idsToDelete.add(el.id));
+        if (selectedElement) idsToDelete.add(selectedElement.id);
+
+        setElements((prev) => prev.filter((el) => !idsToDelete.has(el.id)));
+
+        // Send delete operations to collaborators
+        if (isCollaborating && sendOperation && state.roomId) {
+          idsToDelete.forEach((elementId) => {
+            sendOperation({
+              type: "element_delete",
+              roomId: state.roomId!,
+              elementId,
+              authorId: state.userId!,
+              data: {},
+            });
+          });
+        }
+
         setSelectedElements([]);
         setSelectedElement(null);
       }
@@ -2443,10 +2619,18 @@ export const CanvasBoard = ({
     localElements,
     recordHistorySnapshot,
     setElements,
+    sendOperation,
+    state.roomId,
+    state.userId,
   ]);
 
   useEffect(() => {
     const handleTabKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
+
       if (isEditingText) return;
       if (e.key === "Tab") {
         e.preventDefault();
@@ -2466,6 +2650,11 @@ export const CanvasBoard = ({
 
   useEffect(() => {
     const handleArrowKeys = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable)
+        return;
+
       if (isEditingText) return;
       const ARROW_PAN_SPEED = 50;
       switch (e.key) {
@@ -2548,17 +2737,24 @@ export const CanvasBoard = ({
 
   // ─── Coordinate transform ─────────────────────────────────────────────────────
 
-  const getTransformedPoint = useCallback(
-    (e: React.MouseEvent): Position => {
+  const getCanvasPointFromClient = useCallback(
+    (clientX: number, clientY: number): Position => {
       const canvas = canvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
       return {
-        x: (e.clientX - rect.left - position.x) / scale,
-        y: (e.clientY - rect.top - position.y) / scale,
+        x: (clientX - rect.left - position.x) / scale,
+        y: (clientY - rect.top - position.y) / scale,
       };
     },
     [position, scale],
+  );
+
+  const getTransformedPoint = useCallback(
+    (e: React.MouseEvent): Position => {
+      return getCanvasPointFromClient(e.clientX, e.clientY);
+    },
+    [getCanvasPointFromClient],
   );
 
   // ─── Text editing ─────────────────────────────────────────────────────────────
@@ -2731,7 +2927,8 @@ export const CanvasBoard = ({
           case "Rectangle":
           case "Diamond":
           case "Circle":
-          case "Image": {
+          case "Image":
+          case "Icon": {
             if (element.width && element.height) {
               const minX = Math.min(element.x, element.x + element.width);
               const maxX = Math.max(element.x, element.x + element.width);
@@ -2856,6 +3053,15 @@ export const CanvasBoard = ({
       if (!canDraw) return;
 
       const point = getTransformedPoint(e);
+
+      // ── Lasso selection start ──
+      if (selectedTool === "Lasso") {
+        setIsLassoing(true);
+        setLassoPath([point]);
+        setSelectedElement(null);
+        setSelectedElements([]);
+        return;
+      }
 
       // ── Bend point drag ──
       if (selectedTool === "select" && selectedElements.length === 1) {
@@ -3220,7 +3426,8 @@ export const CanvasBoard = ({
             const hit = getEdgeHit(point, elBounds, scale);
             if (
               hit &&
-              (selectedElements[0].type !== "Text" || isCornerHandle(hit.corner))
+              (selectedElements[0].type !== "Text" ||
+                isCornerHandle(hit.corner))
             )
               edgeCursor = hit.cursor;
           }
@@ -3284,15 +3491,15 @@ export const CanvasBoard = ({
 
       if (selectedTool === "Laser") {
         if (e.buttons === 1) {
-          // const isDark = document.documentElement.classList.contains("dark");
-          // const getStrokeColor = (c: string) =>
-          //   isDark && (c === "#000000" || c === "#000")
-          //     ? "#ffffff"
-          //     : !isDark && (c === "#ffffff" || c === "#fff")
-          //       ? "#000000"
-          //       : c;
-          // const laserColor = getStrokeColor(strokeColor);
-          laser.addPoint(point, NEON_RED);
+          const isDark = document.documentElement.classList.contains("dark");
+          const getStrokeColor = (c: string) =>
+            isDark && (c === "#000000" || c === "#000")
+              ? "#ffffff"
+              : !isDark && (c === "#ffffff" || c === "#fff")
+                ? "#000000"
+                : c;
+          const laserColor = getStrokeColor(strokeColor);
+          laser.addPoint(point, laserColor);
           if (isCollaborating && updateCursor && state.roomId && state.socket) {
             updateCursor({ x: point.x, y: point.y });
             state.socket.emit("laser_point", {
@@ -3300,7 +3507,7 @@ export const CanvasBoard = ({
               point,
               userId: state.userId,
               timestamp: Date.now(),
-              color: NEON_RED,
+              color: laserColor,
             });
           }
         }
@@ -3331,6 +3538,22 @@ export const CanvasBoard = ({
         return;
       }
 
+      // ── Lasso selection drag ──
+      if (selectedTool === "Lasso" && isLassoing && e.buttons === 1) {
+        setLassoPath((prev) => [...prev, point]);
+        // Live hit-test: select elements inside the lasso polygon in real-time
+        const currentPath = [...lassoPath, point];
+        if (currentPath.length >= 3) {
+          const simplified = simplifyPath(currentPath, 3 / scale);
+          const inLasso = elements.filter((el) =>
+            isElementInsideLasso(el, simplified),
+          );
+          setSelectedElements(inLasso);
+          setSelectedElement(inLasso.length === 1 ? inLasso[0] : null);
+        }
+        return;
+      }
+
       // ── Area selection drag ──
       if (
         selectedTool === "select" &&
@@ -3353,7 +3576,8 @@ export const CanvasBoard = ({
             case "Rectangle":
             case "Diamond":
             case "Circle":
-            case "Image": {
+            case "Image":
+            case "Icon": {
               if (el.width && el.height) {
                 const r = {
                   left: Math.min(el.x, el.x + el.width),
@@ -3604,11 +3828,7 @@ export const CanvasBoard = ({
             const patch =
               el.type === "Text"
                 ? resizeTextElement(el, resizing.corner as HandleCorner, point)
-                : applyHandleResize(
-                    el,
-                    resizing.corner as HandleCorner,
-                    point,
-                  );
+                : applyHandleResize(el, resizing.corner as HandleCorner, point);
 
             if (
               (el.type === "Arrow" || el.type === "Line") &&
@@ -3851,12 +4071,7 @@ export const CanvasBoard = ({
     setSnapHighlight(null);
     draggingBendPointRef.current = null; // ← clear ref
     setDraggingBendPoint(null);
-    //     if (draggingBendPoint) {
-    //       draggingBendPointRef.current = null;   // ← clear ref
-    // setDraggingBendPoint(null);
-    //       commitHistoryAction();
-    //       return;
-    //     }
+
     if (
       drawing &&
       currentElement &&
@@ -3893,9 +4108,24 @@ export const CanvasBoard = ({
     setResizeSnapshot(null);
     setSelectionArea(null);
 
+    // ── Finalize lasso selection ──
+    if (isLassoing && lassoPath.length >= 3) {
+      const simplified = simplifyPath(lassoPath, 3 / scale);
+      const inLasso = elements.filter((el) =>
+        isElementInsideLasso(el, simplified),
+      );
+      setSelectedElements(inLasso);
+      setSelectedElement(inLasso.length === 1 ? inLasso[0] : null);
+      // Switch to select tool so the user can immediately drag/resize
+      setSelectedTool("select");
+    }
+    setIsLassoing(false);
+    setLassoPath([]);
+
     if (
       drawing &&
       selectedTool !== "select" &&
+      selectedTool !== "Lasso" &&
       selectedTool !== "Eraser" &&
       selectedTool !== "Pencil" &&
       selectedTool !== "Laser"
@@ -3918,6 +4148,10 @@ export const CanvasBoard = ({
     setSelectedTool,
     isEditingText,
     commitHistoryAction,
+    isLassoing,
+    lassoPath,
+    scale,
+    elements,
   ]);
 
   // ─── Double click ─────────────────────────────────────────────────────────────
@@ -4074,6 +4308,139 @@ export const CanvasBoard = ({
     ],
   );
 
+  const createIconElement = useCallback(
+    (svgString: string, dropPoint?: Position) => {
+      beginHistoryAction();
+      const elementId = isCollaborating
+        ? `${state.userId || "local"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        : Date.now().toString();
+
+      // Only replace currentColor — preserve the icon's native fill/stroke attributes
+      const coloredSvg = svgString.replace(/currentColor/g, strokeColor);
+      const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(coloredSvg)}`;
+
+      const halfIconSize = ICON_DEFAULT_SIZE / 2;
+      const centerX =
+        dropPoint?.x ??
+        -position.x / scale + window.innerWidth / (2 * scale);
+      const centerY =
+        dropPoint?.y ??
+        -position.y / scale + window.innerHeight / (2 * scale);
+
+      const newElement: Element = {
+        id: elementId,
+        type: "Icon",
+        x: centerX - halfIconSize,
+        y: centerY - halfIconSize,
+        width: ICON_DEFAULT_SIZE,
+        height: ICON_DEFAULT_SIZE,
+        iconSvg: svgString,
+        imageUrl: dataUrl,
+        aspectRatio: 1,
+        strokeColor,
+        strokeWidth,
+        authorId: isCollaborating ? state.userId || "local" : "local",
+        isTemporary: false,
+      };
+
+      setElements((prev) => [...prev, newElement]);
+      markHistoryActionMutated();
+      setSelectedTool("select");
+      setSelectedElements([newElement]);
+      setSelectedElement(newElement);
+
+      if (isCollaborating && sendOperation && state.roomId) {
+        sendOperation({
+          type: "element_create",
+          roomId: state.roomId,
+          elementId: newElement.id,
+          authorId: state.userId!,
+          data: { element: newElement },
+        });
+      }
+    },
+    [
+      beginHistoryAction,
+      isCollaborating,
+      state.userId,
+      state.roomId,
+      position,
+      scale,
+      strokeColor,
+      strokeWidth,
+      setElements,
+      markHistoryActionMutated,
+      setSelectedTool,
+      setSelectedElements,
+      setSelectedElement,
+      sendOperation,
+    ],
+  );
+
+  const handleSelectIcon = useCallback(
+    (svgString: string) => {
+      createIconElement(svgString);
+    },
+    [createIconElement],
+  );
+
+  useEffect(() => {
+    const getDraggedIconId = (dataTransfer: DataTransfer | null) => {
+      if (!dataTransfer) return "";
+      return (
+        dataTransfer.getData(ICON_DRAG_MIME) ||
+        dataTransfer.getData("text/plain")
+      );
+    };
+
+    const isIconDrag = (dataTransfer: DataTransfer | null) =>
+      !!dataTransfer && Array.from(dataTransfer.types).includes(ICON_DRAG_MIME);
+
+    const handleDocumentDragOver = (event: DragEvent) => {
+      if (!isIconDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    };
+
+    const handleDocumentDrop = async (event: DragEvent) => {
+      if (!isIconDrag(event.dataTransfer)) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!canDraw) return;
+
+      const iconId = getDraggedIconId(event.dataTransfer);
+      if (!iconId) return;
+
+      try {
+        const response = await fetch(`https://api.iconify.design/${iconId}.svg`);
+        if (!response.ok) throw new Error("Failed to fetch SVG");
+        const svgText = await response.text();
+        createIconElement(
+          svgText,
+          getCanvasPointFromClient(event.clientX, event.clientY),
+        );
+        hidePreview();
+        setSelectedTool("select");
+      } catch (error) {
+        console.error("Failed to load dropped icon:", error);
+      }
+    };
+
+    document.addEventListener("dragover", handleDocumentDragOver);
+    document.addEventListener("drop", handleDocumentDrop);
+    return () => {
+      document.removeEventListener("dragover", handleDocumentDragOver);
+      document.removeEventListener("drop", handleDocumentDrop);
+    };
+  }, [
+    canDraw,
+    createIconElement,
+    getCanvasPointFromClient,
+    hidePreview,
+    setSelectedTool,
+  ]);
+
   // ─── Reset on collab end ──────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -4128,9 +4495,11 @@ export const CanvasBoard = ({
               ? "crosshair"
               : selectedTool === "Eraser"
                 ? "none"
-                : selectedTool === "select"
-                  ? hoverCursor
-                  : "default",
+                : selectedTool === "Lasso"
+                  ? "crosshair"
+                  : selectedTool === "select"
+                    ? hoverCursor
+                    : "default",
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -4147,156 +4516,271 @@ export const CanvasBoard = ({
       />
       <canvas ref={canvasRef} className="absolute top-0 left-0" />
 
-      {/* First-time preview overlay with scattered hints (like Excalidraw) */}
+      {/* Icon elements rendered as HTML overlays to preserve SVG animations */}
+      {elements
+        .filter(
+          (el) => el.type === "Icon" && el.iconSvg && el.width && el.height,
+        )
+        .map((el) => {
+          const screenX = el.x * scale + position.x;
+          const screenY = el.y * scale + position.y;
+          const screenW = el.width! * scale;
+          const screenH = el.height! * scale;
+          // Build a stable blob URL for this icon so the browser keeps the SVG animation running
+          const cacheKey = `${el.id}:${el.strokeColor}`;
+          if (!iconBlobCache.has(cacheKey)) {
+            // Revoke old blob for this element if color changed
+            for (const [k, url] of iconBlobCache.entries()) {
+              if (k.startsWith(el.id + ":")) {
+                URL.revokeObjectURL(url);
+                iconBlobCache.delete(k);
+              }
+            }
+            const coloredSvg = el
+              .iconSvg!.replace(/currentColor/g, el.strokeColor || "#000")
+              .replace(/<svg\b[^>]*>/, (svgTag) =>
+                svgTag
+                  .replace(/\s+width\s*=\s*"[^"]*"/g, "")
+                  .replace(/\s+height\s*=\s*"[^"]*"/g, "")
+                  .replace("<svg", '<svg width="100%" height="100%"'),
+              );
+            const blob = new Blob([coloredSvg], { type: "image/svg+xml" });
+            iconBlobCache.set(cacheKey, URL.createObjectURL(blob));
+          }
+          const blobUrl = iconBlobCache.get(cacheKey)!;
+          return (
+            <object
+              key={el.id}
+              data={blobUrl}
+              type="image/svg+xml"
+              aria-label="icon"
+              style={{
+                position: "absolute",
+                left: screenX,
+                top: screenY,
+                width: screenW,
+                height: screenH,
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            />
+          );
+        })}
+
+      <IconModal
+        isOpen={selectedTool === "Icon"}
+        onClose={() => setSelectedTool("select")}
+        onSelectIcon={handleSelectIcon}
+      />
+
+      {/* First-time preview overlay */}
       {showPreview &&
         localElements.length === 0 &&
         collaborativeElements.length === 0 && (
-          <div className="absolute inset-0 z-30" onClick={() => hidePreview()}>
-            {/* Subtle overlay for click dismiss */}
-            <div className="absolute inset-0 bg-black/0" />
+          <div className="draw-preview absolute inset-0 z-30 overflow-hidden">
+            <div className="draw-preview-vignette" aria-hidden />
+            <div className="draw-preview-noise" aria-hidden />
 
-            {/* Top center: "Pick a tool & Start drawing!" with arrow pointing down to toolbar */}
-            <div
-              className="absolute left-1/2 top-16 -translate-x-1/2 text-center pointer-events-none"
-              style={{
-                fontFamily: "Virgil, sans-serif",
-              }}
+            <svg
+              className="draw-preview-sketch draw-preview-sketch-left"
+              width="260"
+              height="190"
+              viewBox="0 0 260 190"
+              fill="none"
+              aria-hidden
             >
-              <p className="text-muted-foreground text-sm mb-1">
-                Pick a tool &
-              </p>
-              <p className="text-muted-foreground text-sm">Start drawing!</p>
+              <path
+                d="M28 116 C58 76 105 64 143 86 C177 106 195 143 232 121"
+                stroke="currentColor"
+                strokeWidth="6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M70 144 L112 98 L151 139 L190 83"
+                stroke="currentColor"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M28 116 C58 76 105 64 143 86 C177 106 195 143 232 121"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.65"
+              />
+            </svg>
+
+            <svg
+              className="draw-preview-sketch draw-preview-sketch-right"
+              width="270"
+              height="220"
+              viewBox="0 0 270 220"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M56 166 C86 102 144 67 209 52"
+                stroke="currentColor"
+                strokeWidth="6"
+                strokeLinecap="round"
+              />
+              <path
+                d="M187 39 L212 51 L194 73"
+                stroke="currentColor"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="68"
+                cy="164"
+                r="25"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                d="M56 166 C86 102 144 67 209 52"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.65"
+              />
+            </svg>
+
+            <div
+              className="draw-preview-callout draw-preview-callout-toolbar"
+              aria-hidden
+            >
+              <span>Pick a tool</span>
               <svg
-                width="60"
-                height="50"
-                viewBox="0 0 60 50"
+                width="72"
+                height="58"
+                viewBox="0 0 72 58"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className="mx-auto mt-2"
               >
                 <path
-                  d="M30 5 Q25 15, 30 35"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M37 4 C29 20 31 35 39 49"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
-                  opacity="1"
-                  fill="none"
                 />
                 <path
-                  d="M26 28 L30 35 L34 28"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M29 43 L39 50 L44 39"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="1"
-                  fill="none"
                 />
               </svg>
             </div>
 
-            {/* Left side: "Export, preferences, languages, ..." with arrow pointing right to sidebar */}
             <div
-              className="absolute left-6 top-1/3 text-left pointer-events-none"
-              style={{
-                fontFamily: "Virgil, sans-serif",
-              }}
+              className="draw-preview-callout draw-preview-callout-menu"
+              aria-hidden
             >
-              <p className="text-muted-foreground text-xs mb-1">Export,</p>
-              <p className="text-muted-foreground text-xs mb-1">preferences,</p>
-              <p className="text-muted-foreground text-xs mb-3">
-                languages, ...
-              </p>
               <svg
-                width="50"
-                height="60"
-                viewBox="0 0 50 60"
+                width="88"
+                height="72"
+                viewBox="0 0 88 72"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
               >
                 <path
-                  d="M5 30 Q15 25, 40 30"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M76 62 C50 54 34 30 17 9"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
-                  opacity="1"
-                  fill="none"
                 />
                 <path
-                  d="M33 26 L40 30 L33 34"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M17 21 L17 9 L29 13"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="1"
-                  fill="none"
                 />
               </svg>
+              <span>Export and settings</span>
             </div>
 
-            {/* Bottom right: "Shortcuts & help" with arrow pointing to help button */}
             <div
-              className="absolute right-6 bottom-24 text-right pointer-events-none"
-              style={{
-                fontFamily: "Virgil, sans-serif",
-              }}
+              className="draw-preview-callout draw-preview-callout-ai"
+              aria-hidden
             >
               <svg
-                width="50"
-                height="60"
-                viewBox="0 0 50 60"
+                width="116"
+                height="74"
+                viewBox="0 0 116 74"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className="ml-auto mb-2"
               >
                 <path
-                  d="M45 5 Q35 15, 10 30"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M14 66 C42 34 73 22 101 9"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
-                  opacity="1"
-                  fill="none"
                 />
                 <path
-                  d="M16 28 L10 30 L14 36"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
+                  d="M91 6 L102 8 L99 20"
+                  stroke="currentColor"
+                  strokeWidth="4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity="1"
-                  fill="none"
                 />
               </svg>
-              <p className="text-muted-foreground text-xs">Shortcuts &</p>
-              <p className="text-muted-foreground text-xs">help</p>
+              <span>Draw with AI</span>
             </div>
 
-            {/* Center: Big title + instructions to dismiss */}
             <div
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer text-center"
-              onClick={() => hidePreview()}
+              className="draw-preview-callout draw-preview-callout-help"
+              aria-hidden
             >
-              <h1
-                className="text-5xl font-extrabold mb-3 drop-shadow-md text-primary"
-                style={{
-                  fontFamily: "Virgil, sans-serif",
-                  letterSpacing: "2px",
-                }}
+              <span>Shortcuts and help</span>
+              <svg
+                width="84"
+                height="72"
+                viewBox="0 0 84 72"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
               >
+                <path
+                  d="M9 8 C30 29 55 35 73 58"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M60 57 L74 59 L71 45"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            <div
+              className="draw-preview-panel"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="draw-preview-orbit" aria-hidden>
+                <span />
+                <span />
+                <span />
+              </div>
+              <p className="draw-preview-kicker">Your sketch space is ready</p>
+              <h1 className="draw-preview-title">
                 draw.wine
               </h1>
-              <p
-                className="text-muted-foreground text-sm mb-6 max-w-sm"
-                style={{
-                  fontFamily: "Virgil, sans-serif",
-                }}
-              >
-                Your drawings are saved in your browser's storage.
+              <p className="draw-preview-copy">
+                Drop shapes, icons, images, and notes onto an infinite canvas.
               </p>
               <button
-                className="rounded-lg bg-primary text-primary-foreground px-5 py-2 text-sm font-semibold shadow-lg hover:scale-[1.05] active:scale-95 transition-transform"
+                className="draw-preview-button"
                 onClick={() => hidePreview()}
               >
-                Got it — let's draw!
+                Start drawing
               </button>
             </div>
           </div>
@@ -4436,6 +4920,7 @@ export const CanvasBoard = ({
                 case "Diamond":
                 case "Circle":
                 case "Image":
+                case "Icon":
                   if (el.width !== undefined && el.height !== undefined) {
                     minX = Math.min(minX, el.x, el.x + el.width);
                     maxX = Math.max(maxX, el.x, el.x + el.width);

@@ -1,5 +1,6 @@
 export type ToolType =
   | "select"
+  | "Lasso"
   | "Rectangle"
   | "Diamond"
   | "Circle"
@@ -8,6 +9,7 @@ export type ToolType =
   | "Pencil"
   | "Text"
   | "Image"
+  | "Icon"
   | "Eraser"
   | "Laser"
   | "Hand";

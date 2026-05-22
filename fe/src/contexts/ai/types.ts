@@ -15,6 +15,7 @@ export interface GeneratedElement {
   strokeWidth?: number;
   edgeStyle?: "sharp" | "curve";
   imageUrl?: string;
+  aspectRatio?: number;
   label?: string;
 }
 

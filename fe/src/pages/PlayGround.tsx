@@ -16,6 +16,10 @@ import { HelpButton } from "@/components/custom/general/HelpButton";
 import { Aibutton } from "@/components/custom/ai/Aibutton";
 import { AiChatSidebar } from "@/components/custom/ai/AiChatSidebar";
 import { useGeneral } from "@/contexts/general/useGeneral";
+import { TierBadge } from "@/components/custom/tier/TierBadge";
+import { RoomTimer } from "@/components/custom/tier/RoomTimer";
+import { RoomCapacityBadge } from "@/components/custom/tier/RoomCapacityBadge";
+import { useCollab } from "@/contexts/collab/useCollab";
 
 type ToolbarDockSide = "top" | "right" | "bottom" | "left";
 
@@ -29,8 +33,8 @@ const getNearestDockSide = (x: number, y: number): ToolbarDockSide => {
     left: x,
   };
 
-  return (Object.keys(distances) as ToolbarDockSide[]).reduce((nearest, side) =>
-    distances[side] < distances[nearest] ? side : nearest,
+  return (Object.keys(distances) as ToolbarDockSide[]).reduce(
+    (nearest, side) => (distances[side] < distances[nearest] ? side : nearest),
   );
 };
 
@@ -66,6 +70,7 @@ const getDockedToolbarStyle = (dockSide: ToolbarDockSide): CSSProperties => {
 export const PlayGround = () => {
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false);
   const { currentStage } = useGeneral();
+  const { state } = useCollab();
   const toolbarRef = useRef<HTMLDivElement>(null);
   const suppressToolbarClickRef = useRef(false);
   const toolbarDragRef = useRef<{
@@ -103,7 +108,8 @@ export const PlayGround = () => {
   const handleToolbarPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button"))
+      return;
     const rect = toolbarRef.current?.getBoundingClientRect();
     if (!rect) return;
     toolbarDragRef.current = {
@@ -143,14 +149,15 @@ export const PlayGround = () => {
     });
   };
 
-  const handleToolbarPointerUp = (
-    event: ReactPointerEvent<HTMLDivElement>,
-  ) => {
+  const handleToolbarPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     const rect = toolbarRef.current?.getBoundingClientRect();
     const didMove = toolbarDragRef.current?.moved ?? false;
     if (rect) {
       setToolbarDockSide(
-        getNearestDockSide(rect.left + rect.width / 2, rect.top + rect.height / 2),
+        getNearestDockSide(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        ),
       );
     }
     toolbarDragRef.current = null;
@@ -198,9 +205,16 @@ export const PlayGround = () => {
         >
           <Toolbar orientation={toolbarOrientation} />
         </div>
-        <div className="absolute top-5 right-4 z-10 flex items-center gap-3">
+        <div className="absolute top-5 right-4 z-10 flex items-center gap-2">
+          {currentStage === "cg" && state.expiresAt && (
+            <RoomTimer expiresAt={state.expiresAt} />
+          )}
+
           {currentStage === "lobby" && (
-            <Aibutton onClick={() => setIsAiSidebarOpen(true)} />
+            <>
+              <TierBadge />
+              <Aibutton onClick={() => setIsAiSidebarOpen(true)} />
+            </>
           )}
           <ThemeToggle />
           <JoinRequestsSidebar />
@@ -212,7 +226,17 @@ export const PlayGround = () => {
           bgOpacity={bgOpacity}
           bgPattern={bgPattern}
         />
-        <HelpButton />
+        <div>
+          <HelpButton />
+          {currentStage === "cg" && state.maxUsers && (
+            <div className="fixed bottom-5 right-20 z-50">
+              <RoomCapacityBadge
+                currentUsers={state.collaborators.length}
+                maxUsers={state.maxUsers}
+              />
+            </div>
+          )}
+        </div>
         <AiChatSidebar
           isOpen={isAiSidebarOpen}
           onClose={() => setIsAiSidebarOpen(false)}

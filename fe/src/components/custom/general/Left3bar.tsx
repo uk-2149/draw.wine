@@ -13,13 +13,25 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu";
-import { MdSaveAlt, MdOutlineImage, MdOutlineFileUpload } from "react-icons/md";
+import {
+  MdSaveAlt,
+  MdOutlineImage,
+  MdOutlineFileUpload,
+  MdOutlineColorLens,
+} from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
+import { IoWalletOutline } from "react-icons/io5";
+import {
+  IoCopyOutline,
+  IoSwapHorizontalOutline,
+  IoLogOutOutline,
+} from "react-icons/io5";
 import { useState, useCallback } from "react";
 import { CreateRoomModal } from "../modals/CreateRoomModal";
 import { JoinRoomModal } from "../modals/JoinRoomModal";
 import { ExportModal } from "../modals/ExportModal";
 import { EmailInviteModal } from "../modals/EmailInviteModal";
+import { MermaidModal } from "../modals/MermaidModal";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { STORAGE_KEY } from "@/constants/canvas";
 import {
@@ -37,6 +49,10 @@ import {
 import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
 import { cn } from "@/helpers/cn.h";
+import { useTheme } from "@/contexts/theme/useTheme";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
 
 interface Left3barProps {
   bgColor: string;
@@ -59,6 +75,33 @@ export const Left3bar = ({
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showEmailInvite, setShowEmailInvite] = useState(false);
+  const [showMermaidModal, setShowMermaidModal] = useState(false);
+
+  // Wallet auth
+  useWalletAuth();
+
+  // Wallet state
+  const { publicKey, wallet, connected, disconnect } = useWallet();
+  const { setVisible: setWalletModalVisible } = useWalletModal();
+
+  const truncatedAddress = publicKey
+    ? `${publicKey.toBase58().slice(0, 4)}..${publicKey.toBase58().slice(-4)}`
+    : null;
+
+  const handleCopyAddress = useCallback(() => {
+    if (publicKey) {
+      navigator.clipboard.writeText(publicKey.toBase58());
+      toast.success("Address copied to clipboard");
+    }
+  }, [publicKey]);
+
+  const handleChangeWallet = useCallback(() => {
+    setWalletModalVisible(true);
+  }, [setWalletModalVisible]);
+
+  const handleDisconnect = useCallback(() => {
+    disconnect();
+  }, [disconnect]);
 
   // Get collaboration context for room information
   const { state, isUserInCurrentRoom, leaveRoom } = useCollab();
@@ -87,6 +130,60 @@ export const Left3bar = ({
     }
     setShowEmailInvite(true);
   };
+
+  const { theme } = useTheme();
+  const isDarkTheme =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  // Mirror CanvasBoard's invertHexColor logic for bg
+  const displayBgColor = (color: string) => {
+    if (isDarkTheme && (color === "#000000" || color === "#000"))
+      return "#ffffff";
+    if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
+      return "#000000";
+    // For non-pure-black/white, CanvasBoard fully inverts in dark mode
+    if (isDarkTheme) {
+      const hex = color.replace("#", "");
+      if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
+      const channels = hex.match(/.{2}/g);
+      if (!channels) return color;
+      return (
+        "#" +
+        channels
+          .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
+          .join("")
+      );
+    }
+    return color;
+  };
+
+  // When user picks a swatch, store the inverse so canvas renders it correctly
+  const setBgColorThemed = (color: string) => {
+    if (!isDarkTheme) {
+      setBgColor(color);
+      return;
+    }
+    const hex = color.replace("#", "");
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+      setBgColor(color);
+      return;
+    }
+    const channels = hex.match(/.{2}/g);
+    if (!channels) {
+      setBgColor(color);
+      return;
+    }
+    const inverted =
+      "#" +
+      channels
+        .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
+        .join("");
+    setBgColor(inverted);
+  };
+
+  const displayedBgColor = displayBgColor(bgColor);
 
   const handleLeaveRoomClick = () => {
     console.log("Leaving room:", state.roomId);
@@ -230,6 +327,14 @@ export const Left3bar = ({
               Load from...
               <DropdownMenuShortcut>Ctrl+O</DropdownMenuShortcut>
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowMermaidModal(true)}>
+              <span className="flex items-center">
+                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                Import Mermaid...
+              </span>
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportImg}>
               <MdOutlineImage className="mr-2" />
               Export image...
@@ -243,12 +348,7 @@ export const Left3bar = ({
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
-                <span className="mr-4">
-                  <i
-                    className="w-3 h-3 inline-block rounded-full border"
-                    style={{ backgroundColor: bgColor }}
-                  ></i>
-                </span>{" "}
+                <MdOutlineColorLens className="mr-2" />
                 Canvas background
               </DropdownMenuSubTrigger>
               <DropdownMenuPortal>
@@ -269,42 +369,44 @@ export const Left3bar = ({
                       "#0f172a",
                     ].map((c) => (
                       <button
-                        key={c}
                         onClick={(e) => {
                           e.preventDefault();
-                          setBgColor(c);
+                          setBgColorThemed(c);
                         }}
                         className={cn(
-                          "w-7 h-7 rounded border-2 transition-all",
-                          bgColor === c
+                          "w-7 h-7 ...",
+                          displayedBgColor === c
                             ? "border-ring ring-2 ring-ring/30"
                             : "border-border hover:border-ring/60",
                         )}
                         style={{
                           backgroundColor: c,
-                          transform: bgColor === c ? "scale(1.15)" : "scale(1)",
+                          transform:
+                            displayedBgColor === c ? "scale(1.15)" : "scale(1)",
                         }}
                       />
                     ))}
-                  </div>
 
-                  {/* Custom hex input */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs text-muted-foreground">#</span>
-                    <input
-                      className="flex-1 text-xs border rounded px-2 py-1 font-mono bg-background"
-                      value={bgColor.replace("#", "")}
-                      maxLength={6}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^[0-9a-fA-F]{0,6}$/.test(val)) {
-                          if (val.length === 6) setBgColor("#" + val);
-                        }
+                    {/* Custom input */}
+                    <label
+                      className="relative mb-3 flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-sm border-2 border-border/50 hover:border-border/80 transition-all"
+                      style={{
+                        background:
+                          "conic-gradient(from 180deg at 50% 50%, #ff4d4d, #ffcc4d, #7dff7d, #4dd2ff, #7a7aff, #d84dff, #ff4d4d)",
                       }}
-                    />
+                      title="Custom background color"
+                      aria-label="Pick custom background color"
+                    >
+                      <span style={{ backgroundColor: displayedBgColor }} />
+                      <input
+                        type="color"
+                        value={displayedBgColor}
+                        onChange={(e) => {
+                          setBgColorThemed(e.target.value);
+                        }}
+                      />
+                    </label>
                   </div>
-
                   {/* Opacity slider */}
                   <p className="text-xs text-muted-foreground mb-1 font-medium">
                     Pattern opacity — {bgOpacity}%
@@ -414,6 +516,52 @@ export const Left3bar = ({
             </DropdownMenuSub>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          {/* Wallet Connection */}
+          <DropdownMenuGroup>
+            {connected && publicKey ? (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <IoWalletOutline className="mr-2" />
+                  <span className="flex items-center gap-2">
+                    {wallet?.adapter?.icon && (
+                      <img
+                        src={wallet.adapter.icon}
+                        alt={wallet.adapter.name}
+                        className="w-4 h-4 rounded-sm"
+                      />
+                    )}
+                    {truncatedAddress}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={handleCopyAddress}>
+                      <IoCopyOutline className="mr-2" />
+                      Copy address
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleChangeWallet}>
+                      <IoSwapHorizontalOutline className="mr-2" />
+                      Change wallet
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleDisconnect}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <IoLogOutOutline className="mr-2" />
+                      Disconnect
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            ) : (
+              <DropdownMenuItem onClick={handleChangeWallet}>
+                <IoWalletOutline className="mr-2" />
+                Connect Wallet
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -438,6 +586,11 @@ export const Left3bar = ({
         onClose={() => setShowEmailInvite(false)}
         roomId={state.roomId || undefined}
         roomName={state.roomId ? `Room ${state.roomId}` : undefined}
+      />
+
+      <MermaidModal
+        isOpen={showMermaidModal}
+        onClose={() => setShowMermaidModal(false)}
       />
     </>
   );

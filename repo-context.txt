@@ -3,11 +3,64 @@ Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 224 files
+Git repo: .git with 254 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
 If you need to edit any of these files, ask me to *add them to the chat* first.
+
+be/src/constants/tier.ts:
+⋮
+│export interface TierLimits {
+│  /** Room time-to-live in seconds */
+│  roomTtlSeconds: number;
+│  /** Maximum users per room */
+│  maxUsersPerRoom: number;
+│  /** Monthly AI request quota per identity */
+│  aiMonthlyRequestLimit: number;
+│  /** Maximum simultaneous playgrounds per user */
+│  maxPlaygrounds: number;
+│  /** Whether collaborative saves persist beyond session */
+⋮
+
+be/src/helpers/promptCompressor.ts:
+│export interface CompressedPromptDSL {
+⋮
+
+be/src/middleware/auth.middleware.ts:
+⋮
+│export interface AuthenticatedRequest extends Request {
+│  walletAddress?: string;
+⋮
+
+be/src/services/ai-quota.service.ts:
+⋮
+│export class AiQuotaService {
+│  private static getMonthKey(identifier: string): string {
+│    const now = new Date();
+│    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+│    return `ai_quota:${identifier}:${month}`;
+│  }
+│
+│  /**
+│   * Returns seconds until the end of the current calendar month.
+│   */
+│  private static getMonthTtlSeconds(): number {
+│    const now = new Date();
+│    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0);
+│    return Math.ceil((endOfMonth.getTime() - now.getTime()) / 1000) + 86400; // +1 day safety margi
+⋮
+│  static async checkAndIncrement(identifier: string, limit: number): Promise<{
+│    allowed: boolean;
+│    used: number;
+│    limit: number;
+│    remaining: number;
+⋮
+│  static async getUsage(identifier: string, limit: number = 50): Promise<{
+│    used: number;
+│    limit: number;
+│    remaining: number;
+⋮
 
 be/src/services/redis.service.ts:
 ⋮
@@ -23,6 +76,7 @@ be/src/services/redis.service.ts:
 │      maxRetriesPerRequest: null,
 │      enableReadyCheck: true,
 │      lazyConnect: true,
+│      // family: 6, // Force IPv6 – IPv4 route to Redis Cloud is unreachable from this network
 │    });
 │
 ⋮
@@ -39,6 +93,20 @@ be/src/services/redis.service.ts:
 │      );
 │    }
 │    return this.subscriber;
+⋮
+
+be/src/services/room-expiry.service.ts:
+⋮
+│export class RoomExpiryService {
+│  private intervalId: ReturnType<typeof setInterval> | null = null;
+│
+│  start(io: SocketServer): void {
+│    if (this.intervalId) return; // already running
+│
+│    Logger.info("[RoomExpiry] Starting room expiry checker...");
+│
+│    this.intervalId = setInterval(async () => {
+│      try {
 ⋮
 
 be/src/services/session.service.ts:
@@ -69,8 +137,40 @@ be/src/services/socket.service.ts:
 │      },
 ⋮
 
+be/src/services/tier.service.ts:
+⋮
+│export class TierService {
+│  /**
+│   * Checks if a wallet is a premium user.
+│   */
+│  static async isPremiumUser(walletAddress?: string): Promise<boolean> {
+│    if (!walletAddress) {
+│      // Fallback to app mode for anonymous users (useful for dev environments where APP_MODE=premi
+│      return appMode === "premium";
+│    }
+│
+│    try {
+│      const client = await RedisService.getClient();
+│      const isPremium = await client.get(`premium_user:${walletAddress}`);
+│      
+⋮
+│  static async getLimitsForUser(walletAddress?: string) {
+│    const isPremium = await this.isPremiumUser(walletAddress);
+│    return getTierLimits(isPremium);
+⋮
+│  static async upgradeUserToPremium(walletAddress: string): Promise<void> {
+│    try {
+│      const client = await RedisService.getClient();
+│      await client.set(
+│        `premium_user:${walletAddress}`,
+│        "true",
+│        "EX",
+│        this.PREMIUM_TTL_SECONDS,
+│      );
+│      Logger.success(`Wallet ${walletAddress} upgraded to Premium for 30 days!`);
+⋮
+
 be/src/types/ai.t.ts:
-│export interface AiDrawingRequest {
 ⋮
 │export interface GeneratedElement {
 │  type: string;
@@ -102,10 +202,10 @@ be/src/types/socket.t.ts:
 │  elements: Element[];
 │  lastActivity: number;
 │  createdAt: number;
+│  expiresAt?: number;
+│  maxUsers?: number;
 │  hostId?: string;
 │  settings?: {
-│    onlyHostCanDraw: boolean;
-│    requireApproval: boolean;
 ⋮
 │export interface Element {
 │  id: string;
@@ -197,24 +297,7 @@ fe/src/components/custom/general/JoinRequestsSidebar.tsx:
 │                      title="Decline"
 ⋮
 
-fe/src/components/custom/general/Left3bar.tsx:
-⋮
-│interface Left3barProps {
-│  bgColor: string;
-│  setBgColor: (c: string) => void;
-│  bgOpacity: number;
-│  setBgOpacity: (o: number) => void;
-│  bgPattern: "none" | "dots" | "grid" | "lines";
-│  setBgPattern: (p: "none" | "dots" | "grid" | "lines") => void;
-⋮
-
 fe/src/components/custom/general/PropertiesPanel.tsx:
-⋮
-│        className={cn(
-│          "flex h-9 w-full items-center justify-between rounded-lg px-3 text-xs",
-│          CONTROL_SURFACE,
-│          CONTROL_INTERACTIVE,
-│          open && CONTROL_ACTIVE,
 ⋮
 │            <button
 │              key={font.value}
@@ -228,58 +311,6 @@ fe/src/components/custom/general/PropertiesPanel.tsx:
 │                  ? "bg-accent text-accent-foreground font-medium"
 │                  : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground",
 ⋮
-│}) => (
-│  <label
-│    className={cn(
-│      "relative cursor-pointer overflow-hidden",
-│      SWATCH_CLASS,
-│      active
-│        ? CONTROL_ACTIVE
-│        : "border border-border/50 hover:border-border/80",
-│    )}
-│    title={label}
-│    aria-label={label}
-⋮
-│          <div className="grid grid-cols-7 gap-1.5">
-│            {STROKE_COLORS.map((color) => (
-│              <button
-│                key={color}
-│                onClick={() => setStrokeColor(color)}
-│                className={cn(
-│                  SWATCH_CLASS,
-│                  "stroke-color-swatch",
-│                  strokeColor === color
-│                    ? CONTROL_ACTIVE
-│                    : "border border-border/50 hover:border-border/80",
-⋮
-│        <div className={PANEL_SECTION}>
-│          <SectionLabel>Width</SectionLabel>
-│          <div className="grid h-11 grid-cols-3 gap-1 rounded-xl border border-border/45 bg-muted/2
-│            {STROKE_WIDTHS.map((width) => (
-│              <button
-│                key={width.value}
-│                onClick={() => setStrokeWidth(width.value)}
-│                className={cn(
-│                  "flex h-full items-center justify-center rounded-lg",
-│                  CONTROL_INTERACTIVE,
-│                  strokeWidth === width.value
-│                    ? "bg-card text-foreground shadow-sm"
-│                    : "text-muted-foreground",
-⋮
-│        <div className={PANEL_SECTION}>
-│          <SectionLabel>Style</SectionLabel>
-│          <div className="grid grid-cols-5 gap-2">
-│            {STROKE_PATTERNS.map((pattern) => (
-│              <button
-│                key={pattern.value}
-│                onClick={() => setStrokePattern(pattern.value)}
-│                className={cn(
-│                  "group relative flex h-11 items-center justify-center rounded-xl",
-│                  CONTROL_SURFACE,
-│                  CONTROL_INTERACTIVE,
-│                  strokePattern === pattern.value ? CONTROL_ACTIVE : "",
-│                )}
-⋮
 │            <button
 │              onClick={() => setFillColor(null)}
 │              className={cn(
@@ -290,45 +321,6 @@ fe/src/components/custom/general/PropertiesPanel.tsx:
 │                  : "border border-dashed border-border/55 text-muted-foreground hover:border-borde
 │              )}
 │              title="No fill"
-⋮
-│              <X className="h-4 w-4" />
-│            </button>
-│            {STROKE_COLORS.map((color) => (
-│              <button
-│                key={color}
-│                onClick={() => setFillColor(color)}
-│                className={cn(
-│                  SWATCH_CLASS,
-│                  "stroke-color-swatch",
-│                  fillColor === color
-│                    ? CONTROL_ACTIVE
-│                    : "border border-border/50 hover:border-border/80",
-⋮
-│            <button
-│              type="button"
-│              onClick={() => setEdgeStyle("sharp")}
-│              className={cn(
-│                "flex h-11 items-center justify-center rounded-xl",
-│                CONTROL_SURFACE,
-│                CONTROL_INTERACTIVE,
-│                edgeStyle === "sharp" ? CONTROL_ACTIVE : "",
-│              )}
-│              title="Sharp corners"
-│              aria-label="Select sharp edges"
-⋮
-│          <div className={PANEL_SECTION}>
-│            <SectionLabel>Size</SectionLabel>
-│            <div className="grid grid-cols-[repeat(4,1fr)_3.5rem] gap-1.5">
-│              {FONT_SIZE_PRESETS.map((preset) => (
-│                <button
-│                  key={preset.label}
-│                  onClick={() => setFontSize(preset.value)}
-│                  className={cn(
-│                    "flex h-9 items-center justify-center rounded-lg border text-[11px] font-semibo
-│                    CONTROL_INTERACTIVE,
-│                    fontSize === preset.value
-│                      ? CONTROL_ACTIVE
-│                      : "border-border/45 bg-muted/30 text-muted-foreground",
 ⋮
 
 fe/src/components/custom/general/Toolbar.tsx:
@@ -361,11 +353,79 @@ fe/src/components/custom/modals/ExportModal.tsx:
 │  onExport: (options: ExportOptions) => void;
 ⋮
 
+fe/src/components/custom/modals/IconModal.tsx:
+⋮
+│interface IconModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+│  onSelectIcon: (svgString: string) => void;
+⋮
+
 fe/src/components/custom/modals/JoinRoomModal.tsx:
 ⋮
 │interface JoinRoomModalProps {
 │  isOpen: boolean;
 │  onClose: () => void;
+⋮
+
+fe/src/components/custom/modals/MermaidModal.tsx:
+⋮
+│interface MermaidModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+⋮
+
+fe/src/components/custom/modals/PremiumUpgradeModal.tsx:
+⋮
+│interface PremiumUpgradeModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+│  onUpgradeSuccess?: () => void;
+⋮
+
+fe/src/components/custom/tier/RoomCapacityBadge.tsx:
+⋮
+│interface RoomCapacityBadgeProps {
+│  currentUsers: number;
+│  maxUsers: number;
+⋮
+
+fe/src/components/custom/tier/RoomTimer.tsx:
+⋮
+│interface RoomTimerProps {
+│  expiresAt: number | null;
+⋮
+
+fe/src/components/custom/tier/TierBadge.tsx:
+⋮
+│export const TierBadge = () => {
+│  const { isPremium } = useTier();
+│  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+│
+│  if (isPremium) {
+│    return (
+│      <div className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-500/30 bg-a
+│        <Crown className="h-4 w-4" />
+│        Premium
+│      </div>
+⋮
+│  return (
+│    <>
+│      <Button
+│        variant="outline"
+│        size="sm"
+│        onClick={() => setIsUpgradeModalOpen(true)}
+│        className="gap-2 border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-a
+│      >
+│        <BadgeDollarSign className="h-4 w-4" />
+│        Get Premium
+⋮
+
+fe/src/components/custom/tier/UpgradeBanner.tsx:
+⋮
+│interface UpgradeBannerProps {
+│  message: string;
+│  className?: string;
 ⋮
 
 fe/src/components/ui/accordion.tsx:
@@ -388,9 +448,44 @@ fe/src/components/ui/alert-dialog.tsx:
 │function AlertDialog({
 │  ...props
 ⋮
+│  return (
+│    <AlertDialogPrimitive.Overlay
+│      data-slot="alert-dialog-overlay"
+│      className={cn(
+│        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│        data-slot="alert-dialog-content"
+│        className={cn(
+│          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=c
+│          className
+⋮
+│  return (
+│    <div
+│      data-slot="alert-dialog-footer"
+│      className={cn(
+│        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
 │function AlertDialogDescription({
 │  className,
 │  ...props
+⋮
+│    <AlertDialogPrimitive.Action
+│      className={cn(buttonVariants(), className)}
+│      {...props}
+⋮
+│    <AlertDialogPrimitive.Cancel
+│      className={cn(buttonVariants({ variant: "outline" }), className)}
+│      {...props}
 ⋮
 
 fe/src/components/ui/aspect-ratio.tsx:
@@ -529,42 +624,6 @@ fe/src/components/ui/chart.tsx:
 │    | { color?: string; theme?: never }
 │    | { color?: never; theme: Record<keyof typeof THEMES, string> }
 │  );
-⋮
-│        className={cn(
-│          "[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid
-│          className,
-⋮
-│    if (labelFormatter) {
-│      return (
-│        <div className={cn("font-medium", labelClassName)}>
-│          {labelFormatter(value, payload)}
-│        </div>
-│      );
-⋮
-│    return <div className={cn("font-medium", labelClassName)}>{value}</div>;
-⋮
-│    <div
-│      className={cn(
-│        "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-
-│        className,
-│      )}
-⋮
-│                      <div
-│                        className={cn(
-│                          "shrink-0 rounded-[2px] border chart-tooltip-indicator",
-│                          {
-│                            "h-2.5 w-2.5": indicator === "dot",
-│                            "w-1": indicator === "line",
-│                            "w-0 border-[1.5px] border-dashed bg-transparent":
-│                              indicator === "dashed",
-│                            "my-0.5": nestLabel && indicator === "dashed",
-│                          },
-⋮
-│    <div
-│      className={cn(
-│        "flex items-center justify-center gap-4",
-│        verticalAlign === "top" ? "pb-3" : "pt-3",
-│        className,
 ⋮
 
 fe/src/components/ui/checkbox.tsx:
@@ -794,83 +853,8 @@ fe/src/components/ui/separator.tsx:
 
 fe/src/components/ui/sheet.tsx:
 ⋮
-│function SheetTrigger({
-│  ...props
-⋮
-│function SheetClose({
-│  ...props
-⋮
 │function SheetPortal({
 │  ...props
-⋮
-│function SheetOverlay({
-│  className,
-│  ...props
-⋮
-│function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sheet-header"
-│      className={cn("flex flex-col gap-1.5 p-4", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sheet-footer"
-│      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function SheetTitle({
-│  className,
-│  ...props
-⋮
-│function SheetDescription({
-│  className,
-│  ...props
-⋮
-
-fe/src/components/ui/sidebar.tsx:
-⋮
-│function useSidebar() {
-│  const context = React.useContext(SidebarContext);
-│  if (!context) {
-│    throw new Error("useSidebar must be used within a SidebarProvider.");
-│  }
-│
-│  return context;
-⋮
-│function SidebarProvider({
-│  defaultOpen = true,
-│  open: openProp,
-│  onOpenChange: setOpenProp,
-│  className,
-│  style,
-│  children,
-│  ...props
-⋮
-│function SidebarTrigger({
-│  className,
-│  onClick,
-│  ...props
-⋮
-│function SidebarSeparator({
-│  className,
-│  ...props
-⋮
-│function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
-│  return (
-│    <li
-│      data-slot="sidebar-menu-item"
-│      data-sidebar="menu-item"
-│      className={cn("group/menu-item relative", className)}
-│      {...props}
-│    />
-│  );
 ⋮
 
 fe/src/components/ui/skeleton.tsx:
@@ -1019,6 +1003,21 @@ fe/src/contexts/theme/types.ts:
 │  setTheme: (theme: Theme) => void;
 ⋮
 
+fe/src/contexts/tier/types.ts:
+⋮
+│export interface TierLimits {
+│  roomTtlMinutes: number;
+│  maxUsersPerRoom: number;
+│  aiMonthlyLimit: number;
+│  maxPlaygrounds: number;
+│  collaborativeSaveEnabled: boolean;
+⋮
+│export interface AiQuotaState {
+│  used: number;
+│  limit: number;
+│  remaining: number;
+⋮
+
 fe/src/helpers/collab.h.ts:
 ⋮
 │export interface RoomStatusResponse {
@@ -1088,6 +1087,23 @@ fe/src/helpers/imageLoader.h.ts:
 │  static clear() {
 │    this.imageCache.clear();
 │    this.loadingPromises.clear();
+⋮
+
+fe/src/helpers/mermaidParser.h.ts:
+⋮
+│interface ParsedNode {
+│  id: string;
+│  label: string;
+│  shape: "rectangle" | "diamond" | "circle" | "round";
+⋮
+│interface ParsedGraph {
+│  direction: "TD" | "TB" | "LR" | "RL" | "BT";
+│  nodes: Map<string, ParsedNode>;
+│  edges: ParsedEdge[];
+⋮
+│interface LayoutPosition {
+│  x: number;
+│  y: number;
 ⋮
 
 fe/src/helpers/roundedShapes.h.ts:

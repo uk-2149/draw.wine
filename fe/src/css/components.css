@@ -43,6 +43,308 @@
     z-index: 200;
   }
 
+  .draw-preview {
+    --preview-blue: color-mix(in oklch, var(--primary) 78%, #6fb6ff);
+    --preview-ink: color-mix(in oklch, var(--foreground) 76%, transparent);
+    --preview-muted: color-mix(
+      in oklch,
+      var(--muted-foreground) 82%,
+      transparent
+    );
+    --preview-surface: color-mix(in oklch, var(--background) 86%, transparent);
+    --preview-border: color-mix(
+      in oklch,
+      var(--border) 82%,
+      var(--primary) 18%
+    );
+    font-family: "Virgil", "Tosh", sans-serif;
+    pointer-events: none;
+  }
+
+  .draw-preview-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at 50% 49%,
+      color-mix(in oklch, var(--primary) 8%, transparent) 0,
+      transparent 28rem
+    );
+    opacity: 0.55;
+  }
+
+  .draw-preview-noise {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(
+        115deg,
+        transparent 0 42%,
+        color-mix(in oklch, var(--primary) 10%, transparent) 42% 43%,
+        transparent 43% 100%
+      ),
+      linear-gradient(
+        245deg,
+        transparent 0 52%,
+        color-mix(in oklch, var(--foreground) 6%, transparent) 52% 53%,
+        transparent 53% 100%
+      );
+    background-size:
+      260px 260px,
+      340px 340px;
+    mask-image: radial-gradient(circle at center, black 0, transparent 70%);
+    opacity: 0.48;
+  }
+
+  .draw-preview-panel {
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    width: min(92vw, 470px);
+    min-height: 286px;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 36px 34px 32px;
+    pointer-events: auto;
+    text-align: center;
+    /* border: 1px solid var(--preview-border); */
+    border-radius: 28px;
+    /* background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--card) 94%, transparent),
+      color-mix(in oklch, var(--background) 86%, transparent)
+    ); */
+    /* box-shadow:
+      0 24px 70px color-mix(in oklch, var(--foreground) 14%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 45%, transparent);
+    backdrop-filter: blur(14px); */
+    animation: draw-preview-rise 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .draw-preview-panel::before {
+    content: "";
+    position: absolute;
+    inset: 11px;
+    /* border: 1.5px dashed color-mix(in oklch, var(--primary) 34%, transparent); */
+    /* border-radius: 21px; */
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .draw-preview-kicker {
+    margin: 0;
+    color: var(--preview-muted);
+    font-size: 16px;
+  }
+
+  .draw-preview-title {
+    margin: -2px 0 0;
+    color: var(--preview-blue);
+    font-size: clamp(48px, 7vw, 78px);
+    line-height: 0.9;
+    font-weight: 800;
+    text-shadow:
+      0 2px 0 color-mix(in oklch, white 42%, transparent),
+      0 12px 28px color-mix(in oklch, var(--primary) 26%, transparent);
+    transform: rotate(-1deg);
+  }
+
+  .draw-preview-copy {
+    max-width: 360px;
+    margin: 0 0 6px;
+    color: var(--preview-ink);
+    font-size: 17px;
+    line-height: 1.42;
+  }
+
+  .draw-preview-button {
+    position: relative;
+    min-width: 158px;
+    height: 46px;
+    border: 0;
+    border-radius: 14px;
+    background: linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--primary) 92%, white),
+      color-mix(in oklch, var(--primary) 86%, black)
+    );
+    color: var(--primary-foreground);
+    font-family: "Tosh", system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow:
+      0 12px 24px color-mix(in oklch, var(--primary) 28%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 42%, transparent);
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      filter 160ms ease;
+  }
+
+  .draw-preview-button:hover {
+    transform: translateY(-2px) scale(1.02);
+    filter: saturate(1.08);
+    box-shadow:
+      0 16px 30px color-mix(in oklch, var(--primary) 34%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 46%, transparent);
+  }
+
+  .draw-preview-button:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .draw-preview-orbit {
+    position: absolute;
+    inset: -26px;
+    pointer-events: none;
+  }
+
+  .draw-preview-orbit span {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 9999px;
+    background: var(--preview-blue);
+    box-shadow: 0 0 24px color-mix(in oklch, var(--primary) 46%, transparent);
+  }
+
+  .draw-preview-orbit span:nth-child(1) {
+    left: 16%;
+    top: 12%;
+  }
+
+  .draw-preview-orbit span:nth-child(2) {
+    right: 13%;
+    top: 24%;
+    width: 7px;
+    height: 7px;
+    animation-delay: -1.4s;
+  }
+
+  .draw-preview-orbit span:nth-child(3) {
+    left: 72%;
+    bottom: 8%;
+    width: 6px;
+    height: 6px;
+    animation-delay: -2.6s;
+  }
+
+  .draw-preview-callout {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--preview-blue);
+    font-size: clamp(14px, 1.4vw, 19px);
+    line-height: 1;
+    pointer-events: none;
+    filter: drop-shadow(
+      0 6px 12px color-mix(in oklch, var(--primary) 16%, transparent)
+    );
+  }
+
+  .draw-preview-callout span {
+    color: var(--preview-ink);
+    padding: 8px 11px;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--background) 72%, transparent);
+    border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px
+      color-mix(in oklch, var(--foreground) 8%, transparent);
+  }
+
+  .draw-preview-callout-toolbar {
+    left: 50%;
+    top: 72px;
+    flex-direction: column;
+    transform: translateX(-50%);
+  }
+
+  .draw-preview-callout-menu {
+    left: 28px;
+    top: 66px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .draw-preview-callout-ai {
+    right: 76px;
+    top: 64px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .draw-preview-callout-help {
+    right: 28px;
+    bottom: 58px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .draw-preview-sketch {
+    position: absolute;
+    color: color-mix(in oklch, var(--primary) 62%, transparent);
+    opacity: 0.38;
+    pointer-events: none;
+    stroke-dasharray: 520;
+    stroke-dashoffset: 520;
+    animation: draw-preview-draw 1.4s ease-out 180ms forwards;
+  }
+
+  .draw-preview-sketch-left {
+    left: 8%;
+    bottom: 16%;
+    transform: rotate(-7deg);
+  }
+
+  .draw-preview-sketch-right {
+    right: 7%;
+    top: 23%;
+    transform: rotate(8deg);
+    animation-delay: 320ms;
+  }
+
+  @media (max-width: 720px) {
+    .draw-preview-panel {
+      top: 55%;
+      min-height: 260px;
+      padding: 30px 22px 26px;
+      border-radius: 22px;
+    }
+
+    .draw-preview-callout-toolbar {
+      top: 90px;
+    }
+
+    .draw-preview-callout-menu,
+    .draw-preview-callout-ai,
+    .draw-preview-callout-help,
+    .draw-preview-sketch {
+      display: none;
+    }
+
+    .draw-preview-copy {
+      font-size: 15px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .draw-preview-panel,
+    .draw-preview-orbit span,
+    .draw-preview-callout,
+    .draw-preview-sketch {
+      animation: none;
+    }
+  }
+
   .progress-indicator {
     transform: translateX(calc((var(--progress) - 100) * 1%));
   }
@@ -64,6 +366,23 @@
 
   .stroke-color-swatch {
     background-color: var(--stroke-color);
+  }
+}
+
+@keyframes draw-preview-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes draw-preview-draw {
+  to {
+    stroke-dashoffset: 0;
   }
 }
 

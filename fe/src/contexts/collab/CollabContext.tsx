@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { defaultContextValue, getRandomColor, initialState } from "./constants";
 import { useGeneral } from "../general/useGeneral";
+import { getToken } from "@/services/auth.service";
 
 const collabReducer = (
   state: CollabState,
@@ -69,8 +70,12 @@ const collabReducer = (
         collaborators: action.payload.collaborators,
         hostId: action.payload.hostId || null,
         settings: action.payload.settings || null,
+        expiresAt: action.payload.expiresAt ?? null,
+        maxUsers: action.payload.maxUsers ?? null,
         isWaitingForApproval: false,
         joinRejected: false,
+        isRoomExpired: false,
+        isRoomFull: false,
         error: null,
       };
 
@@ -87,6 +92,22 @@ const collabReducer = (
         ...state,
         isWaitingForApproval: false,
         joinRejected: true,
+        error: null,
+      };
+
+    case "ROOM_EXPIRED":
+      return {
+        ...state,
+        isRoomExpired: true,
+        isCollaborating: false,
+        error: null,
+      };
+
+    case "ROOM_FULL":
+      return {
+        ...state,
+        isRoomFull: true,
+        maxUsers: action.payload.maxUsers,
         error: null,
       };
 
@@ -175,10 +196,12 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (!socketRef.current) {
+      const token = getToken();
       socketRef.current = io(be_url, {
         withCredentials: true,
         transports: ["websocket", "polling"],
         autoConnect: false,
+        auth: token ? { token } : undefined,
       });
     }
   }, []);
@@ -240,6 +263,8 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
           elements: data.elements || [],
           hostId: data.hostId,
           settings: data.settings,
+          expiresAt: data.expiresAt,
+          maxUsers: data.maxUsers,
         },
       });
 
@@ -253,6 +278,14 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
 
     socket.on("join_rejected", () => {
       dispatch({ type: "JOIN_REJECTED" });
+    });
+
+    socket.on("room_expired", () => {
+      dispatch({ type: "ROOM_EXPIRED" });
+    });
+
+    socket.on("room_full", ({ maxUsers }: { maxUsers: number }) => {
+      dispatch({ type: "ROOM_FULL", payload: { maxUsers } });
     });
 
     socket.on(

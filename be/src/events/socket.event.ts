@@ -2,8 +2,9 @@ import { Server as SocketServer, Socket } from "socket.io";
 import type { User, Room } from "../types";
 import { Logger } from "../helpers";
 import { RoomStateManager } from "../services/room-state.service";
+import { getTierLimits } from "../constants";
 
-// Room state is now persisted in Redis with 24h TTL
+// Room state is persisted in Redis with tier-based TTL
 // No per-instance cleanup needed
 
 export const ExecSocketEvents = (io: SocketServer) => {
@@ -23,8 +24,35 @@ export const ExecSocketEvents = (io: SocketServer) => {
       }) => {
         try {
           Logger.info(`User ${user.name} joining room ${roomId}`);
+
+          const limits = getTierLimits(socket.data.isPremium);
+
+          // Check if room has expired before allowing join
+          const existingRoom = await RoomStateManager.getRoom(roomId);
+          if (existingRoom) {
+            const isExpired = await RoomStateManager.isRoomExpired(roomId);
+            if (isExpired) {
+              socket.emit("room_expired", { roomId });
+              return;
+            }
+
+            // Check room capacity before joining. Use the room's stored maxUsers, or fallback to current limits.
+            const currentMax = existingRoom.maxUsers || limits.maxUsersPerRoom;
+            const currentUserCount = Object.keys(
+              existingRoom.users || {},
+            ).length;
+            if (currentUserCount >= currentMax) {
+              socket.emit("room_full", {
+                roomId,
+                maxUsers: currentMax,
+              });
+              return;
+            }
+          }
+
           socket.join(roomId);
 
+          const now = Date.now();
           const updated = await RoomStateManager.atomicUpdate(
             roomId,
             (current) => {
@@ -34,8 +62,10 @@ export const ExecSocketEvents = (io: SocketServer) => {
                   id: roomId,
                   users: {},
                   elements: [],
-                  lastActivity: Date.now(),
-                  createdAt: Date.now(),
+                  lastActivity: now,
+                  createdAt: now,
+                  expiresAt: now + limits.roomTtlSeconds * 1000,
+                  maxUsers: limits.maxUsersPerRoom,
                   hostId: user.id,
                   settings: settings || {
                     onlyHostCanDraw: false,
@@ -117,6 +147,9 @@ export const ExecSocketEvents = (io: SocketServer) => {
             collaborators,
             hostId: updated.hostId,
             settings: updated.settings,
+            expiresAt: updated.expiresAt,
+            maxUsers: updated.maxUsers ?? limits.maxUsersPerRoom,
+            tierMode: limits.collaborativeSaveEnabled ? "premium" : "free",
           });
 
           // Notify other users about new collaborator

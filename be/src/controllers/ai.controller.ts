@@ -2,9 +2,12 @@ import { Request, Response } from "express";
 import { Logger } from "../helpers";
 import { AiChatRequest, AiDrawingRequest } from "../types";
 import aiService from "../services/ai.service";
+import { AiQuotaService } from "../services/ai-quota.service";
+import { AuthenticatedRequest } from "../middleware";
+import { TierService } from "../services/tier.service";
 
 export const generateDrawing = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
 ): Promise<any> => {
   try {
@@ -37,6 +40,24 @@ export const generateDrawing = async (
       }, Prompt: "${prompt.substring(0, 60)}..."`,
     );
 
+    // Check AI quota
+    const walletAddress = req.walletAddress;
+    const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+    const identifier = walletAddress || clientIp;
+    
+    // Pass dynamic limit to checkAndIncrement if needed, but AiQuotaService relies on global. 
+    // We must update AiQuotaService to accept a dynamic limit!
+    const limits = await TierService.getLimitsForUser(walletAddress);
+    
+    const quota = await AiQuotaService.checkAndIncrement(identifier, limits.aiMonthlyRequestLimit);
+    if (!quota.allowed) {
+      return res.status(429).json({
+        error: "AI quota exhausted",
+        message: "You have used all your AI requests for this month.",
+        aiQuota: { used: quota.used, limit: quota.limit, remaining: 0 },
+      });
+    }
+
     const result = await aiService.generateDrawing({
       prompt: prompt.trim(),
       mode,
@@ -50,6 +71,7 @@ export const generateDrawing = async (
     return res.status(200).json({
       success: true,
       data: result,
+      aiQuota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
     });
   } catch (error: any) {
     Logger.error("Controller error in generateDrawing:", error);
@@ -61,7 +83,7 @@ export const generateDrawing = async (
   }
 };
 
-export const chatWithAi = async (req: Request, res: Response): Promise<any> => {
+export const chatWithAi = async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
     const { prompt, model, sessionId }: AiChatRequest = req.body;
 
@@ -83,6 +105,22 @@ export const chatWithAi = async (req: Request, res: Response): Promise<any> => {
       `AI chat requested. Model: ${model || "default"}, Session: ${sessionId || "new"}, Prompt: "${prompt.substring(0, 60)}..."`,
     );
 
+    // Check AI quota
+    const walletAddress = req.walletAddress;
+    const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+    const identifier = walletAddress || clientIp;
+    
+    const limits = await TierService.getLimitsForUser(walletAddress);
+    
+    const quota = await AiQuotaService.checkAndIncrement(identifier, limits.aiMonthlyRequestLimit);
+    if (!quota.allowed) {
+      return res.status(429).json({
+        error: "AI quota exhausted",
+        message: "You have used all your AI requests for this month.",
+        aiQuota: { used: quota.used, limit: quota.limit, remaining: 0 },
+      });
+    }
+
     const result = await aiService.generateChat({
       prompt: prompt.trim(),
       model,
@@ -94,6 +132,7 @@ export const chatWithAi = async (req: Request, res: Response): Promise<any> => {
     return res.status(200).json({
       success: true,
       data: result,
+      aiQuota: { used: quota.used, limit: quota.limit, remaining: quota.remaining },
     });
   } catch (error: any) {
     Logger.error("Controller error in chatWithAi:", error);
