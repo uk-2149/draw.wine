@@ -26,14 +26,13 @@ export class AiQuotaService {
   /**
    * Check quota and increment usage. Returns whether the request is allowed.
    */
-  static async checkAndIncrement(identifier: string): Promise<{
+  static async checkAndIncrement(identifier: string, limit: number): Promise<{
     allowed: boolean;
     used: number;
     limit: number;
     remaining: number;
   }> {
     const key = this.getMonthKey(identifier);
-    const limit = tierConfig.aiMonthlyRequestLimit;
 
     try {
       const client = await RedisService.getClient();
@@ -64,13 +63,12 @@ export class AiQuotaService {
   /**
    * Get current usage without incrementing.
    */
-  static async getUsage(identifier: string): Promise<{
+  static async getUsage(identifier: string, limit: number = 50): Promise<{
     used: number;
     limit: number;
     remaining: number;
   }> {
     const key = this.getMonthKey(identifier);
-    const limit = tierConfig.aiMonthlyRequestLimit;
 
     try {
       const client = await RedisService.getClient();

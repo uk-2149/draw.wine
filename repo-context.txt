@@ -3,11 +3,54 @@ Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 225 files
+Git repo: .git with 238 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
 If you need to edit any of these files, ask me to *add them to the chat* first.
+
+be/src/constants/tier.ts:
+⋮
+│export interface TierLimits {
+│  /** Room time-to-live in seconds */
+│  roomTtlSeconds: number;
+│  /** Maximum users per room */
+│  maxUsersPerRoom: number;
+│  /** Monthly AI request quota per identity */
+│  aiMonthlyRequestLimit: number;
+│  /** Maximum simultaneous playgrounds per user */
+│  maxPlaygrounds: number;
+│  /** Whether collaborative saves persist beyond session */
+⋮
+
+be/src/services/ai-quota.service.ts:
+⋮
+│export class AiQuotaService {
+│  private static getMonthKey(identifier: string): string {
+│    const now = new Date();
+│    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+│    return `ai_quota:${identifier}:${month}`;
+│  }
+│
+│  /**
+│   * Returns seconds until the end of the current calendar month.
+│   */
+│  private static getMonthTtlSeconds(): number {
+│    const now = new Date();
+│    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0);
+│    return Math.ceil((endOfMonth.getTime() - now.getTime()) / 1000) + 86400; // +1 day safety margi
+⋮
+│  static async checkAndIncrement(identifier: string): Promise<{
+│    allowed: boolean;
+│    used: number;
+│    limit: number;
+│    remaining: number;
+⋮
+│  static async getUsage(identifier: string): Promise<{
+│    used: number;
+│    limit: number;
+│    remaining: number;
+⋮
 
 be/src/services/redis.service.ts:
 ⋮
@@ -39,6 +82,20 @@ be/src/services/redis.service.ts:
 │      );
 │    }
 │    return this.subscriber;
+⋮
+
+be/src/services/room-expiry.service.ts:
+⋮
+│export class RoomExpiryService {
+│  private intervalId: ReturnType<typeof setInterval> | null = null;
+│
+│  start(io: SocketServer): void {
+│    if (this.intervalId) return; // already running
+│
+│    Logger.info("[RoomExpiry] Starting room expiry checker...");
+│
+│    this.intervalId = setInterval(async () => {
+│      try {
 ⋮
 
 be/src/services/session.service.ts:
@@ -207,32 +264,6 @@ fe/src/components/custom/general/Left3bar.tsx:
 │  bgPattern: "none" | "dots" | "grid" | "lines";
 │  setBgPattern: (p: "none" | "dots" | "grid" | "lines") => void;
 ⋮
-│                      <button
-│                        key={c}
-│                        onClick={(e) => {
-│                          e.preventDefault();
-│                          setBgColor(c);
-│                        }}
-│                        className={cn(
-│                          "w-7 h-7 rounded border-2 transition-all",
-│                          bgColor === c
-│                            ? "border-ring ring-2 ring-ring/30"
-│                            : "border-border hover:border-ring/60",
-⋮
-│                    {(["none", "dots", "grid", "lines"] as const).map((p) => (
-│                      <button
-│                        key={p}
-│                        onClick={(e) => {
-│                          e.preventDefault();
-│                          e.stopPropagation();
-│                          setBgPattern(p);
-│                        }}
-│                        className={cn(
-│                          "py-1 px-2 text-xs rounded border transition-all",
-│                          bgPattern === p
-│                            ? "border-ring bg-accent text-accent-foreground font-semibold"
-│                            : "border-border bg-transparent text-muted-foreground hover:bg-accent/6
-⋮
 
 fe/src/components/custom/general/PropertiesPanel.tsx:
 ⋮
@@ -326,6 +357,51 @@ fe/src/components/custom/modals/JoinRoomModal.tsx:
 │  onClose: () => void;
 ⋮
 
+fe/src/components/custom/tier/RoomCapacityBadge.tsx:
+⋮
+│interface RoomCapacityBadgeProps {
+│  currentUsers: number;
+│  maxUsers: number;
+⋮
+
+fe/src/components/custom/tier/RoomTimer.tsx:
+⋮
+│interface RoomTimerProps {
+│  expiresAt: number | null;
+⋮
+
+fe/src/components/custom/tier/TierBadge.tsx:
+⋮
+│export const TierBadge = () => {
+│  const { isPremium } = useTier();
+│
+│  if (isPremium) {
+│    return (
+│      <div className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-500/30 bg-a
+│        <Crown className="h-4 w-4" />
+│        Premium
+│      </div>
+│    );
+⋮
+│  return (
+│    <Button
+│      variant="outline"
+│      size="sm"
+│      onClick={() => toast.info("Premium plans coming soon! Stay tuned.")}
+│      className="gap-2 border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-pri
+│    >
+│      <BadgeDollarSign className="h-4 w-4" />
+│      Get Premium
+│    </Button>
+⋮
+
+fe/src/components/custom/tier/UpgradeBanner.tsx:
+⋮
+│interface UpgradeBannerProps {
+│  message: string;
+│  className?: string;
+⋮
+
 fe/src/components/ui/accordion.tsx:
 ⋮
 │function Accordion({
@@ -349,32 +425,6 @@ fe/src/components/ui/alert-dialog.tsx:
 │function AlertDialogDescription({
 │  className,
 │  ...props
-⋮
-
-fe/src/components/ui/alert.tsx:
-⋮
-│function Alert({
-│  className,
-│  variant,
-│  ...props
-⋮
-│function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="alert-title"
-│      className={cn(
-│        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-⋮
-│    <div
-│      data-slot="alert-description"
-│      className={cn(
-│        "text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-rel
-│        className
 ⋮
 
 fe/src/components/ui/aspect-ratio.tsx:
@@ -661,6 +711,20 @@ fe/src/components/ui/input-otp.tsx:
 │  )
 ⋮
 
+fe/src/components/ui/input.tsx:
+⋮
+│function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+│  return (
+│    <input
+│      type={type}
+│      data-slot="input"
+│      className={cn(
+│        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text
+│        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+│        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border
+│        className
+⋮
+
 fe/src/components/ui/navigation-menu.tsx:
 ⋮
 │function NavigationMenu({
@@ -784,15 +848,6 @@ fe/src/components/ui/sheet.tsx:
 
 fe/src/components/ui/sidebar.tsx:
 ⋮
-│type SidebarContextProps = {
-│  state: "expanded" | "collapsed";
-│  open: boolean;
-│  setOpen: (open: boolean) => void;
-│  openMobile: boolean;
-│  setOpenMobile: (open: boolean) => void;
-│  isMobile: boolean;
-│  toggleSidebar: () => void;
-⋮
 │function useSidebar() {
 │  const context = React.useContext(SidebarContext);
 │  if (!context) {
@@ -810,69 +865,12 @@ fe/src/components/ui/sidebar.tsx:
 │  children,
 │  ...props
 ⋮
-│function Sidebar({
-│  side = "left",
-│  variant = "sidebar",
-│  collapsible = "offcanvas",
-│  className,
-│  children,
-│  ...props
-⋮
 │function SidebarTrigger({
 │  className,
 │  onClick,
 │  ...props
 ⋮
-│function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sidebar-header"
-│      data-sidebar="header"
-│      className={cn("flex flex-col gap-2 p-2", className)}
-│      {...props}
-│    />
-│  );
-⋮
-│function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sidebar-footer"
-│      data-sidebar="footer"
-│      className={cn("flex flex-col gap-2 p-2", className)}
-│      {...props}
-│    />
-│  );
-⋮
 │function SidebarSeparator({
-│  className,
-│  ...props
-⋮
-│function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
-│  return (
-│    <ul
-│      data-slot="sidebar-menu"
-│      data-sidebar="menu"
-│      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
-│      {...props}
-│    />
-│  );
-⋮
-│function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
-│  return (
-│    <li
-│      data-slot="sidebar-menu-item"
-│      data-sidebar="menu-item"
-│      className={cn("group/menu-item relative", className)}
-│      {...props}
-│    />
-│  );
-⋮
-│function SidebarMenuButton({
-│  asChild = false,
-│  isActive = false,
-│  variant = "default",
-│  size = "default",
-│  tooltip,
 │  className,
 │  ...props
 ⋮
@@ -1021,6 +1019,21 @@ fe/src/contexts/theme/types.ts:
 │export type ThemeProviderState = {
 │  theme: Theme;
 │  setTheme: (theme: Theme) => void;
+⋮
+
+fe/src/contexts/tier/types.ts:
+⋮
+│export interface TierLimits {
+│  roomTtlMinutes: number;
+│  maxUsersPerRoom: number;
+│  aiMonthlyLimit: number;
+│  maxPlaygrounds: number;
+│  collaborativeSaveEnabled: boolean;
+⋮
+│export interface AiQuotaState {
+│  used: number;
+│  limit: number;
+│  remaining: number;
 ⋮
 
 fe/src/helpers/collab.h.ts:
@@ -1195,20 +1208,6 @@ fe/src/types/collaboration.ts:
 │  collaborators: Collaborator[];
 │  socket: Socket | null;
 │  error: string | null;
-⋮
-
-fe/src/types/components.ts:
-⋮
-│export interface CreateRoomModalProps {
-│  isOpen: boolean;
-│  onClose: () => void;
-│}
-│export interface IMenubtn {
-│  state: boolean;
-│  compoBefore: FC;
-│  compoAfter: FC;
-│  onClick: () => void;
-│  shortcut?: string;
 ⋮
 
 fe/src/types/drawing.ts:

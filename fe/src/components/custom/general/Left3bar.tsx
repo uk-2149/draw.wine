@@ -20,6 +20,7 @@ import {
   MdOutlineColorLens,
 } from "react-icons/md";
 import { RiResetLeftFill } from "react-icons/ri";
+import { IoWalletOutline } from "react-icons/io5";
 import { useState, useCallback } from "react";
 import { CreateRoomModal } from "../modals/CreateRoomModal";
 import { JoinRoomModal } from "../modals/JoinRoomModal";
@@ -43,6 +44,8 @@ import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
 import { cn } from "@/helpers/cn.h";
 import { useTheme } from "@/contexts/theme/useTheme";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
 
 interface Left3barProps {
   bgColor: string;
@@ -65,6 +68,9 @@ export const Left3bar = ({
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showEmailInvite, setShowEmailInvite] = useState(false);
+
+  // Wallet auth
+  useWalletAuth();
 
   // Get collaboration context for room information
   const { state, isUserInCurrentRoom, leaveRoom } = useCollab();
@@ -469,6 +475,19 @@ export const Left3bar = ({
                 </DropdownMenuSubContent>
               </DropdownMenuPortal>
             </DropdownMenuSub>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          {/* Wallet Connection */}
+          <DropdownMenuGroup>
+            <div
+              className="flex items-center gap-2 px-2 py-1.5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <IoWalletOutline className="shrink-0" />
+              <div className="[&_.wallet-adapter-button]:!h-8 [&_.wallet-adapter-button]:!text-xs [&_.wallet-adapter-button]:!rounded-md [&_.wallet-adapter-button]:!px-3">
+                <WalletMultiButton />
+              </div>
+            </div>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={gotoGithub}>GitHub</DropdownMenuItem>

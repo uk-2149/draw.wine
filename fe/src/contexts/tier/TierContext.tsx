@@ -20,6 +20,7 @@ export const TierContext = createContext<TierContextType>({
   isPremium: false,
   isLoading: true,
   refreshAiQuota: async () => {},
+  refreshConfig: async () => {},
 });
 
 export const TierProvider = ({ children }: { children: React.ReactNode }) => {
@@ -28,24 +29,29 @@ export const TierProvider = ({ children }: { children: React.ReactNode }) => {
   const [aiQuota, setAiQuota] = useState<AiQuotaState>(DEFAULT_QUOTA);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch tier config on mount
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const res = await fetch(`${be_url}/api/config`);
-        if (!res.ok) throw new Error("Failed to fetch config");
-        const data = await res.json();
-        setMode(data.mode || "free");
-        setLimits(data.limits || DEFAULT_LIMITS);
-        if (data.aiQuota) setAiQuota(data.aiQuota);
-      } catch (err) {
-        console.warn("[TierProvider] Could not fetch tier config, using defaults:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchConfig();
+  const refreshConfig = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem("draw_wine_token");
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${be_url}/api/config`, { headers });
+      if (!res.ok) throw new Error("Failed to fetch config");
+      const data = await res.json();
+      setMode(data.mode || "free");
+      setLimits(data.limits || DEFAULT_LIMITS);
+      if (data.aiQuota) setAiQuota(data.aiQuota);
+    } catch (err) {
+      console.warn("[TierProvider] Could not fetch tier config, using defaults:", err);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    refreshConfig();
+  }, [refreshConfig]);
 
   const refreshAiQuota = useCallback(async () => {
     try {
@@ -66,6 +72,7 @@ export const TierProvider = ({ children }: { children: React.ReactNode }) => {
     isPremium: mode === "premium",
     isLoading,
     refreshAiQuota,
+    refreshConfig,
   };
 
   return (

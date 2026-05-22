@@ -12,6 +12,7 @@ import type {
 } from "./types";
 import { defaultContextValue, getRandomColor, initialState } from "./constants";
 import { useGeneral } from "../general/useGeneral";
+import { getToken } from "@/services/auth.service";
 
 const collabReducer = (
   state: CollabState,
@@ -195,10 +196,12 @@ export const CollabProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (!socketRef.current) {
+      const token = getToken();
       socketRef.current = io(be_url, {
         withCredentials: true,
         transports: ["websocket", "polling"],
         autoConnect: false,
+        auth: token ? { token } : undefined,
       });
     }
   }, []);

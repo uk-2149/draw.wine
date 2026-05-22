@@ -20,3 +20,5 @@ export const resend_from_email =
 export const gemini_api_key = process.env.GEMINI_API_KEY || "";
 
 export const redis_url = process.env.REDIS_URL || "redis://localhost:6379";
+export const jwt_secret = process.env.JWT_SECRET || "default_development_secret_do_not_use_in_prod";
+export const treasury_wallet = process.env.TREASURY_WALLET_ADDRESS || "6U2V5fGjJ2XJz5V4hVwGqU5nF5V5x5Y2tG6P1f6N4t9k"; // dummy address for development

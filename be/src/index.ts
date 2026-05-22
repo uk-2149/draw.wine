@@ -5,7 +5,8 @@ import compression from "compression";
 import { createServer } from "http";
 import { corsOptions, limiter, PORT } from "./constants";
 import { CollabDrawingServer, RedisService } from "./services";
-import { aiRouter, roomRouter, configRouter } from "./routes";
+import { aiRouter, roomRouter, configRouter, authRouter, paymentRouter } from "./routes";
+import { authMiddleware } from "./middleware";
 import { Logger } from "./helpers";
 
 export const initServer = async () => {
@@ -34,9 +35,11 @@ export const initServer = async () => {
     Logger.error("Failed to initialize socket server:", error);
     process.exit(1);
   }
-  app.use("/api/rooms", roomRouter);
-  app.use("/api/ai", aiRouter);
-  app.use("/api/config", configRouter);
+  app.use("/api/auth", authRouter);
+  app.use("/api/payment", authMiddleware, paymentRouter);
+  app.use("/api/rooms", roomRouter); // Might need auth for premium creations later
+  app.use("/api/ai", authMiddleware, aiRouter);
+  app.use("/api/config", authMiddleware, configRouter);
 
   httpServer.listen(PORT, () =>
     Logger.info(`Server is running on port ${PORT}`),

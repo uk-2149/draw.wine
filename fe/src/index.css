@@ -168,3 +168,30 @@
   background-image: radial-gradient(var(--border) 1px, transparent 1px);
   background-size: 20px 20px;
 }
+
+/*
+ * Solana wallet-adapter modal fix:
+ * Radix Dialog marks sibling DOM nodes as [inert] when open,
+ * which disables pointer events on the wallet-adapter modal portal.
+ * These overrides ensure the wallet modal stays fully interactive
+ * even when a Radix Dialog is open underneath.
+ */
+.wallet-adapter-modal[inert] {
+  pointer-events: auto !important;
+  inert: unset;
+}
+
+.wallet-adapter-modal {
+  pointer-events: auto !important;
+  z-index: 1100 !important;
+}
+
+.wallet-adapter-modal-wrapper {
+  pointer-events: auto !important;
+  z-index: 1101 !important;
+}
+
+.wallet-adapter-modal-overlay {
+  pointer-events: auto !important;
+  z-index: 1099 !important;
+}

@@ -22,4 +22,5 @@ export interface TierContextType {
   isPremium: boolean;
   isLoading: boolean;
   refreshAiQuota: () => Promise<void>;
+  refreshConfig: () => Promise<void>;
 }

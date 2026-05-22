@@ -39,11 +39,11 @@ const PREMIUM_DEFAULTS: TierLimits = {
   collaborativeSaveEnabled: true,
 };
 
-const resolveLimits = (): TierLimits => {
-  const base = appMode === "premium" ? PREMIUM_DEFAULTS : FREE_DEFAULTS;
+const resolveLimits = (isPremium: boolean): TierLimits => {
+  const base = isPremium ? { ...PREMIUM_DEFAULTS } : { ...FREE_DEFAULTS };
 
   // Allow env overrides for free mode limits
-  if (appMode === "free") {
+  if (!isPremium) {
     const ttlMinutes = process.env.FREE_ROOM_TTL_MINUTES;
     if (ttlMinutes) base.roomTtlSeconds = Number(ttlMinutes) * 60;
 
@@ -55,7 +55,7 @@ const resolveLimits = (): TierLimits => {
   }
 
   // Allow env overrides for premium mode limits
-  if (appMode === "premium") {
+  if (isPremium) {
     const maxUsers = process.env.PREMIUM_ROOM_MAX_USERS;
     if (maxUsers) base.maxUsersPerRoom = Number(maxUsers);
 
@@ -66,7 +66,7 @@ const resolveLimits = (): TierLimits => {
   return base;
 };
 
-export const tierConfig: TierLimits = resolveLimits();
+export const getTierLimits = (isPremium: boolean): TierLimits => resolveLimits(isPremium);
 
-export const isFreeMode = (): boolean => appMode === "free";
-export const isPremiumMode = (): boolean => appMode === "premium";
+// Keep tierConfig temporarily exported as a fallback for pure global limits (using appMode)
+export const tierConfig: TierLimits = resolveLimits(appMode === "premium");
