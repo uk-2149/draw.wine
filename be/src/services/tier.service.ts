@@ -34,14 +34,23 @@ export class TierService {
     return getTierLimits(isPremium);
   }
 
+  /** Duration of a premium subscription in seconds (30 days). */
+  private static readonly PREMIUM_TTL_SECONDS = 30 * 24 * 60 * 60;
+
   /**
-   * Upgrades a wallet to premium in Redis permanently.
+   * Upgrades a wallet to premium in Redis for 30 days.
+   * After expiry the user automatically reverts to the free tier.
    */
   static async upgradeUserToPremium(walletAddress: string): Promise<void> {
     try {
       const client = await RedisService.getClient();
-      await client.set(`premium_user:${walletAddress}`, "true");
-      Logger.success(`Wallet ${walletAddress} upgraded to Premium!`);
+      await client.set(
+        `premium_user:${walletAddress}`,
+        "true",
+        "EX",
+        this.PREMIUM_TTL_SECONDS,
+      );
+      Logger.success(`Wallet ${walletAddress} upgraded to Premium for 30 days!`);
     } catch (error) {
       Logger.error(`Failed to upgrade wallet ${walletAddress} to premium:`, error);
       throw new Error("Failed to upgrade user");

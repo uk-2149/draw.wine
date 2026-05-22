@@ -212,7 +212,7 @@ export const PremiumUpgradeModal = ({
                 {displayPrice}
               </span>
               <span className="text-[10px] text-muted-foreground">
-                ≈ ${(PREMIUM_PRICE_SOL * 150).toFixed(0)} · one-time
+                ≈ ${(PREMIUM_PRICE_SOL * 150).toFixed(0)} · /month
               </span>
             </div>
             <Badge
@@ -284,7 +284,7 @@ export const PremiumUpgradeModal = ({
           {/* Compact info note */}
           <div className="flex gap-2 items-start text-[10px] text-muted-foreground px-1">
             <AlertCircle className="h-3 w-3 text-amber-500 shrink-0 mt-px" />
-            <span>Premium is tied to your wallet — works across devices.</span>
+            <span>Premium lasts 30 days, then reverts to Free. Tied to your wallet — works across devices.</span>
           </div>
         </div>
 
