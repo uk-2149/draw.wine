@@ -31,6 +31,7 @@ import { CreateRoomModal } from "../modals/CreateRoomModal";
 import { JoinRoomModal } from "../modals/JoinRoomModal";
 import { ExportModal } from "../modals/ExportModal";
 import { EmailInviteModal } from "../modals/EmailInviteModal";
+import { MermaidModal } from "../modals/MermaidModal";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { STORAGE_KEY } from "@/constants/canvas";
 import {
@@ -74,6 +75,7 @@ export const Left3bar = ({
   const [showJoinRoom, setShowJoinRoom] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showEmailInvite, setShowEmailInvite] = useState(false);
+  const [showMermaidModal, setShowMermaidModal] = useState(false);
 
   // Wallet auth
   useWalletAuth();
@@ -324,6 +326,14 @@ export const Left3bar = ({
               <MdOutlineFileUpload className="mr-2" />
               Load from...
               <DropdownMenuShortcut>Ctrl+O</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowMermaidModal(true)}>
+              <span className="flex items-center">
+                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
+                Import Mermaid...
+              </span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportImg}>
               <MdOutlineImage className="mr-2" />
@@ -576,6 +586,11 @@ export const Left3bar = ({
         onClose={() => setShowEmailInvite(false)}
         roomId={state.roomId || undefined}
         roomName={state.roomId ? `Room ${state.roomId}` : undefined}
+      />
+
+      <MermaidModal
+        isOpen={showMermaidModal}
+        onClose={() => setShowMermaidModal(false)}
       />
     </>
   );

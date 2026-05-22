@@ -1,5 +1,6 @@
 export type ToolType =
   | "select"
+  | "Lasso"
   | "Rectangle"
   | "Diamond"
   | "Circle"

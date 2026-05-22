@@ -42,6 +42,10 @@ export const useCanvasBoardState = () => {
     Map<string, Array<LaserTrailPoint>>
   >(new Map());
 
+  // Lasso selection state
+  const [lassoPath, setLassoPath] = useState<Position[]>([]);
+  const [isLassoing, setIsLassoing] = useState(false);
+
   return {
     canvasRef,
     containerRef,
@@ -85,5 +89,10 @@ export const useCanvasBoardState = () => {
     setSelectedElements,
     collaborativeLaserTrails,
     setCollaborativeLaserTrails,
+    lassoPath,
+    setLassoPath,
+    isLassoing,
+    setIsLassoing,
   };
 };
+

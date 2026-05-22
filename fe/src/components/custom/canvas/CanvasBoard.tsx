@@ -45,6 +45,10 @@ import {
 } from "@/helpers/connectionSnap.h";
 import { measureTextElement } from "@/helpers/textMeasure.h";
 import { IconModal } from "../modals/IconModal";
+import {
+  isElementInsideLasso,
+  simplifyPath,
+} from "@/helpers/lassoGeometry.h";
 
 const MAX_HISTORY = 50;
 const MIN_SCALE = 0.1;
@@ -519,6 +523,10 @@ export const CanvasBoard = ({
     setSelectedElements,
     collaborativeLaserTrails,
     setCollaborativeLaserTrails,
+    lassoPath,
+    setLassoPath,
+    isLassoing,
+    setIsLassoing,
   } = useCanvasBoardState();
 
   const laser = useLaserTrail();
@@ -2230,6 +2238,24 @@ export const CanvasBoard = ({
       ctx.restore();
     }
 
+    // ── Draw lasso path while selecting ──
+    if (lassoPath.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = "#007acc";
+      ctx.lineWidth = 1.5 / scale;
+      ctx.fillStyle = "rgba(0, 122, 204, 0.08)";
+      ctx.setLineDash([4 / scale, 4 / scale]);
+      ctx.beginPath();
+      ctx.moveTo(lassoPath[0].x, lassoPath[0].y);
+      for (let i = 1; i < lassoPath.length; i++) {
+        ctx.lineTo(lassoPath[i].x, lassoPath[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // ── Laser trails ──
     const drawLaserTrail = (
       trail: Array<{
@@ -2411,6 +2437,7 @@ export const CanvasBoard = ({
     selectedTool,
     laser.trail,
     selectionArea,
+    lassoPath,
     isCollaborating,
     state.userId,
     isDarkTheme,
@@ -2441,7 +2468,11 @@ export const CanvasBoard = ({
           setSelectedTool("Hand");
           break;
         case "s":
-          setSelectedTool("select");
+          if (e.shiftKey) {
+            setSelectedTool("Lasso");
+          } else {
+            setSelectedTool("select");
+          }
           break;
         case "p":
           setSelectedTool("Pencil");
@@ -3023,6 +3054,15 @@ export const CanvasBoard = ({
 
       const point = getTransformedPoint(e);
 
+      // ── Lasso selection start ──
+      if (selectedTool === "Lasso") {
+        setIsLassoing(true);
+        setLassoPath([point]);
+        setSelectedElement(null);
+        setSelectedElements([]);
+        return;
+      }
+
       // ── Bend point drag ──
       if (selectedTool === "select" && selectedElements.length === 1) {
         const el = selectedElements[0];
@@ -3494,6 +3534,22 @@ export const CanvasBoard = ({
                 });
               });
           }
+        }
+        return;
+      }
+
+      // ── Lasso selection drag ──
+      if (selectedTool === "Lasso" && isLassoing && e.buttons === 1) {
+        setLassoPath((prev) => [...prev, point]);
+        // Live hit-test: select elements inside the lasso polygon in real-time
+        const currentPath = [...lassoPath, point];
+        if (currentPath.length >= 3) {
+          const simplified = simplifyPath(currentPath, 3 / scale);
+          const inLasso = elements.filter((el) =>
+            isElementInsideLasso(el, simplified),
+          );
+          setSelectedElements(inLasso);
+          setSelectedElement(inLasso.length === 1 ? inLasso[0] : null);
         }
         return;
       }
@@ -4052,9 +4108,24 @@ export const CanvasBoard = ({
     setResizeSnapshot(null);
     setSelectionArea(null);
 
+    // ── Finalize lasso selection ──
+    if (isLassoing && lassoPath.length >= 3) {
+      const simplified = simplifyPath(lassoPath, 3 / scale);
+      const inLasso = elements.filter((el) =>
+        isElementInsideLasso(el, simplified),
+      );
+      setSelectedElements(inLasso);
+      setSelectedElement(inLasso.length === 1 ? inLasso[0] : null);
+      // Switch to select tool so the user can immediately drag/resize
+      setSelectedTool("select");
+    }
+    setIsLassoing(false);
+    setLassoPath([]);
+
     if (
       drawing &&
       selectedTool !== "select" &&
+      selectedTool !== "Lasso" &&
       selectedTool !== "Eraser" &&
       selectedTool !== "Pencil" &&
       selectedTool !== "Laser"
@@ -4077,6 +4148,10 @@ export const CanvasBoard = ({
     setSelectedTool,
     isEditingText,
     commitHistoryAction,
+    isLassoing,
+    lassoPath,
+    scale,
+    elements,
   ]);
 
   // ─── Double click ─────────────────────────────────────────────────────────────
@@ -4420,9 +4495,11 @@ export const CanvasBoard = ({
               ? "crosshair"
               : selectedTool === "Eraser"
                 ? "none"
-                : selectedTool === "select"
-                  ? hoverCursor
-                  : "default",
+                : selectedTool === "Lasso"
+                  ? "crosshair"
+                  : selectedTool === "select"
+                    ? hoverCursor
+                    : "default",
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}

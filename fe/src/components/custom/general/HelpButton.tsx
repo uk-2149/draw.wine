@@ -8,6 +8,9 @@ import {
   Download,
   Undo2,
   Smartphone,
+  Mail,
+  Sparkles,
+  FileJson2,
 } from "lucide-react";
 
 const SHORTCUT_SECTIONS = [
@@ -69,27 +72,42 @@ const FEATURE_LIST: { icon: ReactNode; title: string; desc: string }[] = [
   {
     icon: <Shapes className="h-5 w-5" />,
     title: "Drawing Tools",
-    desc: "Rectangle, Diamond, Circle, Arrow, Line, Pencil and more with customisable stroke styles.",
+    desc: "Select, pencil, text, image, rectangle, circle, diamond, line, arrow, eraser, and laser pointer tools.",
   },
   {
     icon: <Paintbrush className="h-5 w-5" />,
     title: "Stroke Styles",
-    desc: "Solid, dashed, dotted and bubbled patterns. Adjustable width and 10 curated colors.",
+    desc: "Solid, dashed, dotted, and bubbled strokes with adjustable width and curated colors.",
   },
   {
     icon: <Users className="h-5 w-5" />,
     title: "Real-time Collaboration",
-    desc: "Create or join rooms to draw together. See live cursors and drawings.",
+    desc: "Create or join room-based sessions with live cursor and drawing sync.",
   },
   {
     icon: <Download className="h-5 w-5" />,
     title: "Export & Import",
-    desc: "Export as PNG, JPG, SVG or JSON. Import JSON files to restore drawings.",
+    desc: "Export as PNG, JPG, SVG, or JSON and import drawings or images back into the canvas.",
+  },
+  {
+    icon: <FileJson2 className="h-5 w-5" />,
+    title: "Save & Restore",
+    desc: "Save drawings as JSON project files and restore them later.",
+  },
+  {
+    icon: <Sparkles className="h-5 w-5" />,
+    title: "AI & Mermaid",
+    desc: "Generate drawings with Gemini or convert Mermaid diagrams into canvas elements.",
+  },
+  {
+    icon: <Mail className="h-5 w-5" />,
+    title: "Room Invites",
+    desc: "Invite collaborators by email when you are in a shared room.",
   },
   {
     icon: <Undo2 className="h-5 w-5" />,
     title: "Undo & Redo",
-    desc: "Full history support with up to 50 undo steps.",
+    desc: "Full history support with up to 50 undo steps and redo support.",
   },
   {
     icon: <Smartphone className="h-5 w-5" />,

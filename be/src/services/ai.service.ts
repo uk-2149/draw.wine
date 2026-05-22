@@ -20,6 +20,7 @@ import {
   Logger,
   parseGeminiJson,
   resolveGeminiModel,
+  compressPrompt,
 } from "../helpers";
 import { ai } from "../utils/ai";
 import sessionManager from "./session.service";
@@ -179,8 +180,14 @@ class AiService {
       } as any,
     });
 
+    let finalPrompt = prompt;
+    if (prompt.length > 50) {
+      finalPrompt = compressPrompt(prompt);
+      Logger.info(`Compressed prompt. Original length: ${prompt.length}, Compressed length: ${finalPrompt.length}`);
+    }
+
     const responseResult = await generateContentWithRetry<GeminiTextResponse>(
-      () => model.generateContent(augmentedPrompt(prompt)),
+      () => model.generateContent(augmentedPrompt(finalPrompt)),
       "vector",
     );
     const text = responseResult.response.text();

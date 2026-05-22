@@ -53,7 +53,11 @@ Return ONLY valid raw JSON with a single string field 'svgContent' containing th
 // so the model can pattern-match the expected output format
 export const augmentedPrompt = (
   prompt: string,
-) => `Create a comprehensive and logically structured diagram for: "${prompt}"
+) => `Create a comprehensive and logically structured diagram based on the following request:
+
+---
+${prompt}
+---
 
 Generate a complete diagram with AT LEAST 10-25 elements. MUST include shapes with labels, fill colors, AND Arrow elements connecting them logically. 
 
@@ -80,4 +84,4 @@ Design Guidelines:
 - Space shapes enough to avoid overlapping with arrows or texts.
 - Let the elements naturally branch out based on the structure (e.g. left-to-right, top-down).
 
-Generate the FULL, comprehensive diagram for "${prompt}". Do NOT stop early.`;
+Generate the FULL, comprehensive diagram. Do NOT stop early.`;

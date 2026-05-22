@@ -5,13 +5,15 @@ It supports multiplayer drawing sessions, live cursor sync, room invitations, an
 
 ## Features
 
-- Real-time collaboration with room-based sessions
-- Live cursor presence and drawing synchronization over Socket.IO
-- Drawing tools: select, pencil, text, rectangle, circle, diamond, line, arrow, eraser, laser
-- Rough.js powered sketch-style rendering
+- Real-time collaboration with room-based sessions and live cursor sync
+- Drawing tools for select, pencil, text, image, rectangle, circle, diamond, line, arrow, eraser, and laser pointer
+- Custom stroke styles with adjustable width and curated colors
+- Export and import support for PNG, JPG, SVG, JSON, and Mermaid diagrams
+- Save and restore drawings from project files or imported JSON
+- Undo and redo history with up to 50 steps
 - Invite collaborators by email via backend API
 - Gemini-powered AI drawing generation (`vector` and `raster` modes)
-- PWA-enabled frontend build
+- Installable PWA frontend for desktop and mobile use
 
 ## Monorepo Layout
 
