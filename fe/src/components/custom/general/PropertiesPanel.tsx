@@ -387,34 +387,29 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
     (theme === "system" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  // const invertHexColor = (color: string) => {
-  //   const hex = color.replace("#", "");
-  //   if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
-  //   const channels = hex.match(/.{2}/g);
-  //   if (!channels) return color;
-  //   const inverted = channels
-  //     .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
-  //     .join("");
-  //   return `#${inverted}`;
-  // };
+  const invertHexColor = (color: string) => {
+    let hex = color.replace("#", "");
+    if (hex.length === 3) {
+      hex = hex.split("").map((c) => c + c).join("");
+    }
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
+    const channels = hex.match(/.{2}/g);
+    if (!channels) return color;
+    const inverted = channels
+      .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
+      .join("");
+    return `#${inverted}`;
+  };
 
   // What canvas actually renders for a given stored color
   const displayColor = (color: string) => {
-    if (isDarkTheme && (color === "#000000" || color === "#000"))
-      return "#ffffff";
-    if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
-      return "#000000";
-    return color;
+    return isDarkTheme ? invertHexColor(color) : color;
   };
 
   // When user picks a swatch in the panel, store the canvas-space color
   // (panel swatches show display colors; canvas stores them directly)
   const setStrokeColorThemed = (color: string) => {
-    if (isDarkTheme && (color === "#ffffff" || color === "#fff"))
-      setStrokeColor("#000000");
-    else if (!isDarkTheme && (color === "#000000" || color === "#000"))
-      setStrokeColor("#ffffff");
-    else setStrokeColor(color);
+    setStrokeColor(isDarkTheme ? invertHexColor(color) : color);
   };
 
   const setFillColorThemed = (color: string | null) => {
@@ -422,11 +417,7 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
       setFillColor(null);
       return;
     }
-    if (isDarkTheme && (color === "#ffffff" || color === "#fff"))
-      setFillColor("#000000");
-    else if (!isDarkTheme && (color === "#000000" || color === "#000"))
-      setFillColor("#ffffff");
-    else setFillColor(color);
+    setFillColor(isDarkTheme ? invertHexColor(color) : color);
   };
 
   // The color as it appears on screen (for active-swatch matching & custom picker)
@@ -536,22 +527,22 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
-                onClick={() => setStrokeColorThemed(color)}
+                onClick={() => setStrokeColorThemed(displayColor(color))}
                 className={cn(
                   SWATCH_CLASS,
                   "stroke-color-swatch",
-                  displayedStrokeColor === color
+                  displayedStrokeColor === displayColor(color)
                     ? CONTROL_ACTIVE
                     : "border border-border/50 hover:border-border/80",
                 )}
                 style={
                   {
-                    "--stroke-color": color,
-                    backgroundColor: color,
+                    "--stroke-color": displayColor(color),
+                    backgroundColor: displayColor(color),
                   } as CSSProperties
                 }
-                title={color}
-                aria-label={`Select color ${color}`}
+                title={displayColor(color)}
+                aria-label={`Select color ${displayColor(color)}`}
               />
             ))}
             <ColorPickerSwatch
@@ -643,22 +634,22 @@ export const PropertiesPanel = ({ className }: PropertiesPanelProps) => {
             {STROKE_COLORS.map((color) => (
               <button
                 key={color}
-                onClick={() => setFillColorThemed(color)}
+                onClick={() => setFillColorThemed(displayColor(color))}
                 className={cn(
                   SWATCH_CLASS,
                   "stroke-color-swatch",
-                  displayedFillColor === color
+                  displayedFillColor === displayColor(color)
                     ? CONTROL_ACTIVE
                     : "border border-border/50 hover:border-border/80",
                 )}
                 style={
                   {
-                    "--stroke-color": color,
-                    backgroundColor: color,
+                    "--stroke-color": displayColor(color),
+                    backgroundColor: displayColor(color),
                   } as CSSProperties
                 }
-                title={color}
-                aria-label={`Select fill color ${color}`}
+                title={displayColor(color)}
+                aria-label={`Select fill color ${displayColor(color)}`}
               />
             ))}
             <ColorPickerSwatch

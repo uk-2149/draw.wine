@@ -63,7 +63,10 @@ const CORNER_HIT_PX = 14;
 const DEFAULT_CANVAS_BACKGROUND = "#f8f5f0";
 
 const invertHexColor = (color: string) => {
-  const hex = color.replace("#", "");
+  let hex = color.replace("#", "");
+  if (hex.length === 3) {
+    hex = hex.split("").map((c) => c + c).join("");
+  }
   if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
 
   const channels = hex.match(/.{2}/g);
@@ -475,9 +478,7 @@ export const CanvasBoard = ({
     (theme === "system" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  const canvasBackgroundColor = isDarkTheme
-    ? invertHexColor(bgColor || DEFAULT_CANVAS_BACKGROUND)
-    : bgColor || DEFAULT_CANVAS_BACKGROUND;
+  const canvasBackgroundColor = bgColor || DEFAULT_CANVAS_BACKGROUND;
   const patternColor = isDarkTheme ? "255,255,255" : "0,0,0";
 
   const {
@@ -1640,11 +1641,7 @@ export const CanvasBoard = ({
     const rc = rough.canvas(canvas);
 
     const getStrokeColor = (color: string) => {
-      if (isDarkTheme && (color === "#000000" || color === "#000"))
-        return "#ffffff";
-      if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
-        return "#000000";
-      return color;
+      return isDarkTheme ? invertHexColor(color) : color;
     };
 
     const drawPatternedPolyline = (
@@ -3493,11 +3490,7 @@ export const CanvasBoard = ({
         if (e.buttons === 1) {
           const isDark = document.documentElement.classList.contains("dark");
           const getStrokeColor = (c: string) =>
-            isDark && (c === "#000000" || c === "#000")
-              ? "#ffffff"
-              : !isDark && (c === "#ffffff" || c === "#fff")
-                ? "#000000"
-                : c;
+            isDark ? invertHexColor(c) : c;
           const laserColor = getStrokeColor(strokeColor);
           laser.addPoint(point, laserColor);
           if (isCollaborating && updateCursor && state.roomId && state.socket) {
@@ -4316,7 +4309,9 @@ export const CanvasBoard = ({
         : Date.now().toString();
 
       // Only replace currentColor — preserve the icon's native fill/stroke attributes
-      const coloredSvg = svgString.replace(/currentColor/g, strokeColor);
+      const isDark = document.documentElement.classList.contains("dark");
+      const getStrokeColor = (c: string) => (isDark ? invertHexColor(c) : c);
+      const coloredSvg = svgString.replace(/currentColor/g, getStrokeColor(strokeColor));
       const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(coloredSvg)}`;
 
       const halfIconSize = ICON_DEFAULT_SIZE / 2;
@@ -4527,7 +4522,8 @@ export const CanvasBoard = ({
           const screenW = el.width! * scale;
           const screenH = el.height! * scale;
           // Build a stable blob URL for this icon so the browser keeps the SVG animation running
-          const cacheKey = `${el.id}:${el.strokeColor}`;
+          const resolvedStrokeColor = getStrokeColor(el.strokeColor || "#000");
+          const cacheKey = `${el.id}:${resolvedStrokeColor}`;
           if (!iconBlobCache.has(cacheKey)) {
             // Revoke old blob for this element if color changed
             for (const [k, url] of iconBlobCache.entries()) {
@@ -4537,7 +4533,7 @@ export const CanvasBoard = ({
               }
             }
             const coloredSvg = el
-              .iconSvg!.replace(/currentColor/g, el.strokeColor || "#000")
+              .iconSvg!.replace(/currentColor/g, resolvedStrokeColor)
               .replace(/<svg\b[^>]*>/, (svgTag) =>
                 svgTag
                   .replace(/\s+width\s*=\s*"[^"]*"/g, "")
@@ -4827,7 +4823,7 @@ export const CanvasBoard = ({
               fontStyle:
                 selectedElement.fontStyle === "italic" ? "italic" : "normal",
               textAlign: selectedElement.textAlign || "left",
-              color: selectedElement.strokeColor || "var(--foreground)",
+              color: (isDarkTheme ? invertHexColor(selectedElement.strokeColor || "#000000") : selectedElement.strokeColor) || "var(--foreground)",
               background: "transparent",
               border: "none",
               outline: "none",
@@ -4841,7 +4837,7 @@ export const CanvasBoard = ({
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
               zIndex: 50,
-              caretColor: selectedElement.strokeColor || "var(--foreground)",
+              caretColor: (isDarkTheme ? invertHexColor(selectedElement.strokeColor || "#000000") : selectedElement.strokeColor) || "var(--foreground)",
               transformOrigin: "top left",
               boxShadow: "none",
               resize: "none",

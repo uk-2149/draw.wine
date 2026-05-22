@@ -26,7 +26,7 @@ import {
   IoSwapHorizontalOutline,
   IoLogOutOutline,
 } from "react-icons/io5";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { CreateRoomModal } from "../modals/CreateRoomModal";
 import { JoinRoomModal } from "../modals/JoinRoomModal";
 import { ExportModal } from "../modals/ExportModal";
@@ -137,53 +137,33 @@ export const Left3bar = ({
     (theme === "system" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  // Mirror CanvasBoard's invertHexColor logic for bg
-  const displayBgColor = (color: string) => {
-    if (isDarkTheme && (color === "#000000" || color === "#000"))
-      return "#ffffff";
-    if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
-      return "#000000";
-    // For non-pure-black/white, CanvasBoard fully inverts in dark mode
-    if (isDarkTheme) {
-      const hex = color.replace("#", "");
-      if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
-      const channels = hex.match(/.{2}/g);
-      if (!channels) return color;
-      return (
-        "#" +
-        channels
-          .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
-          .join("")
-      );
-    }
-    return color;
-  };
+  const LIGHT_BG_COLORS = [
+    "#f8f5f0", // warm cream (default)
+    "#ffffff", // pure white
+    "#e8e8e8", // light gray
+    "#dbeafe", // soft blue
+    "#fefce8", // soft yellow
+    "#fce7f3", // soft pink
+    "#dcfce7", // soft green
+    "#ede9fe", // soft purple
+  ];
 
-  // When user picks a swatch, store the inverse so canvas renders it correctly
-  const setBgColorThemed = (color: string) => {
-    if (!isDarkTheme) {
-      setBgColor(color);
-      return;
-    }
-    const hex = color.replace("#", "");
-    if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
-      setBgColor(color);
-      return;
-    }
-    const channels = hex.match(/.{2}/g);
-    if (!channels) {
-      setBgColor(color);
-      return;
-    }
-    const inverted =
-      "#" +
-      channels
-        .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
-        .join("");
-    setBgColor(inverted);
-  };
+  const DARK_BG_COLORS = [
+    "#0f172a", // deep navy (default dark)
+    "#000000", // pure black
+    "#1a1a2e", // dark blue-black
+    "#1e1b2e", // dark purple-black
+    "#0d1f12", // dark forest
+    "#1a1205", // dark warm brown
+    "#1f1215", // dark rose-black
+    "#0a0a0a", // near black
+  ];
 
-  const displayedBgColor = displayBgColor(bgColor);
+  const bgSwatches = isDarkTheme ? DARK_BG_COLORS : LIGHT_BG_COLORS;
+
+  useEffect(() => {
+    setBgColor(isDarkTheme ? "#0f172a" : "#f8f5f0");
+  }, [isDarkTheme]);
 
   const handleLeaveRoomClick = () => {
     console.log("Leaving room:", state.roomId);
@@ -329,7 +309,15 @@ export const Left3bar = ({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setShowMermaidModal(true)}>
               <span className="flex items-center">
-                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  className="mr-2 h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
                 Import Mermaid...
@@ -358,36 +346,27 @@ export const Left3bar = ({
                     Background color
                   </p>
                   <div className="flex gap-2 mb-3 flex-wrap">
-                    {[
-                      "#f8f5f0",
-                      "#e8e8e8",
-                      "#dbeafe",
-                      "#fefce8",
-                      "#fce7f3",
-                      "#ffffff",
-                      "#1a1a2e",
-                      "#0f172a",
-                    ].map((c) => (
+                    {bgSwatches.map((c) => (
                       <button
+                        key={c}
                         onClick={(e) => {
                           e.preventDefault();
-                          setBgColorThemed(c);
+                          setBgColor(c);
                         }}
                         className={cn(
-                          "w-7 h-7 ...",
-                          displayedBgColor === c
+                          "w-7 h-7 rounded border-2 transition-all",
+                          bgColor === c
                             ? "border-ring ring-2 ring-ring/30"
                             : "border-border hover:border-ring/60",
                         )}
                         style={{
                           backgroundColor: c,
-                          transform:
-                            displayedBgColor === c ? "scale(1.15)" : "scale(1)",
+                          transform: bgColor === c ? "scale(1.15)" : "scale(1)",
                         }}
                       />
                     ))}
 
-                    {/* Custom input */}
+                    {/* Custom color picker */}
                     <label
                       className="relative mb-3 flex h-7 w-7 cursor-pointer items-center justify-center overflow-hidden rounded-sm border-2 border-border/50 hover:border-border/80 transition-all"
                       style={{
@@ -397,13 +376,21 @@ export const Left3bar = ({
                       title="Custom background color"
                       aria-label="Pick custom background color"
                     >
-                      <span style={{ backgroundColor: displayedBgColor }} />
+                      <span
+                        className="absolute inset-[5px] rounded-md border border-background/70 shadow-sm"
+                        style={{ backgroundColor: bgColor }}
+                        aria-hidden
+                      />
                       <input
                         type="color"
-                        value={displayedBgColor}
+                        value={bgColor}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) => {
-                          setBgColorThemed(e.target.value);
+                          e.stopPropagation();
+                          setBgColor(e.target.value);
                         }}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        aria-label="Custom background color"
                       />
                     </label>
                   </div>
