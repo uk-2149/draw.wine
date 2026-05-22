@@ -25,6 +25,13 @@ It supports multiplayer drawing sessions, live cursor sync, room invitations, an
 └── Makefile
 ```
 
+## API Docs
+
+- REST API (OpenAPI / Swagger): served by the backend at `/api` when the backend is running. In development the Swagger UI is available at `http://localhost:3000/api` (adjust the port if you use a different `PORT`). The OpenAPI spec is generated from JSDoc annotations in `be/src` via `swagger-jsdoc`.
+- WebSocket / Realtime events (AsyncAPI): the AsyncAPI JSON spec is available at `/asyncapi.json` and an AsyncAPI web UI is served at `/ws`. In development you can visit `http://localhost:3000/ws` to view the WebSocket event documentation and examples. The source spec lives at `be/src/asyncapi.json`.
+
+These docs make it easy to explore the backend's REST endpoints and the realtime socket messages supported by draw.wine.
+
 ## Prerequisites
 
 - Node.js 18+

@@ -74,9 +74,7 @@ export const PremiumUpgradeModal = ({
         if (
           m.type === "attributes" &&
           m.attributeName === "inert" &&
-          (m.target as HTMLElement).classList?.contains(
-            "wallet-adapter-modal",
-          )
+          (m.target as HTMLElement).classList?.contains("wallet-adapter-modal")
         ) {
           (m.target as HTMLElement).removeAttribute("inert");
         }
@@ -174,9 +172,10 @@ export const PremiumUpgradeModal = ({
       onClose();
       onUpgradeSuccess?.();
       window.location.reload();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upgrade error:", error);
-      toast.error(`Upgrade failed: ${error.message || "Unknown error"}`, {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Upgrade failed: ${message || "Unknown error"}`, {
         id: "upgrade",
       });
     } finally {
@@ -284,7 +283,10 @@ export const PremiumUpgradeModal = ({
           {/* Compact info note */}
           <div className="flex gap-2 items-start text-[10px] text-muted-foreground px-1">
             <AlertCircle className="h-3 w-3 text-amber-500 shrink-0 mt-px" />
-            <span>Premium lasts 30 days, then reverts to Free. Tied to your wallet — works across devices.</span>
+            <span>
+              Premium lasts 30 days, then reverts to Free. Tied to your wallet —
+              works across devices.
+            </span>
           </div>
         </div>
 
@@ -306,7 +308,9 @@ export const PremiumUpgradeModal = ({
           >
             {isProcessing ? (
               <>
-                <span className="inline-block animate-spin mr-1.5 text-sm">⏳</span>
+                <span className="inline-block animate-spin mr-1.5 text-sm">
+                  ⏳
+                </span>
                 Processing…
               </>
             ) : (

@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { loginWithWallet, logoutWallet, getToken } from "../services/auth.service";
+import {
+  loginWithWallet,
+  logoutWallet,
+  getToken,
+} from "../services/auth.service";
 import { toast } from "sonner";
 
 export const useWalletAuth = () => {
@@ -12,7 +16,7 @@ export const useWalletAuth = () => {
     const handleAuth = async () => {
       if (wallet.connected && wallet.publicKey) {
         // Only login if we don't have a token, or the token doesn't match the current wallet
-        // For simplicity, if we have a token, assume it's good. 
+        // For simplicity, if we have a token, assume it's good.
         // In a real app we'd decode it and check the wallet address.
         if (!isAuthenticated) {
           setIsAuthenticating(true);
@@ -20,7 +24,9 @@ export const useWalletAuth = () => {
           const token = await loginWithWallet(wallet);
           if (token) {
             setIsAuthenticated(true);
-            toast.success("Wallet authenticated successfully!", { id: "wallet-auth" });
+            toast.success("Wallet authenticated successfully!", {
+              id: "wallet-auth",
+            });
             // Reload the page to reset context and socket connection with new token
             window.location.reload();
           } else {
@@ -38,7 +44,7 @@ export const useWalletAuth = () => {
     };
 
     handleAuth();
-  }, [wallet.connected, wallet.publicKey]);
+  }, [wallet, isAuthenticated]);
 
   return { isAuthenticated, isAuthenticating };
 };

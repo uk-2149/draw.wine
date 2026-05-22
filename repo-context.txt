@@ -3,7 +3,7 @@ Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 248 files
+Git repo: .git with 254 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
@@ -21,6 +21,10 @@ be/src/constants/tier.ts:
 │  /** Maximum simultaneous playgrounds per user */
 │  maxPlaygrounds: number;
 │  /** Whether collaborative saves persist beyond session */
+⋮
+
+be/src/helpers/promptCompressor.ts:
+│export interface CompressedPromptDSL {
 ⋮
 
 be/src/middleware/auth.middleware.ts:
@@ -293,17 +297,6 @@ fe/src/components/custom/general/JoinRequestsSidebar.tsx:
 │                      title="Decline"
 ⋮
 
-fe/src/components/custom/general/Left3bar.tsx:
-⋮
-│interface Left3barProps {
-│  bgColor: string;
-│  setBgColor: (c: string) => void;
-│  bgOpacity: number;
-│  setBgOpacity: (o: number) => void;
-│  bgPattern: "none" | "dots" | "grid" | "lines";
-│  setBgPattern: (p: "none" | "dots" | "grid" | "lines") => void;
-⋮
-
 fe/src/components/custom/general/PropertiesPanel.tsx:
 ⋮
 │            <button
@@ -371,6 +364,13 @@ fe/src/components/custom/modals/IconModal.tsx:
 fe/src/components/custom/modals/JoinRoomModal.tsx:
 ⋮
 │interface JoinRoomModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+⋮
+
+fe/src/components/custom/modals/MermaidModal.tsx:
+⋮
+│interface MermaidModalProps {
 │  isOpen: boolean;
 │  onClose: () => void;
 ⋮
@@ -448,9 +448,44 @@ fe/src/components/ui/alert-dialog.tsx:
 │function AlertDialog({
 │  ...props
 ⋮
+│  return (
+│    <AlertDialogPrimitive.Overlay
+│      data-slot="alert-dialog-overlay"
+│      className={cn(
+│        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
+│        data-slot="alert-dialog-content"
+│        className={cn(
+│          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=c
+│          className
+⋮
+│  return (
+│    <div
+│      data-slot="alert-dialog-footer"
+│      className={cn(
+│        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+│        className
+│      )}
+│      {...props}
+│    />
+│  )
+⋮
 │function AlertDialogDescription({
 │  className,
 │  ...props
+⋮
+│    <AlertDialogPrimitive.Action
+│      className={cn(buttonVariants(), className)}
+│      {...props}
+⋮
+│    <AlertDialogPrimitive.Cancel
+│      className={cn(buttonVariants({ variant: "outline" }), className)}
+│      {...props}
 ⋮
 
 fe/src/components/ui/aspect-ratio.tsx:
@@ -485,7 +520,6 @@ fe/src/components/ui/breadcrumb.tsx:
 │      )}
 │      {...props}
 │    />
-│  )
 ⋮
 │function BreadcrumbLink({
 │  asChild,
@@ -819,43 +853,7 @@ fe/src/components/ui/separator.tsx:
 
 fe/src/components/ui/sheet.tsx:
 ⋮
-│function SheetTrigger({
-│  ...props
-⋮
-│function SheetClose({
-│  ...props
-⋮
 │function SheetPortal({
-│  ...props
-⋮
-│function SheetOverlay({
-│  className,
-│  ...props
-⋮
-│function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sheet-header"
-│      className={cn("flex flex-col gap-1.5 p-4", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sheet-footer"
-│      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function SheetTitle({
-│  className,
-│  ...props
-⋮
-│function SheetDescription({
-│  className,
 │  ...props
 ⋮
 
@@ -1089,6 +1087,23 @@ fe/src/helpers/imageLoader.h.ts:
 │  static clear() {
 │    this.imageCache.clear();
 │    this.loadingPromises.clear();
+⋮
+
+fe/src/helpers/mermaidParser.h.ts:
+⋮
+│interface ParsedNode {
+│  id: string;
+│  label: string;
+│  shape: "rectangle" | "diamond" | "circle" | "round";
+⋮
+│interface ParsedGraph {
+│  direction: "TD" | "TB" | "LR" | "RL" | "BT";
+│  nodes: Map<string, ParsedNode>;
+│  edges: ParsedEdge[];
+⋮
+│interface LayoutPosition {
+│  x: number;
+│  y: number;
 ⋮
 
 fe/src/helpers/roundedShapes.h.ts:

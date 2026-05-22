@@ -1,9 +1,12 @@
 import bs58 from "bs58";
+import type { WalletContextState } from "@solana/wallet-adapter-react";
 // Assuming similar constant exists or we use relative paths
 // Wait, we can just use relative fetch API calls since it's the same domain or proxied.
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
-export const loginWithWallet = async (wallet: any): Promise<string | null> => {
+export const loginWithWallet = async (
+  wallet: WalletContextState,
+): Promise<string | null> => {
   if (!wallet.publicKey || !wallet.signMessage) {
     console.error("Wallet not ready for signing");
     return null;
