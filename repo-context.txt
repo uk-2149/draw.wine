@@ -3,7 +3,7 @@ Using gpt-4o model with API key from environment.
 Aider v0.86.2
 Main model: gpt-4o with diff edit format
 Weak model: gpt-4o-mini
-Git repo: .git with 238 files
+Git repo: .git with 248 files
 Repo-map: using 4096 tokens, auto refresh
 Here are summaries of some files present in my git repository.
 Do not propose changes to these files, treat them as *read-only*.
@@ -23,6 +23,12 @@ be/src/constants/tier.ts:
 │  /** Whether collaborative saves persist beyond session */
 ⋮
 
+be/src/middleware/auth.middleware.ts:
+⋮
+│export interface AuthenticatedRequest extends Request {
+│  walletAddress?: string;
+⋮
+
 be/src/services/ai-quota.service.ts:
 ⋮
 │export class AiQuotaService {
@@ -40,13 +46,13 @@ be/src/services/ai-quota.service.ts:
 │    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0);
 │    return Math.ceil((endOfMonth.getTime() - now.getTime()) / 1000) + 86400; // +1 day safety margi
 ⋮
-│  static async checkAndIncrement(identifier: string): Promise<{
+│  static async checkAndIncrement(identifier: string, limit: number): Promise<{
 │    allowed: boolean;
 │    used: number;
 │    limit: number;
 │    remaining: number;
 ⋮
-│  static async getUsage(identifier: string): Promise<{
+│  static async getUsage(identifier: string, limit: number = 50): Promise<{
 │    used: number;
 │    limit: number;
 │    remaining: number;
@@ -66,6 +72,7 @@ be/src/services/redis.service.ts:
 │      maxRetriesPerRequest: null,
 │      enableReadyCheck: true,
 │      lazyConnect: true,
+│      // family: 6, // Force IPv6 – IPv4 route to Redis Cloud is unreachable from this network
 │    });
 │
 ⋮
@@ -126,24 +133,36 @@ be/src/services/socket.service.ts:
 │      },
 ⋮
 
-be/src/types/ai.t.ts:
-│export interface AiDrawingRequest {
+be/src/services/tier.service.ts:
 ⋮
-│export interface GeneratedElement {
-│  type: string;
-│  x: number;
-│  y: number;
-│  width?: number;
-│  height?: number;
-│  text?: string;
-│  fontSize?: number;
-│  strokeColor?: string;
-│  fillColor?: string;
+│export class TierService {
+│  /**
+│   * Checks if a wallet is a premium user.
+│   */
+│  static async isPremiumUser(walletAddress?: string): Promise<boolean> {
+│    if (!walletAddress) {
+│      // Fallback to app mode for anonymous users (useful for dev environments where APP_MODE=premi
+│      return appMode === "premium";
+│    }
+│
+│    try {
+│      const client = await RedisService.getClient();
+│      const isPremium = await client.get(`premium_user:${walletAddress}`);
+│      
 ⋮
-│export interface AiChatRequest {
-│  prompt: string;
-│  model?: string;
-│  sessionId?: string; // optional session ID for conversation history
+│  static async getLimitsForUser(walletAddress?: string) {
+│    const isPremium = await this.isPremiumUser(walletAddress);
+│    return getTierLimits(isPremium);
+⋮
+│  static async upgradeUserToPremium(walletAddress: string): Promise<void> {
+│    try {
+│      const client = await RedisService.getClient();
+│      await client.set(`premium_user:${walletAddress}`, "true");
+│      Logger.success(`Wallet ${walletAddress} upgraded to Premium!`);
+│    } catch (error) {
+│      Logger.error(`Failed to upgrade wallet ${walletAddress} to premium:`, error);
+│      throw new Error("Failed to upgrade user");
+│    }
 ⋮
 
 be/src/types/email.t.ts:
@@ -296,27 +315,6 @@ fe/src/components/custom/general/Toolbar.tsx:
 │interface ToolbarProps {
 │  orientation?: "horizontal" | "vertical";
 ⋮
-│      {visibleItems.map((item, index) => {
-│        const isActive = selected === index;
-│        Logger.debug(
-│          "Rendering toolbar item:",
-│          item.tooltip,
-│          "Active:",
-│          isActive,
-│        );
-│        // const showDivider = index > 0 && !!item.before;
-│        return (
-│          <div key={item.tooltip} className="flex items-center">
-│            {/* {showDivider && (
-│              <div className="w-px h-5 bg-border/40 mx-1" aria-hidden />
-│            )} */}
-│            <div
-│              className={cn(
-│                "rounded-lg transition-all duration-100",
-│                "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-│                isActive &&
-│                  "bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300",
-⋮
 
 fe/src/components/custom/modals/AiPromptModal.tsx:
 ⋮
@@ -334,14 +332,6 @@ fe/src/components/custom/modals/EmailInviteModal.tsx:
 │  roomName?: string;
 ⋮
 
-fe/src/components/custom/modals/ExportModal.tsx:
-⋮
-│interface ExportModalProps {
-│  isOpen: boolean;
-│  onClose: () => void;
-│  onExport: (options: ExportOptions) => void;
-⋮
-
 fe/src/components/custom/modals/IconModal.tsx:
 ⋮
 │interface IconModalProps {
@@ -355,6 +345,14 @@ fe/src/components/custom/modals/JoinRoomModal.tsx:
 │interface JoinRoomModalProps {
 │  isOpen: boolean;
 │  onClose: () => void;
+⋮
+
+fe/src/components/custom/modals/PremiumUpgradeModal.tsx:
+⋮
+│interface PremiumUpgradeModalProps {
+│  isOpen: boolean;
+│  onClose: () => void;
+│  onUpgradeSuccess?: () => void;
 ⋮
 
 fe/src/components/custom/tier/RoomCapacityBadge.tsx:
@@ -374,6 +372,7 @@ fe/src/components/custom/tier/TierBadge.tsx:
 ⋮
 │export const TierBadge = () => {
 │  const { isPremium } = useTier();
+│  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 │
 │  if (isPremium) {
 │    return (
@@ -381,18 +380,17 @@ fe/src/components/custom/tier/TierBadge.tsx:
 │        <Crown className="h-4 w-4" />
 │        Premium
 │      </div>
-│    );
 ⋮
 │  return (
-│    <Button
-│      variant="outline"
-│      size="sm"
-│      onClick={() => toast.info("Premium plans coming soon! Stay tuned.")}
-│      className="gap-2 border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-pri
-│    >
-│      <BadgeDollarSign className="h-4 w-4" />
-│      Get Premium
-│    </Button>
+│    <>
+│      <Button
+│        variant="outline"
+│        size="sm"
+│        onClick={() => setIsUpgradeModalOpen(true)}
+│        className="gap-2 border-primary/20 bg-primary/10 text-primary hover:bg-primary hover:text-a
+│      >
+│        <BadgeDollarSign className="h-4 w-4" />
+│        Get Premium
 ⋮
 
 fe/src/components/custom/tier/UpgradeBanner.tsx:
@@ -484,6 +482,19 @@ fe/src/components/ui/breadcrumb.tsx:
 │function BreadcrumbEllipsis({
 │  className,
 │  ...props
+⋮
+
+fe/src/components/ui/button.tsx:
+⋮
+│function Button({
+│  className,
+│  variant,
+│  size,
+│  asChild = false,
+│  ...props
+⋮
+│      className={cn(buttonVariants({ variant, size, className }))}
+│      {...props}
 ⋮
 
 fe/src/components/ui/calendar.tsx:
@@ -711,20 +722,6 @@ fe/src/components/ui/input-otp.tsx:
 │  )
 ⋮
 
-fe/src/components/ui/input.tsx:
-⋮
-│function Input({ className, type, ...props }: React.ComponentProps<"input">) {
-│  return (
-│    <input
-│      type={type}
-│      data-slot="input"
-│      className={cn(
-│        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text
-│        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-│        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border
-│        className
-⋮
-
 fe/src/components/ui/navigation-menu.tsx:
 ⋮
 │function NavigationMenu({
@@ -806,47 +803,20 @@ fe/src/components/ui/separator.tsx:
 
 fe/src/components/ui/sheet.tsx:
 ⋮
-│function SheetTrigger({
-│  ...props
-⋮
-│function SheetClose({
-│  ...props
-⋮
 │function SheetPortal({
-│  ...props
-⋮
-│function SheetOverlay({
-│  className,
-│  ...props
-⋮
-│function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sheet-header"
-│      className={cn("flex flex-col gap-1.5 p-4", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
-│  return (
-│    <div
-│      data-slot="sheet-footer"
-│      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-│      {...props}
-│    />
-│  )
-⋮
-│function SheetTitle({
-│  className,
-│  ...props
-⋮
-│function SheetDescription({
-│  className,
 │  ...props
 ⋮
 
 fe/src/components/ui/sidebar.tsx:
+⋮
+│type SidebarContextProps = {
+│  state: "expanded" | "collapsed";
+│  open: boolean;
+│  setOpen: (open: boolean) => void;
+│  openMobile: boolean;
+│  setOpenMobile: (open: boolean) => void;
+│  isMobile: boolean;
+│  toggleSidebar: () => void;
 ⋮
 │function useSidebar() {
 │  const context = React.useContext(SidebarContext);
@@ -870,7 +840,56 @@ fe/src/components/ui/sidebar.tsx:
 │  onClick,
 │  ...props
 ⋮
+│function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sidebar-header"
+│      data-sidebar="header"
+│      className={cn("flex flex-col gap-2 p-2", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sidebar-footer"
+│      data-sidebar="footer"
+│      className={cn("flex flex-col gap-2 p-2", className)}
+│      {...props}
+│    />
+│  );
+⋮
 │function SidebarSeparator({
+│  className,
+│  ...props
+⋮
+│function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
+│  return (
+│    <ul
+│      data-slot="sidebar-menu"
+│      data-sidebar="menu"
+│      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
+│  return (
+│    <li
+│      data-slot="sidebar-menu-item"
+│      data-sidebar="menu-item"
+│      className={cn("group/menu-item relative", className)}
+│      {...props}
+│    />
+│  );
+⋮
+│function SidebarMenuButton({
+│  asChild = false,
+│  isActive = false,
+│  variant = "default",
+│  size = "default",
+│  tooltip,
 │  className,
 │  ...props
 ⋮
