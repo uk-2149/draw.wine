@@ -42,6 +42,7 @@ import {
 import { useCollab } from "@/contexts/collab/useCollab";
 import { toast } from "sonner";
 import { cn } from "@/helpers/cn.h";
+import { useTheme } from "@/contexts/theme/useTheme";
 
 interface Left3barProps {
   bgColor: string;
@@ -92,6 +93,60 @@ export const Left3bar = ({
     }
     setShowEmailInvite(true);
   };
+
+  const { theme } = useTheme();
+  const isDarkTheme =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  // Mirror CanvasBoard's invertHexColor logic for bg
+  const displayBgColor = (color: string) => {
+    if (isDarkTheme && (color === "#000000" || color === "#000"))
+      return "#ffffff";
+    if (!isDarkTheme && (color === "#ffffff" || color === "#fff"))
+      return "#000000";
+    // For non-pure-black/white, CanvasBoard fully inverts in dark mode
+    if (isDarkTheme) {
+      const hex = color.replace("#", "");
+      if (!/^[0-9a-fA-F]{6}$/.test(hex)) return color;
+      const channels = hex.match(/.{2}/g);
+      if (!channels) return color;
+      return (
+        "#" +
+        channels
+          .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
+          .join("")
+      );
+    }
+    return color;
+  };
+
+  // When user picks a swatch, store the inverse so canvas renders it correctly
+  const setBgColorThemed = (color: string) => {
+    if (!isDarkTheme) {
+      setBgColor(color);
+      return;
+    }
+    const hex = color.replace("#", "");
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+      setBgColor(color);
+      return;
+    }
+    const channels = hex.match(/.{2}/g);
+    if (!channels) {
+      setBgColor(color);
+      return;
+    }
+    const inverted =
+      "#" +
+      channels
+        .map((ch) => (255 - parseInt(ch, 16)).toString(16).padStart(2, "0"))
+        .join("");
+    setBgColor(inverted);
+  };
+
+  const displayedBgColor = displayBgColor(bgColor);
 
   const handleLeaveRoomClick = () => {
     console.log("Leaving room:", state.roomId);
@@ -269,20 +324,20 @@ export const Left3bar = ({
                       "#0f172a",
                     ].map((c) => (
                       <button
-                        key={c}
                         onClick={(e) => {
                           e.preventDefault();
-                          setBgColor(c);
+                          setBgColorThemed(c);
                         }}
                         className={cn(
-                          "w-7 h-7 rounded border-2 transition-all",
-                          bgColor === c
+                          "w-7 h-7 ...",
+                          displayedBgColor === c
                             ? "border-ring ring-2 ring-ring/30"
                             : "border-border hover:border-ring/60",
                         )}
                         style={{
                           backgroundColor: c,
-                          transform: bgColor === c ? "scale(1.15)" : "scale(1)",
+                          transform:
+                            displayedBgColor === c ? "scale(1.15)" : "scale(1)",
                         }}
                       />
                     ))}
@@ -297,21 +352,13 @@ export const Left3bar = ({
                       title="Custom background color"
                       aria-label="Pick custom background color"
                     >
-                      <span
-                        className="absolute inset-[5px] rounded-md border border-background/70 shadow-sm"
-                        style={{ backgroundColor: bgColor }}
-                        aria-hidden
-                      />
+                      <span style={{ backgroundColor: displayedBgColor }} />
                       <input
                         type="color"
-                        value={bgColor}
-                        onClick={(e) => e.stopPropagation()}
+                        value={displayedBgColor}
                         onChange={(e) => {
-                          e.stopPropagation();
-                          setBgColor(e.target.value);
+                          setBgColorThemed(e.target.value);
                         }}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                        aria-label="Custom background color"
                       />
                     </label>
                   </div>
