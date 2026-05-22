@@ -9,7 +9,36 @@ import { Logger } from "../helpers";
 
 export const authRouter = Router();
 
-// Generate nonce for wallet authentication
+/**
+ * @swagger
+ * /api/auth/nonce:
+ *   post:
+ *     summary: Generate an authentication nonce for Solana wallet login
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [publicKey]
+ *             properties:
+ *               publicKey:
+ *                 type: string
+ *                 description: The base58 encoded Solana public key
+ *     responses:
+ *       200:
+ *         description: Successfully generated a nonce
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 nonce:
+ *                   type: string
+ *       400:
+ *         description: Missing publicKey
+ */
 authRouter.post("/nonce", async (req: Request, res: Response): Promise<any> => {
   try {
     const { publicKey } = req.body;
@@ -30,7 +59,43 @@ authRouter.post("/nonce", async (req: Request, res: Response): Promise<any> => {
   }
 });
 
-// Verify signature and issue JWT
+/**
+ * @swagger
+ * /api/auth/verify:
+ *   post:
+ *     summary: Verify wallet signature and issue JWT
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [publicKey, signature, message]
+ *             properties:
+ *               publicKey:
+ *                 type: string
+ *               signature:
+ *                 type: string
+ *                 description: Base58 encoded signature of the message
+ *               message:
+ *                 type: string
+ *                 description: The exact message containing the nonce that was signed
+ *     responses:
+ *       200:
+ *         description: Successfully authenticated, returns JWT token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *       400:
+ *         description: Missing fields or invalid format
+ *       401:
+ *         description: Invalid signature or expired nonce
+ */
 authRouter.post("/verify", async (req: Request, res: Response): Promise<any> => {
   try {
     const { publicKey, signature, message } = req.body;

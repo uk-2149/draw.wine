@@ -11,6 +11,35 @@ const connection = new Connection("https://api.devnet.solana.com", "confirmed");
 // Expected SOL amount for premium upgrade (e.g. 0.1 SOL)
 const PREMIUM_UPGRADE_LAMPORTS = 0.1 * 1_000_000_000;
 
+/**
+ * @swagger
+ * /api/payment/verify-upgrade:
+ *   post:
+ *     summary: Verify a Solana transaction to upgrade user to premium
+ *     tags: [Payment]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [signature]
+ *             properties:
+ *               signature:
+ *                 type: string
+ *                 description: Transaction signature of the SOL transfer
+ *     responses:
+ *       200:
+ *         description: Successfully upgraded to premium
+ *       400:
+ *         description: Invalid transaction, insufficient funds, or missing signature
+ *       401:
+ *         description: Unauthorized (missing JWT)
+ *       500:
+ *         description: Internal verification error
+ */
 paymentRouter.post("/verify-upgrade", async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
     const walletAddress = req.walletAddress;

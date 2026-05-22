@@ -1,0 +1,191 @@
+{
+  "asyncapi": "2.6.0",
+  "info": {
+    "title": "draw.wine WebSocket API",
+    "version": "1.0.0",
+    "description": "WebSocket / Socket.IO events for the draw.wine real-time collaboration server."
+  },
+  "servers": {
+    "development": {
+      "url": "http://localhost:3000",
+      "protocol": "ws",
+      "description": "Development Server"
+    },
+    "production": {
+      "url": "https://api.draw-wine.rudrax.me",
+      "protocol": "wss",
+      "description": "Production Server"
+    }
+  },
+  "channels": {
+    "join_room": {
+      "publish": {
+        "summary": "Join a collaborative drawing room",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "roomId": { "type": "string" },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "color": { "type": "string" }
+                }
+              },
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "onlyHostCanDraw": { "type": "boolean" },
+                  "requireApproval": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "room_joined": {
+      "subscribe": {
+        "summary": "Received upon successfully joining a room",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "roomId": { "type": "string" },
+              "elements": { "type": "array" },
+              "collaborators": { "type": "array" },
+              "hostId": { "type": "string" },
+              "settings": { "type": "object" },
+              "expiresAt": { "type": "number" },
+              "maxUsers": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "drawing_operation": {
+      "publish": {
+        "summary": "Send a drawing operation (create, update, delete)",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "roomId": { "type": "string" },
+              "operation": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "element_create",
+                      "element_start",
+                      "element_update",
+                      "element_complete",
+                      "element_delete"
+                    ]
+                  },
+                  "elementId": { "type": "string" },
+                  "authorId": { "type": "string" },
+                  "data": { "type": "object" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "operation_applied": {
+      "subscribe": {
+        "summary": "Received when someone in the room makes a drawing operation",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "elementId": { "type": "string" },
+              "authorId": { "type": "string" },
+              "data": { "type": "object" }
+            }
+          }
+        }
+      }
+    },
+    "cursor_update": {
+      "publish": {
+        "summary": "Broadcast cursor position",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "roomId": { "type": "string" },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cursor_moved": {
+      "subscribe": {
+        "summary": "Received when a collaborator moves their cursor",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "userId": { "type": "string" },
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "laser_point": {
+      "publish": {
+        "summary": "Send a laser point for the laser pointer tool",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "roomId": { "type": "string" },
+              "userId": { "type": "string" },
+              "timestamp": { "type": "number" },
+              "point": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "leave_room": {
+      "publish": {
+        "summary": "Leave the current room",
+        "message": {
+          "payload": {
+            "type": "object",
+            "properties": {
+              "roomId": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
