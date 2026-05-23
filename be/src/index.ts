@@ -5,7 +5,13 @@ import compression from "compression";
 import { createServer } from "http";
 import { corsOptions, limiter, PORT } from "./constants";
 import { CollabDrawingServer, RedisService } from "./services";
-import { aiRouter, roomRouter, configRouter, authRouter, paymentRouter } from "./routes";
+import {
+  aiRouter,
+  roomRouter,
+  configRouter,
+  authRouter,
+  paymentRouter,
+} from "./routes";
 import { authMiddleware } from "./middleware";
 import { Logger } from "./helpers";
 import swaggerUi from "swagger-ui-express";
@@ -22,6 +28,7 @@ export const initServer = async () => {
     process.exit(1);
   }
   const app = express();
+  app.set("trust proxy", 1);
   const httpServer = createServer(app);
 
   // Middlewares
@@ -30,13 +37,18 @@ export const initServer = async () => {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://unpkg.com"],
+          scriptSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            "'unsafe-eval'",
+            "https://unpkg.com",
+          ],
           styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
           imgSrc: ["'self'", "data:", "https:"],
           connectSrc: ["'self'", "https://unpkg.com"],
         },
       },
-    })
+    }),
   );
   app.use(compression());
   app.use(express.json());
