@@ -452,18 +452,6 @@ fe/src/components/custom/tier/UpgradeBanner.tsx:
 │  message: string;
 │  className?: string;
 ⋮
-│export const UpgradeBanner = ({ message, className }: UpgradeBannerProps) => {
-│  return (
-│    <div
-│      className={cn(
-│        "flex items-center gap-2 rounded-lg border border-amber-400/30 bg-gradient-to-r from-amber-
-│        className,
-│      )}
-│    >
-│      <Crown className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-│      <span>{message}</span>
-│    </div>
-⋮
 
 fe/src/components/ui/accordion.tsx:
 ⋮
@@ -547,6 +535,19 @@ fe/src/components/ui/breadcrumb.tsx:
 │function BreadcrumbEllipsis({
 │  className,
 │  ...props
+⋮
+
+fe/src/components/ui/button.tsx:
+⋮
+│function Button({
+│  className,
+│  variant,
+│  size,
+│  asChild = false,
+│  ...props
+⋮
+│      className={cn(buttonVariants({ variant, size, className }))}
+│      {...props}
 ⋮
 
 fe/src/components/ui/calendar.tsx:
