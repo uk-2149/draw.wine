@@ -170,25 +170,6 @@ be/src/services/tier.service.ts:
 │      Logger.success(`Wallet ${walletAddress} upgraded to Premium for 30 days!`);
 ⋮
 
-be/src/types/ai.t.ts:
-⋮
-│export interface GeneratedElement {
-│  type: string;
-│  x: number;
-│  y: number;
-│  width?: number;
-│  height?: number;
-│  text?: string;
-│  fontSize?: number;
-│  strokeColor?: string;
-│  fillColor?: string;
-⋮
-│export interface AiChatRequest {
-│  prompt: string;
-│  model?: string;
-│  sessionId?: string; // optional session ID for conversation history
-⋮
-
 be/src/types/email.t.ts:
 │export interface EmailInviteData {
 ⋮
@@ -368,14 +349,6 @@ fe/src/components/custom/modals/EmailInviteModal.tsx:
 │  onClose: () => void;
 │  roomId?: string;
 │  roomName?: string;
-⋮
-
-fe/src/components/custom/modals/ExportModal.tsx:
-⋮
-│interface ExportModalProps {
-│  isOpen: boolean;
-│  onClose: () => void;
-│  onExport: (options: ExportOptions) => void;
 ⋮
 
 fe/src/components/custom/modals/IconModal.tsx:
@@ -629,40 +602,6 @@ fe/src/components/ui/collapsible.tsx:
 │  ...props
 ⋮
 
-fe/src/components/ui/command.tsx:
-⋮
-│function Command({
-│  className,
-│  ...props
-│}: React.ComponentProps<typeof CommandPrimitive>) {
-│  return (
-│    <CommandPrimitive
-│      data-slot="command"
-│      className={cn(
-│        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md"
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-│}
-│
-⋮
-│function CommandGroup({
-│  className,
-│  ...props
-⋮
-│function CommandItem({
-│  className,
-│  ...props
-│}: React.ComponentProps<typeof CommandPrimitive.Item>) {
-│  return (
-⋮
-│      className={cn(
-│        "text-muted-foreground ml-auto text-xs tracking-widest",
-│        className
-⋮
-
 fe/src/components/ui/dialog.tsx:
 ⋮
 │function DialogTrigger({
@@ -861,7 +800,40 @@ fe/src/components/ui/separator.tsx:
 
 fe/src/components/ui/sheet.tsx:
 ⋮
+│function SheetTrigger({
+│  ...props
+⋮
 │function SheetPortal({
+│  ...props
+⋮
+│function SheetOverlay({
+│  className,
+│  ...props
+⋮
+│function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sheet-header"
+│      className={cn("flex flex-col gap-1.5 p-4", className)}
+│      {...props}
+│    />
+│  )
+⋮
+│function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
+│  return (
+│    <div
+│      data-slot="sheet-footer"
+│      className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+│      {...props}
+│    />
+│  )
+⋮
+│function SheetTitle({
+│  className,
+│  ...props
+⋮
+│function SheetDescription({
+│  className,
 │  ...props
 ⋮
 
@@ -924,6 +896,14 @@ fe/src/components/ui/toggle-group.tsx:
 │  variant,
 │  size,
 │  ...props
+⋮
+│      className={cn(
+│        toggleVariants({
+│          variant: context.variant || variant,
+│          size: context.size || size,
+│        }),
+│        "min-w-0 flex-1 shrink-0 rounded-none shadow-none first:rounded-l-md last:rounded-r-md focu
+│        className
 ⋮
 
 fe/src/components/ui/tooltip.tsx:
