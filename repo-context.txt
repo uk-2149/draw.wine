@@ -172,17 +172,6 @@ be/src/services/tier.service.ts:
 
 be/src/types/ai.t.ts:
 ⋮
-│export interface GeneratedElement {
-│  type: string;
-│  x: number;
-│  y: number;
-│  width?: number;
-│  height?: number;
-│  text?: string;
-│  fontSize?: number;
-│  strokeColor?: string;
-│  fillColor?: string;
-⋮
 │export interface AiChatRequest {
 │  prompt: string;
 │  model?: string;
@@ -297,6 +286,17 @@ fe/src/components/custom/general/JoinRequestsSidebar.tsx:
 │                      title="Decline"
 ⋮
 
+fe/src/components/custom/general/Left3bar.tsx:
+⋮
+│interface Left3barProps {
+│  bgColor: string;
+│  setBgColor: (c: string) => void;
+│  bgOpacity: number;
+│  setBgOpacity: (o: number) => void;
+│  bgPattern: "none" | "dots" | "grid" | "lines";
+│  setBgPattern: (p: "none" | "dots" | "grid" | "lines") => void;
+⋮
+
 fe/src/components/custom/general/PropertiesPanel.tsx:
 ⋮
 │            <button
@@ -321,6 +321,20 @@ fe/src/components/custom/general/PropertiesPanel.tsx:
 │                  : "border border-dashed border-border/55 text-muted-foreground hover:border-borde
 │              )}
 │              title="No fill"
+⋮
+│                className={cn(
+│                  SWATCH_CLASS,
+│                  "stroke-color-swatch",
+│                  displayedFillColor === displayColor(color)
+│                    ? CONTROL_ACTIVE
+│                    : "border border-border/50 hover:border-border/80",
+⋮
+│              />
+│            ))}
+│            <ColorPickerSwatch
+│              label="Custom fill color"
+│              value={displayedFillColor || "#ffffff"}
+│              onChange={(v) => setFillColorThemed(v)}
 ⋮
 
 fe/src/components/custom/general/Toolbar.tsx:
@@ -448,44 +462,9 @@ fe/src/components/ui/alert-dialog.tsx:
 │function AlertDialog({
 │  ...props
 ⋮
-│  return (
-│    <AlertDialogPrimitive.Overlay
-│      data-slot="alert-dialog-overlay"
-│      className={cn(
-│        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-⋮
-│        data-slot="alert-dialog-content"
-│        className={cn(
-│          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=c
-│          className
-⋮
-│  return (
-│    <div
-│      data-slot="alert-dialog-footer"
-│      className={cn(
-│        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-│        className
-│      )}
-│      {...props}
-│    />
-│  )
-⋮
 │function AlertDialogDescription({
 │  className,
 │  ...props
-⋮
-│    <AlertDialogPrimitive.Action
-│      className={cn(buttonVariants(), className)}
-│      {...props}
-⋮
-│    <AlertDialogPrimitive.Cancel
-│      className={cn(buttonVariants({ variant: "outline" }), className)}
-│      {...props}
 ⋮
 
 fe/src/components/ui/aspect-ratio.tsx:
@@ -770,6 +749,71 @@ fe/src/components/ui/input-otp.tsx:
 │      {...props}
 │    />
 │  )
+⋮
+
+fe/src/components/ui/menubar.tsx:
+⋮
+│function MenubarMenu({
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Menu>) {
+⋮
+│function MenubarGroup({
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Group>) {
+⋮
+│function MenubarPortal({
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Portal>) {
+⋮
+│function MenubarTrigger({
+│  className,
+│  ...props
+│}: React.ComponentProps<typeof MenubarPrimitive.Trigger>) {
+│  return (
+│    <MenubarPrimitive.Trigger
+│      data-slot="menubar-trigger"
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]
+│        className
+│      )}
+│      {...props}
+│    />
+│  );
+⋮
+│        className={cn(
+│          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:fade
+│          className
+⋮
+│}) {
+│  return (
+│    <MenubarPrimitive.Item
+│      data-slot="menubar-item"
+│      data-inset={inset}
+│      data-variant={variant}
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive d
+│        className
+│      )}
+│      {...props}
+⋮
+│      className={cn(
+│        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap
+│        className
+⋮
+│function MenubarShortcut({
+│  className,
+│  ...props
+│}: React.ComponentProps<"span">) {
+│  return (
+│    <span
+│      data-slot="menubar-shortcut"
+│      className={cn(
+│        "text-muted-foreground ml-auto text-xs tracking-widest",
+│        className
+│      )}
+│      {...props}
+│    />
+│  );
 ⋮
 
 fe/src/components/ui/navigation-menu.tsx:
