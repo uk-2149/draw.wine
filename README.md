@@ -1,7 +1,7 @@
 # draw.wine
 
 draw.wine is a real-time collaborative whiteboard built with React, TypeScript, Express, and Socket.IO.
-It supports multiplayer drawing sessions, live cursor sync, room invitations, and AI-assisted drawing generation.
+It supports multiplayer drawing sessions, live cursor sync, room invitations, AI-assisted drawing generation, and shared room state.
 
 ## Features
 
@@ -206,6 +206,20 @@ git push
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS 4, Radix UI, Rough.js, Socket.IO client
 - Backend: Express 5, Socket.IO, TypeScript, Helmet, CORS, compression, express-rate-limit, Resend, Google Generative AI SDK
+
+## Architecture Overview
+
+The diagrams below show the high-level structure and flow of draw.wine.
+
+### High-Level Architecture
+
+![draw.wine high-level architecture](uml/high.png)
+
+### Detailed Architecture Flow
+
+![draw.wine detailed architecture flow](uml/architecture.png)
+
+In short, the frontend handles drawing and collaboration UI, the backend manages rooms, permissions, and AI requests, and Redis keeps shared session state reliable across users.
 
 ## Contributing
 
