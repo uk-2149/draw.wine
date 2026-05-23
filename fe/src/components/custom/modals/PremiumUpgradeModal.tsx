@@ -21,7 +21,7 @@ import {
 } from "@solana/web3.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { getToken } from "@/services/auth.service";
-import { be_url } from "@/env/e";
+import { be_url, phantom_pub_key } from "@/env/e";
 
 interface PremiumUpgradeModalProps {
   isOpen: boolean;
@@ -121,9 +121,7 @@ export const PremiumUpgradeModal = ({
       toast.loading("Initiating transaction...", { id: "upgrade" });
 
       // Devnet treasury address
-      const treasuryPubkey = new PublicKey(
-        "6U2V5fGjJ2XJz5V4hVwGqU5nF5V5x5Y2tG6P1f6N4t9k",
-      );
+      const treasuryPubkey = new PublicKey(phantom_pub_key);
       const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: wallet.publicKey,
