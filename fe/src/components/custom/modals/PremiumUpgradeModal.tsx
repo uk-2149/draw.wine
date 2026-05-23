@@ -133,6 +133,13 @@ export const PremiumUpgradeModal = ({
       toast.loading("Please approve the transaction in your wallet...", {
         id: "upgrade",
       });
+
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
+
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = wallet.publicKey;
+
       const signature = await wallet.sendTransaction(transaction, connection);
 
       toast.loading(
@@ -140,10 +147,10 @@ export const PremiumUpgradeModal = ({
         { id: "upgrade" },
       );
 
-      const latestBlockhash = await connection.getLatestBlockhash();
       await connection.confirmTransaction({
         signature,
-        ...latestBlockhash,
+        blockhash,
+        lastValidBlockHeight,
       });
 
       toast.loading("Transaction confirmed! Upgrading account...", {
@@ -162,7 +169,10 @@ export const PremiumUpgradeModal = ({
       });
 
       if (!verifyRes.ok) {
-        throw new Error("Backend verification failed");
+        const errData = await verifyRes.json();
+        console.error("Backend verify error:", errData);
+
+        throw new Error(errData.error || JSON.stringify(errData));
       }
 
       toast.success("Successfully upgraded to Premium! Enjoy!", {
