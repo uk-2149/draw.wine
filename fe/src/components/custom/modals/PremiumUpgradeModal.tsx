@@ -21,6 +21,7 @@ import {
 } from "@solana/web3.js";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { getToken } from "@/services/auth.service";
+import { be_url } from "@/env/e";
 
 interface PremiumUpgradeModalProps {
   isOpen: boolean;
@@ -152,7 +153,7 @@ export const PremiumUpgradeModal = ({
       });
 
       // Verify on backend
-      const API_BASE = import.meta.env.VITE_API_URL || "/api";
+      const API_BASE = `${be_url}/api`;
       const verifyRes = await fetch(`${API_BASE}/payment/verify-upgrade`, {
         method: "POST",
         headers: {
